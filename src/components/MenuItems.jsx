@@ -71,6 +71,11 @@ const menuItems = () => {
           path: "/dashboard/settings/departments",
           icon: <MdApartment className="text-base" />,
         },
+        {
+          title: "User Roles",
+          path: "/dashboard/settings/roles",
+          icon: <MdBadge className="text-base" />,
+        },
 
         {
           title: "Access Control",

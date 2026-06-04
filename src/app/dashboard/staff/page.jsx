@@ -3,12 +3,11 @@
 import React, { useState, useEffect, useContext, useMemo } from "react";
 import {
   FiEdit, FiTrash2, FiX, FiUsers, FiUserCheck, FiStar,
-  FiPhone, FiMapPin, FiBriefcase
+  FiPhone, FiMapPin, FiBriefcase, FiSearch, FiPlus
 } from "react-icons/fi";
 import Swal from "sweetalert2";
-import { TfiSearch } from "react-icons/tfi";
-import { GoPlus } from "react-icons/go";
 
+import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
 import ImageUpload from "@/components/Comon/ImageUpload";
 import Preloader from "@/components/Comon/Preloader";
@@ -64,7 +63,7 @@ const ResortStaff = () => {
           title: "Connection Error",
           text: "Could not fetch resort data.",
           icon: "error",
-          confirmButtonColor: "#000000"
+          confirmButtonColor: "#346E36"
         });
       } finally {
         setPageLoading(false);
@@ -141,14 +140,14 @@ const ResortStaff = () => {
         title: "Success",
         text: `Staff profile has been successfully ${editId ? "updated" : "created"}.`,
         icon: "success",
-        confirmButtonColor: "#000000",
+        confirmButtonColor: "#346E36",
       });
     } catch (error) {
       Swal.fire({
         title: "Action Failed",
         text: error.response?.data?.message || "Failed to update staff record.",
         icon: "error",
-        confirmButtonColor: "#000000",
+        confirmButtonColor: "#346E36",
       });
     } finally {
       setIsSubmitting(false);
@@ -161,7 +160,7 @@ const ResortStaff = () => {
       text: "You won't be able to revert this!",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#000000",
+      confirmButtonColor: "#346E36",
       cancelButtonColor: "#d33",
       confirmButtonText: "Yes, delete it!"
     }).then(async (result) => {
@@ -173,7 +172,7 @@ const ResortStaff = () => {
             title: "Deleted!",
             text: "Staff profile deleted.",
             icon: "success",
-            confirmButtonColor: "#000000",
+            confirmButtonColor: "#346E36",
           });
         } catch (error) {
           Swal.fire("Error!", "Failed to delete user.", "error");
@@ -197,16 +196,18 @@ const ResortStaff = () => {
   }, [filteredUsers, currentPage, itemsPerPage]);
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen bg-white font-sans text-gray-800">
+    <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite font-sans text-brand-charcoal animate-scale-in">
 
       {/* Header & Inline Search */}
-      <div className="flex flex-col md:flex-row md:items-center gap-6 mb-8">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Resort Staff Directory</h1>
-        <div className="flex items-center gap-2 text-gray-400 focus-within:text-gray-700 transition-colors">
-          <TfiSearch className="text-lg" />
+      <SectionHeader 
+        title="Resort Staff Directory" 
+        subtitle="Manage resort personnel, roles, and access across all departments."
+      >
+        <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white rounded-full px-5 shadow-sm border-brand-beige w-full md:w-80 h-12">
+          <FiSearch className="text-brand-sage text-lg" />
           <input
             type="text"
-            className="outline-none bg-transparent placeholder-gray-400 text-sm font-medium w-full md:w-64"
+            className="grow placeholder-brand-sage text-brand-charcoal"
             placeholder="Search personnel..."
             value={searchTerm}
             onChange={e => {
@@ -214,37 +215,37 @@ const ResortStaff = () => {
               setCurrentPage(1);
             }}
           />
-        </div>
-      </div>
+        </label>
+      </SectionHeader>
 
-      {/* Stats Block (Stacked/Bordered style) */}
-      <div className="border border-gray-100 shadow-sm rounded-none mb-10">
-        <div className="p-6 border-b border-gray-100 flex items-start gap-4 hover:bg-gray-50 transition-colors">
-          <div className="text-emerald-700 mt-1"><FiUsers size={22} /></div>
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Personnel</p>
-            <h3 className="text-2xl font-normal">{users.length}</h3>
+      {/* Stats Block */}
+      <div className="stats shadow-sm bg-white w-full mb-8 border border-brand-beige rounded-2xl overflow-hidden hidden md:flex">
+        <div className="stat place-items-center py-6">
+          <div className="stat-figure text-brand-primary bg-brand-primary/10 p-4 rounded-full">
+            <FiUsers className="w-8 h-8" />
           </div>
+          <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">Total Personnel</div>
+          <div className="stat-value text-brand-black text-4xl mt-1">{users.length}</div>
         </div>
-        <div className="p-6 border-b border-gray-100 flex items-start gap-4 hover:bg-gray-50 transition-colors">
-          <div className="text-emerald-700 mt-1"><FiUserCheck size={22} /></div>
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">On Duty / Active</p>
-            <h3 className="text-2xl font-normal">{users.filter(u => u.status === 'active').length}</h3>
+        <div className="stat place-items-center py-6 border-l border-brand-beige">
+          <div className="stat-figure text-secondary bg-secondary/10 p-4 rounded-full">
+            <FiUserCheck className="w-8 h-8" />
           </div>
+          <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">On Duty / Active</div>
+          <div className="stat-value text-brand-black text-4xl mt-1">{users.filter(u => u.status === 'active').length}</div>
         </div>
-        <div className="p-6 flex items-start gap-4 hover:bg-gray-50 transition-colors">
-          <div className="text-amber-700 mt-1"><FiStar size={22} /></div>
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Management</p>
-            <h3 className="text-2xl font-normal">{users.filter(u => u.role === 'admin' || u.role === 'superadmin').length}</h3>
+        <div className="stat place-items-center py-6 border-l border-brand-beige">
+          <div className="stat-figure text-brand-bronze bg-brand-bronze/10 p-4 rounded-full">
+            <FiStar className="w-8 h-8" />
           </div>
+          <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">Management</div>
+          <div className="stat-value text-brand-black text-4xl mt-1">{users.filter(u => u.role === 'admin' || u.role === 'superadmin').length}</div>
         </div>
       </div>
 
       {/* Filter Tabs & Add Button */}
-      <div className="flex flex-wrap justify-between items-end border-b border-gray-200 pb-4 mb-4 gap-4">
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-wrap justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-brand-beige mb-6 gap-4">
+        <div className="flex flex-wrap gap-2">
           {uniqueRoles.map((role) => (
             <button
               key={role}
@@ -252,9 +253,9 @@ const ResortStaff = () => {
                 setSelectedRoleFilter(role);
                 setCurrentPage(1);
               }}
-              className={`px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest border transition-colors ${selectedRoleFilter === role
-                ? "bg-black text-white border-black"
-                : "bg-white text-gray-800 border-gray-300 hover:border-gray-800"
+              className={`btn btn-sm rounded-full border-none transition-colors px-6 ${selectedRoleFilter === role
+                ? "bg-brand-primary text-white hover:bg-secondary shadow-md"
+                : "bg-brand-offwhite text-brand-charcoal hover:bg-brand-beige"
                 }`}
             >
               {role === "all" ? "All Departments" : role}
@@ -263,20 +264,20 @@ const ResortStaff = () => {
         </div>
 
         {assignableRoles.length > 0 && (
-          <button onClick={() => openModal()} className="flex gap-2 items-center bg-black text-white py-2 px-5 hover:bg-gray-800 transition duration-300">
-            <span className="font-bold text-xs tracking-widest uppercase">New Personnel</span>
-            <GoPlus className="text-lg" />
+          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md text-white hover:bg-secondary border-none gap-2 px-6 h-10">
+            <FiPlus className="text-lg" />
+            <span className="uppercase tracking-widest text-xs font-bold">New Personnel</span>
           </button>
         )}
       </div>
 
       {/* Display / Total Bar */}
-      <div className="flex justify-between items-center text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">
-        <label className="flex items-center gap-2">
-          Display
+      <div className="flex justify-between items-center text-xs font-bold text-brand-sage uppercase tracking-widest mb-4 px-2">
+        <div className="flex items-center gap-3">
+          <span>Display</span>
           <select
             value={itemsPerPage}
-            className="border border-gray-300 rounded px-2 py-1 outline-none focus:border-black text-gray-800 cursor-pointer"
+            className="select select-bordered select-xs bg-white text-brand-charcoal rounded-md border-brand-beige focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 px-2"
             onChange={(e) => {
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
@@ -285,8 +286,9 @@ const ResortStaff = () => {
             <option value="5">5</option>
             <option value="10">10</option>
             <option value="15">15</option>
+            <option value="50">50</option>
           </select>
-        </label>
+        </div>
         <span>Total Records: {totalItems}</span>
       </div>
 
@@ -294,95 +296,113 @@ const ResortStaff = () => {
       {isPageLoading ? (
         <Preloader />
       ) : (
-        <section className="overflow-x-auto bg-white border border-gray-100 shadow-sm mt-4">
-          <table className="table w-full border-collapse">
-            <thead>
-              <tr className="bg-[#F8F7F5] text-[10px] text-gray-500 uppercase tracking-widest font-bold text-left border-b border-gray-200">
-                <th className="p-4 pl-6">Staff Member</th>
-                <th className="p-4">System Role</th>
-                <th className="p-4">Division</th>
-                <th className="p-4">Contact</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 pr-6 text-center">Manage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedData.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-brand-beige overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="table w-full">
+              <thead className="bg-brand-offwhite text-brand-charcoal font-bold uppercase tracking-widest text-[10px] border-b border-brand-beige">
                 <tr>
-                  <td colSpan="6" className="text-center py-12 text-gray-400 text-xs font-bold tracking-widest uppercase">
-                    No personnel found.
-                  </td>
+                  <th className="pl-8 py-5">Staff Member</th>
+                  <th className="py-5">System Role</th>
+                  <th className="py-5">Department</th>
+                  <th className="py-5">Contact</th>
+                  <th className="py-5">Status</th>
+                  <th className="pr-8 text-center py-5">Manage</th>
                 </tr>
-              ) : (
-                paginatedData.map((user) => {
-                  let canPerformAction = false;
-                  if (currentUser?._id !== user._id) {
-                    if (currentUser?.role === "admin" || currentUser?.role === "superadmin") {
-                      canPerformAction = true;
-                    } else if (currentUser?.role === "manager" && user.role !== "admin" && user.role !== "superadmin") {
-                      canPerformAction = true;
+              </thead>
+              <tbody>
+                {paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="p-4 bg-brand-offwhite rounded-full">
+                          <FiUsers className="w-12 h-12 text-brand-sage opacity-50" />
+                        </div>
+                        No personnel found in this criteria.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((user) => {
+                    let canPerformAction = false;
+                    if (currentUser?._id !== user._id) {
+                      if (currentUser?.role === "admin" || currentUser?.role === "superadmin") {
+                        canPerformAction = true;
+                      } else if (currentUser?.role === "manager" && user.role !== "admin" && user.role !== "superadmin") {
+                        canPerformAction = true;
+                      }
                     }
-                  }
 
-                  return (
-                    <tr key={user._id} className="hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors">
-                      <td className="p-4 pl-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
-                            {user.photo ? (
-                              <img src={user.photo} alt={user.name} className="w-full h-full object-cover" />
+                    return (
+                      <tr key={user._id} className="hover:bg-brand-offwhite/50 transition-colors border-b border-brand-beige last:border-none bg-white">
+                        <td className="pl-8 py-4">
+                          <div className="flex items-center gap-4">
+                            <div className="avatar">
+                              <div className="w-12 h-12 rounded-full ring-2 ring-brand-primary ring-offset-2 ring-offset-white bg-brand-offwhite flex items-center justify-center text-brand-primary font-bold text-lg shadow-sm">
+                                {user.photo ? (
+                                  <img src={user.photo} alt={user.name} />
+                                ) : (
+                                  <span>{user.name.substring(0, 2).toUpperCase()}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-bold text-brand-black text-sm uppercase tracking-wide">{user.name}</div>
+                              <div className="text-xs text-brand-sage mt-1">{user.email}</div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4">
+                          <div className="flex items-center gap-2.5 text-xs font-semibold text-brand-dark-grey capitalize">
+                            <div className="p-2 bg-brand-offwhite rounded-lg text-brand-primary"><FiBriefcase size={14} /></div>
+                            {user.role}
+                          </div>
+                        </td>
+
+                        <td className="py-4">
+                          <div className="flex items-center gap-2.5 text-xs font-semibold text-brand-dark-grey capitalize">
+                            <div className="p-2 bg-brand-offwhite rounded-lg text-brand-bronze"><FiMapPin size={14} /></div>
+                            {user.department || "Operations"}
+                          </div>
+                        </td>
+
+                        <td className="py-4 font-mono text-xs font-medium text-brand-dark-grey">
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-brand-offwhite rounded-lg text-secondary"><FiPhone size={14} /></div>
+                            {user.mobileNumber || "N/A"}
+                          </div>
+                        </td>
+
+                        <td className="py-4">
+                          <div className={`badge badge-sm font-bold uppercase tracking-widest border-none px-3 py-2 ${user.status === 'active' ? 'bg-[#E6F4EA] text-[#1E8E3E]' : 'bg-[#FCE8E6] text-[#D93025]'}`}>
+                            {user.status}
+                          </div>
+                        </td>
+
+                        <td className="pr-8 py-4">
+                          <div className="flex justify-center items-center gap-2">
+                            {canPerformAction ? (
+                              <>
+                                <button onClick={() => openModal(user)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors" title="Edit Personnel">
+                                  <FiEdit size={16} />
+                                </button>
+                                <button onClick={() => handleRemove(user._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete Personnel">
+                                  <FiTrash2 size={16} />
+                                </button>
+                              </>
                             ) : (
-                              <span className="text-gray-400 font-bold text-xs uppercase">{user.name.substring(0, 2)}</span>
+                              <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite">Restricted</div>
                             )}
                           </div>
-                          <div>
-                            <p className="font-bold text-gray-900 text-sm uppercase">{user.name}</p>
-                            <p className="text-[11px] text-gray-400">{user.email}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="p-4">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 capitalize">
-                          <FiBriefcase className="text-gray-400" /> {user.role}
-                        </span>
-                      </td>
-
-                      <td className="p-4">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 capitalize">
-                          <FiMapPin className="text-gray-400" /> {user.department || "Operations"}
-                        </span>
-                      </td>
-
-                      <td className="p-4 font-mono text-xs font-medium text-gray-700">
-                        <span className="inline-flex items-center gap-1.5">
-                          <FiPhone className="text-gray-400" /> {user.mobileNumber || "N/A"}
-                        </span>
-                      </td>
-
-                      <td className="p-4">
-                        <span className={`inline-block px-3 py-1 text-[10px] font-bold uppercase tracking-widest border ${user.status === 'active' ? 'border-emerald-600 text-emerald-700' : 'border-red-600 text-red-700'}`}>
-                          {user.status}
-                        </span>
-                      </td>
-
-                      <td className="p-4 pr-6">
-                        <div className="flex justify-center items-center gap-3">
-                          {canPerformAction ? (
-                            <>
-                              <button onClick={() => openModal(user)} className="text-gray-400 hover:text-gray-800 transition"><FiEdit size={16} /></button>
-                              <button onClick={() => handleRemove(user._id)} className="text-gray-400 hover:text-red-600 transition"><FiTrash2 size={16} /></button>
-                            </>
-                          ) : <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">Restricted</span>}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-          <div className="p-4 border-t border-gray-100">
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-5 border-t border-brand-beige bg-brand-offwhite/30 flex justify-center">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -391,72 +411,76 @@ const ResortStaff = () => {
               onPageChange={(page) => setCurrentPage(page)}
             />
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Modal - Updated for cleaner UI */}
+      {/* Modal Section */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white border border-gray-200 shadow-2xl w-full max-w-md rounded-none">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
-              <h2 className="text-lg font-bold uppercase tracking-wider">{editId ? 'Update Personnel' : 'Register Personnel'}</h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-800 transition"><FiX size={22} /></button>
+        <dialog className="modal modal-open modal-bottom sm:modal-middle bg-brand-charcoal/40 backdrop-blur-sm">
+          <div className="modal-box bg-white p-0 overflow-hidden max-w-xl rounded-2xl shadow-2xl">
+            <div className="flex justify-between items-center p-6 border-b border-brand-beige bg-brand-offwhite">
+              <h3 className="font-bold text-lg text-brand-black uppercase tracking-widest">{editId ? 'Update Personnel Record' : 'Register New Personnel'}</h3>
+              <button onClick={closeModal} className="btn btn-sm btn-circle btn-ghost text-brand-charcoal hover:bg-brand-beige">
+                <FiX size={20} />
+              </button>
             </div>
 
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Full Legal Name</label>
+            <div className="p-8 space-y-6">
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Full Legal Name</span></label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full border border-gray-300 p-2.5 outline-none focus:border-black text-sm"
+                  className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white text-brand-charcoal focus:outline-none"
                   placeholder="e.g. John Doe"
                 />
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Corporate Email</label>
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Corporate Email</span></label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full border border-gray-300 p-2.5 outline-none focus:border-black text-sm"
+                  className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white text-brand-charcoal focus:outline-none"
                   placeholder="staff@resort.com"
                 />
               </div>
 
               {!editId && (
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Temporary Password</label>
+                <div className="form-control w-full">
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Temporary Password</span></label>
                   <input
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full border border-gray-300 p-2.5 outline-none focus:border-black text-sm"
+                    className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white text-brand-charcoal focus:outline-none"
                     placeholder="••••••••"
                   />
                 </div>
               )}
 
-              <div className="p-4 bg-gray-50 border border-gray-200">
+              <div className="p-6 bg-brand-offwhite rounded-2xl border border-brand-beige">
                 {formData.photo && (
-                  <div className="flex justify-center mb-4">
-                    <div className="w-16 h-16 border-2 border-black overflow-hidden bg-gray-100">
-                      <img src={formData.photo} alt="ID Preview" className="w-full h-full object-cover" />
+                  <div className="flex justify-center mb-6">
+                    <div className="avatar">
+                      <div className="w-24 rounded-full ring-4 ring-brand-primary ring-offset-4 ring-offset-white shadow-lg">
+                        <img src={formData.photo} alt="ID Preview" />
+                      </div>
                     </div>
                   </div>
                 )}
                 <ImageUpload setImageUrl={handleImageUpload} />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">System Role</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="form-control w-full">
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">System Role</span></label>
                   <select
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full border border-gray-300 p-2.5 outline-none focus:border-black text-sm capitalize"
+                    className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white text-brand-charcoal capitalize focus:outline-none"
                   >
                     <option value="" disabled>Select Role</option>
                     {assignableRoles.map(role => (
@@ -465,14 +489,14 @@ const ResortStaff = () => {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Resort Division</label>
+                <div className="form-control w-full">
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Department</span></label>
                   <select
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full border border-gray-300 p-2.5 outline-none focus:border-black text-sm capitalize"
+                    className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white text-brand-charcoal capitalize focus:outline-none"
                   >
-                    <option value="" disabled>Select Division</option>
+                    <option value="" disabled>Select Department</option>
                     {departments.map(dept => (
                       <option key={dept._id} value={dept.department}>{dept.department}</option>
                     ))}
@@ -480,24 +504,24 @@ const ResortStaff = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Contact Number</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="form-control w-full">
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Contact Number</span></label>
                   <input
                     type="text"
                     value={formData.mobileNumber || ""}
                     onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
-                    className="w-full border border-gray-300 p-2.5 outline-none focus:border-black text-sm"
+                    className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white text-brand-charcoal focus:outline-none font-mono"
                     placeholder="+1 234 567 8900"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Duty Status</label>
+                <div className="form-control w-full">
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Duty Status</span></label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full border border-gray-300 p-2.5 outline-none focus:border-black text-sm"
+                    className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white text-brand-charcoal font-bold focus:outline-none"
                   >
                     <option value="active">Active Duty</option>
                     <option value="inactive">Off Duty / Suspended</option>
@@ -506,14 +530,22 @@ const ResortStaff = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50">
-              <button onClick={closeModal} className="px-5 py-2 border border-gray-300 text-xs font-bold uppercase tracking-widest hover:bg-gray-100 transition">Cancel</button>
-              <button onClick={handleAddOrEditUser} className="px-5 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition" disabled={isSubmitting}>
-                {isSubmitting ? 'Processing...' : (editId ? 'Save' : 'Register')}
+            <div className="flex justify-end gap-3 p-6 border-t border-brand-beige bg-brand-offwhite">
+              <button onClick={closeModal} className="btn btn-ghost hover:bg-brand-beige text-brand-charcoal font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
+              <button onClick={handleAddOrEditUser} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none text-white font-bold uppercase tracking-widest text-xs px-8 shadow-md border-none" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm"></span>
+                    Processing...
+                  </>
+                ) : (editId ? 'Save Changes' : 'Register')}
               </button>
             </div>
           </div>
-        </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={closeModal}>close</button>
+          </form>
+        </dialog>
       )}
     </div>
   );
