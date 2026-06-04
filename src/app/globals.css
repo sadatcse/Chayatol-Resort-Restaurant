@@ -1,0 +1,70 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #346E36;
+  --color-secondary: #1B421C;
+  --color-brand-primary: #346E36;
+  --color-brand-secondary: #1B421C;
+  --color-brand-white: #FFFFFF;
+  --color-brand-black: #000000;
+  --color-brand-dark-grey: #2A2A2A;
+  --color-brand-charcoal: #151515;
+  --color-brand-offwhite: #F5F7F5;
+  --color-brand-beige: #EAE3D9;
+  --color-brand-sage: #8EAB8F;
+  --color-brand-bronze: #8C5A35;
+}
+
+/* Custom animations for Tailwind CSS v4 */
+@utility animate-scale-in {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* UNIVERSAL THEME STYLES */
+body {
+  background-color: var(--color-brand-offwhite);
+  color: var(--color-brand-charcoal);
+  transition-property: color, background-color;
+  transition-duration: 300ms;
+}
+
+.dark body {
+  background-color: var(--color-brand-charcoal);
+  color: var(--color-brand-offwhite);
+}
+
+/* Sidebar scrollbar styles */
+.sidebar {
+  scrollbar-width: thin;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background-color: var(--color-brand-offwhite);
+  width: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: var(--color-brand-sage);
+  border-radius: 5px;
+  border: 2px solid var(--color-brand-dark-grey);
+  width: 3px;
+}

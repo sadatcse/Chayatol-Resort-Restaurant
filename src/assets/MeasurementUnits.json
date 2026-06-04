@@ -1,0 +1,350 @@
+[
+  {
+    "name": "Pieces",
+    "abbreviation": "pcs",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Sets",
+    "abbreviation": "set",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Packs",
+    "abbreviation": "pk",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Dozen",
+    "abbreviation": "dz",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Pairs",
+    "abbreviation": "pr",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Boxes",
+    "abbreviation": "box",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Bundles",
+    "abbreviation": "bdl",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Rolls",
+    "abbreviation": "roll",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Pallets",
+    "abbreviation": "plt",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Cartons",
+    "abbreviation": "ctn",
+    "type": "Count",
+    "status": "Active"
+  },
+  {
+    "name": "Kilograms",
+    "abbreviation": "kg",
+    "type": "Weight",
+    "status": "Active"
+  },
+  {
+    "name": "Grams",
+    "abbreviation": "g",
+    "type": "Weight",
+    "status": "Active"
+  },
+  {
+    "name": "Milligrams",
+    "abbreviation": "mg",
+    "type": "Weight",
+    "status": "Active"
+  },
+  {
+    "name": "Micrograms",
+    "abbreviation": "mcg",
+    "type": "Weight",
+    "status": "Active"
+  },
+  {
+    "name": "Pounds",
+    "abbreviation": "lb",
+    "type": "Weight",
+    "status": "Active"
+  },
+  {
+    "name": "Ounces",
+    "abbreviation": "oz",
+    "type": "Weight",
+    "status": "Active"
+  },
+  {
+    "name": "Metric Tonnes",
+    "abbreviation": "t",
+    "type": "Weight",
+    "status": "Active"
+  },
+  {
+    "name": "Carats",
+    "abbreviation": "ct",
+    "type": "Weight (Jewelry)",
+    "status": "Active"
+  },
+  {
+    "name": "Liters",
+    "abbreviation": "l",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Milliliters",
+    "abbreviation": "ml",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Centiliters",
+    "abbreviation": "cl",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Gallons (US)",
+    "abbreviation": "gal",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Fluid Ounces",
+    "abbreviation": "fl oz",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Pints",
+    "abbreviation": "pt",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Quarts",
+    "abbreviation": "qt",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Cups",
+    "abbreviation": "cup",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Cubic Meters",
+    "abbreviation": "m³",
+    "type": "Volume",
+    "status": "Active"
+  },
+  {
+    "name": "Meters",
+    "abbreviation": "m",
+    "type": "Length",
+    "status": "Active"
+  },
+  {
+    "name": "Centimeters",
+    "abbreviation": "cm",
+    "type": "Length",
+    "status": "Active"
+  },
+  {
+    "name": "Millimeters",
+    "abbreviation": "mm",
+    "type": "Length",
+    "status": "Active"
+  },
+  {
+    "name": "Inches",
+    "abbreviation": "in",
+    "type": "Length",
+    "status": "Active"
+  },
+  {
+    "name": "Feet",
+    "abbreviation": "ft",
+    "type": "Length",
+    "status": "Active"
+  },
+  {
+    "name": "Yards",
+    "abbreviation": "yd",
+    "type": "Length",
+    "status": "Active"
+  },
+  {
+    "name": "Square Meters",
+    "abbreviation": "m²",
+    "type": "Area",
+    "status": "Active"
+  },
+  {
+    "name": "Square Feet",
+    "abbreviation": "sq ft",
+    "type": "Area",
+    "status": "Active"
+  },
+  {
+    "name": "Square Yards",
+    "abbreviation": "sq yd",
+    "type": "Area",
+    "status": "Active"
+  },
+  {
+    "name": "Acres",
+    "abbreviation": "ac",
+    "type": "Area",
+    "status": "Active"
+  },
+  {
+    "name": "Watts",
+    "abbreviation": "W",
+    "type": "Electrical",
+    "status": "Active"
+  },
+  {
+    "name": "Kilowatts",
+    "abbreviation": "kW",
+    "type": "Electrical",
+    "status": "Active"
+  },
+  {
+    "name": "Volts",
+    "abbreviation": "V",
+    "type": "Electrical",
+    "status": "Active"
+  },
+  {
+    "name": "Amperes",
+    "abbreviation": "A",
+    "type": "Electrical",
+    "status": "Active"
+  },
+  {
+    "name": "Milliampere Hour",
+    "abbreviation": "mAh",
+    "type": "Electrical (Battery)",
+    "status": "Active"
+  },
+  {
+    "name": "Hertz",
+    "abbreviation": "Hz",
+    "type": "Frequency",
+    "status": "Active"
+  },
+  {
+    "name": "Gigahertz",
+    "abbreviation": "GHz",
+    "type": "Frequency",
+    "status": "Active"
+  },
+  {
+    "name": "Lumens",
+    "abbreviation": "lm",
+    "type": "Light",
+    "status": "Active"
+  },
+  {
+    "name": "Kelvin",
+    "abbreviation": "K",
+    "type": "Temperature (Light Color)",
+    "status": "Active"
+  },
+  {
+    "name": "Celsius",
+    "abbreviation": "°C",
+    "type": "Temperature",
+    "status": "Active"
+  },
+  {
+    "name": "Fahrenheit",
+    "abbreviation": "°F",
+    "type": "Temperature",
+    "status": "Active"
+  },
+  {
+    "name": "Pascal",
+    "abbreviation": "Pa",
+    "type": "Pressure",
+    "status": "Active"
+  },
+  {
+    "name": "Bar",
+    "abbreviation": "bar",
+    "type": "Pressure",
+    "status": "Active"
+  },
+  {
+    "name": "PSI",
+    "abbreviation": "psi",
+    "type": "Pressure",
+    "status": "Active"
+  },
+  {
+    "name": "Newton Meters",
+    "abbreviation": "N⋅m",
+    "type": "Torque",
+    "status": "Active"
+  },
+  {
+    "name": "Megabytes",
+    "abbreviation": "MB",
+    "type": "Digital Storage",
+    "status": "Active"
+  },
+  {
+    "name": "Gigabytes",
+    "abbreviation": "GB",
+    "type": "Digital Storage",
+    "status": "Active"
+  },
+  {
+    "name": "Terabytes",
+    "abbreviation": "TB",
+    "type": "Digital Storage",
+    "status": "Active"
+  },
+  {
+    "name": "Grams per Sq Meter",
+    "abbreviation": "gsm",
+    "type": "Paper/Fabric Density",
+    "status": "Active"
+  },
+  {
+    "name": "Denier",
+    "abbreviation": "D",
+    "type": "Fabric Density",
+    "status": "Active"
+  },
+  {
+    "name": "British Thermal Unit",
+    "abbreviation": "BTU",
+    "type": "Energy (HVAC)",
+    "status": "Active"
+  }
+]
