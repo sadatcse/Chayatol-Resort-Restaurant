@@ -1,14 +1,19 @@
-import { useState, useCallback, useEffect } from "react";
+"use client";
+
+import { useState, useCallback, useEffect, useContext } from "react";
+import { AuthContext } from "../providers/AuthProvider";
 import useAxiosSecure from "./useAxiosSecure";
 
 const useDepartments = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
   const axiosSecure = useAxiosSecure();
+  const { user } = useContext(AuthContext);
   const [departments, setDepartments] = useState([]);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchDepartments = useCallback(async () => {
+    if (!user) return; // Wait for user to be loaded
     setIsLoading(true);
     try {
       const response = await axiosSecure.get(
@@ -22,7 +27,7 @@ const useDepartments = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => 
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, currentPage, itemsPerPage, searchTerm]);
+  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, user]);
 
   useEffect(() => {
     fetchDepartments();

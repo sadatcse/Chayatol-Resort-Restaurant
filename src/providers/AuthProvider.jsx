@@ -85,6 +85,25 @@ const AuthProvider = ({ children }) => {
   const logoutUser = async () => {
     setLoading(true);
     try {
+      if (user?.email) {
+        if (typeof window !== "undefined") {
+          const token = localStorage.getItem("authToken");
+          if (token) {
+            await axiosSecure.post(
+              "/user/logout",
+              { email: user.email },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error logging out from server:", error);
+    } finally {
       setUser(null);
       setUserProfile(null);
 
@@ -92,7 +111,6 @@ const AuthProvider = ({ children }) => {
         localStorage.removeItem("authUser");
         localStorage.removeItem("authToken");
       }
-    } finally {
       setLoading(false);
     }
   };

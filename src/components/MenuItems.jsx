@@ -54,6 +54,11 @@ const menuItems = () => {
           icon: <MdPeople className="text-base" />,
         },
         {
+          title: "Customers",
+          path: "/dashboard/customers",
+          icon: <MdGroup className="text-base" />,
+        },
+        {
           title: "User Access Logs",
           path: "/dashboard/user-access",
           icon: <MdListAlt className="text-base" />,
@@ -66,6 +71,16 @@ const menuItems = () => {
       title: "Setting",
       icon: <MdSettings className="text-lg" />,
       children: [
+        {
+          title: "Company Settings",
+          path: "/dashboard/settings/company",
+          icon: <MdBusiness className="text-base" />,
+        },
+        {
+          title: "Food Categories",
+          path: "/dashboard/settings/categories",
+          icon: <MdListAlt className="text-base" />,
+        },
         {
           title: "Departments",
           path: "/dashboard/settings/departments",
@@ -91,6 +106,11 @@ const menuItems = () => {
           title: "Expense Category",
           path: "/dashboard/setting/expensecategory",
           icon: <MdPayments className="text-base" />,
+        },
+        {
+          title: "Restaurant Table",
+          path: "/dashboard/setting/restauranttable",
+          icon: <MdListAlt className="text-base" />,
         },
         {
           title: "My Profile",
