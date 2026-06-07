@@ -59,8 +59,51 @@ const menuItems = () => {
           icon: <MdGroup className="text-base" />,
         },
         {
+          title: "Room Bookings",
+          path: "/dashboard/bookings",
+          icon: <MdEventAvailable className="text-base" />,
+        },
+        {
+          title: "Room Management",
+          path: "/dashboard/rooms",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
           title: "User Access Logs",
           path: "/dashboard/user-access",
+          icon: <MdListAlt className="text-base" />,
+        },
+      ],
+    },
+
+    // ================= RESTAURANT MANAGEMENT =================
+    {
+      title: "Restaurant Management",
+      icon: <MdLocalShipping className="text-lg" />,
+      children: [
+        {
+          title: "POS System",
+          path: "/dashboard/pos",
+          icon: <MdReceiptLong className="text-base" />,
+        },
+        {
+          title: "Invoices",
+          path: "/dashboard/invoices",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Food Menu",
+          path: "/dashboard/food",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Food Categories",
+          path: "/dashboard/settings/categories",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Restaurant Table",
+          path: "/dashboard/setting/restauranttable",
           icon: <MdListAlt className="text-base" />,
         },
       ],
@@ -75,11 +118,6 @@ const menuItems = () => {
           title: "Company Settings",
           path: "/dashboard/settings/company",
           icon: <MdBusiness className="text-base" />,
-        },
-        {
-          title: "Food Categories",
-          path: "/dashboard/settings/categories",
-          icon: <MdListAlt className="text-base" />,
         },
         {
           title: "Departments",
@@ -106,11 +144,6 @@ const menuItems = () => {
           title: "Expense Category",
           path: "/dashboard/setting/expensecategory",
           icon: <MdPayments className="text-base" />,
-        },
-        {
-          title: "Restaurant Table",
-          path: "/dashboard/setting/restauranttable",
-          icon: <MdListAlt className="text-base" />,
         },
         {
           title: "My Profile",

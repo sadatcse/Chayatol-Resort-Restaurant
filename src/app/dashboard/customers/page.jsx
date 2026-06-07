@@ -9,6 +9,7 @@ import Swal from "sweetalert2";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
+import CustomerModal from "@/components/CustomerModal";
 import ImageUpload from "@/components/Comon/ImageUpload";
 import Preloader from "@/components/Comon/Preloader";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
@@ -397,8 +398,8 @@ const CustomersPage = () => {
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
 
       {/* Header & Inline Search */}
-      <SectionHeader 
-        title="Customer Manager" 
+      <SectionHeader
+        title="Customer Manager"
         subtitle="Register resort guests, manage files, identification, and profile data."
       >
         <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-80 h-12">
@@ -630,7 +631,7 @@ const CustomersPage = () => {
       {isModalOpen && (
         <dialog className="modal modal-open modal-bottom sm:modal-middle bg-brand-charcoal/40 backdrop-blur-sm">
           <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-2xl rounded-2xl shadow-2xl border border-brand-beige/20 dark:border-brand-beige/20">
-            
+
             {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
               <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">
@@ -648,11 +649,10 @@ const CustomersPage = () => {
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className={`flex-1 py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-center border-b-2 transition-all ${
-                    activeTab === tab
+                  className={`flex-1 py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-center border-b-2 transition-all ${activeTab === tab
                       ? "border-brand-primary text-brand-primary dark:text-brand-offwhite bg-white dark:bg-brand-charcoal/10"
                       : "border-transparent text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite"
-                  }`}
+                    }`}
                 >
                   {tab === "basic" && "Basic Info"}
                   {tab === "address" && "Address"}
