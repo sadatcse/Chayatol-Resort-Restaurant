@@ -91,7 +91,13 @@ const UserProfile = () => {
       const data = response.data;
       
       // Update local storage/context with new user details
-      setUser(prevUser => ({ ...prevUser, ...data }));
+      setUser(prevUser => {
+        const updatedUser = { ...prevUser, ...data };
+        if (typeof window !== "undefined") {
+          localStorage.setItem("authUser", JSON.stringify(updatedUser));
+        }
+        return updatedUser;
+      });
       
       Swal.fire({ 
         icon: "success", 

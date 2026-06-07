@@ -97,22 +97,22 @@ const FoodPage = () => {
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     // Optional: show a loading state specifically for the image upload
     setIsSubmitting(true);
-    
+
     try {
       const formData = new FormData();
       formData.append("image", file);
-      
-      const response = await fetch("https://api.imgbb.com/1/upload?key=f9bb15ecf3e69fbd1a8862cc629ed483", {
+
+      const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
       const data = await response.json();
-      
+
       if (data.success) {
-        setFormData(prev => ({ ...prev, image: data.data.display_url }));
+        setFormData(prev => ({ ...prev, image: data.url }));
       } else {
         Swal.fire("Error", "Image upload failed. Please try again.", "error");
       }
@@ -318,10 +318,9 @@ const FoodPage = () => {
                             ৳{food.price}
                           </td>
                           <td className="py-4">
-                            <span className={`badge badge-sm font-bold tracking-wider uppercase text-[10px] border-none ${
-                              food.status === "Available" ? "bg-green-100 text-green-700" :
-                              "bg-red-100 text-red-700"
-                            }`}>
+                            <span className={`badge badge-sm font-bold tracking-wider uppercase text-[10px] border-none ${food.status === "Available" ? "bg-green-100 text-green-700" :
+                                "bg-red-100 text-red-700"
+                              }`}>
                               {food.status}
                             </span>
                           </td>
@@ -433,7 +432,7 @@ const FoodPage = () => {
                   placeholder="e.g. 250"
                 />
               </div>
-              
+
               <div className="flex gap-4">
                 <div className="form-control w-1/2">
                   <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">VAT (%)</span></label>

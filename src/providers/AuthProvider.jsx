@@ -119,6 +119,7 @@ const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user,
+        setUser,
         userProfile,
         loading,
         registerUser,

@@ -17,11 +17,8 @@ const ImageUpload = ({
     formData.append("image", imageFile);
 
     try {
-      const uploadUrl = process.env.NEXT_PUBLIC_UPLOAD_URL || "http://localhost:5000";
-      const s3BaseUrl = process.env.NEXT_PUBLIC_S3_BASE_URL || "https://mondolagro.s3.ap-southeast-1.amazonaws.com";
-
       const response = await axios.post(
-        `${uploadUrl}/api/get-image-url?pathName=Chayatol`,
+        "/api/upload",
         formData,
         {
           headers: {
@@ -31,7 +28,7 @@ const ImageUpload = ({
       );
 
       const data = response.data;
-      const path = `${s3BaseUrl}/${data.path}`;
+      const path = data.url;
 
       if (response.status === 200) {
         if (setImageUrl) {

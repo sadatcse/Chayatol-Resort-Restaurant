@@ -146,6 +146,16 @@ const menuItems = () => {
           icon: <MdPayments className="text-base" />,
         },
         {
+          title: "Charge Settings",
+          path: "/dashboard/settings/charges",
+          icon: <MdPayments className="text-base" />,
+        },
+        {
+          title: "System Controls",
+          path: "/dashboard/settings/controls",
+          icon: <MdSettings className="text-base" />,
+        },
+        {
           title: "My Profile",
           path: "/dashboard/profile",
           icon: <MdPerson className="text-base" />,
