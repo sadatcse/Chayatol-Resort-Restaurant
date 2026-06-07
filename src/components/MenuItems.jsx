@@ -59,8 +59,31 @@ const menuItems = () => {
           icon: <MdGroup className="text-base" />,
         },
         {
+          title: "Room Bookings",
+          path: "/dashboard/bookings",
+          icon: <MdEventAvailable className="text-base" />,
+        },
+        {
+          title: "Room Management",
+          path: "/dashboard/rooms",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
           title: "User Access Logs",
           path: "/dashboard/user-access",
+          icon: <MdListAlt className="text-base" />,
+        },
+      ],
+    },
+
+    // ================= RESTAURANT MANAGEMENT =================
+    {
+      title: "Restaurant Management",
+      icon: <MdLocalShipping className="text-lg" />,
+      children: [
+        {
+          title: "Food Menu",
+          path: "/dashboard/food",
           icon: <MdListAlt className="text-base" />,
         },
       ],

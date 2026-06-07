@@ -62,9 +62,14 @@ body {
   width: 3px;
 }
 
-.sidebar::-webkit-scrollbar-thumb {
-  background-color: var(--color-brand-sage);
-  border-radius: 5px;
-  border: 2px solid var(--color-brand-dark-grey);
-  width: 3px;
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.react-datepicker__portal {
+  z-index: 9999 !important;
+}
+
+.react-datepicker-popper {
+  z-index: 9999 !important;
 }
