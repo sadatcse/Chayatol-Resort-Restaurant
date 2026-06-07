@@ -217,10 +217,12 @@ const BookingsPage = () => {
   const customSelectStyles = {
     control: (baseStyles) => ({
       ...baseStyles,
-      borderColor: 'var(--fallback-bc,oklch(var(--bc)/0.2))',
+      borderColor: '#346E36',
       minHeight: '3rem',
+      height: '3rem',
       borderRadius: '0.5rem',
       boxShadow: 'none',
+      backgroundColor: 'transparent',
       '&:hover': {
         borderColor: '#346E36'
       }

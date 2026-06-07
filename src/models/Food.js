@@ -14,8 +14,7 @@ const FoodSchema = Schema(
     },
     foodType: {
       type: String,
-      enum: ["Veg", "Non-Veg", "Beverage", "Dessert", "Other"],
-      default: "Non-Veg",
+      default: "Fast Food",
     },
     details: {
       type: String,

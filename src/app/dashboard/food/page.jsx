@@ -13,12 +13,13 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useFood from "@/hooks/useFood";
 import { AuthContext } from "@/providers/AuthProvider";
-import foodCategories from "@/data/foodCategories.json";
+import useFoodCategories from "@/hooks/useFoodCategories";
+import foodTypes from "@/data/foodCategories.json";
 
 const INITIAL_FORM_DATA = {
   foodName: "",
   category: "",
-  foodType: "Non-Veg",
+  foodType: "Fast Food",
   details: "",
   image: "",
   price: "",
@@ -59,7 +60,8 @@ const FoodPage = () => {
     debouncedSearchTerm
   );
 
-  const categoryOptions = foodCategories.map(cat => ({ value: cat, label: cat }));
+  const { categories, isLoading: isCategoriesLoading } = useFoodCategories(1, 100);
+  const categoryOptions = categories.map(cat => ({ value: cat.categoryName, label: cat.categoryName }));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,7 +74,7 @@ const FoodPage = () => {
       setFormData({
         foodName: foodToEdit.foodName || "",
         category: foodToEdit.category || "",
-        foodType: foodToEdit.foodType || "Non-Veg",
+        foodType: foodToEdit.foodType || "Fast Food",
         details: foodToEdit.details || "",
         image: foodToEdit.image || "",
         price: foodToEdit.price || "",
@@ -414,11 +416,9 @@ const FoodPage = () => {
                     onChange={(e) => setFormData({ ...formData, foodType: e.target.value })}
                     className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
                   >
-                    <option value="Veg">Veg</option>
-                    <option value="Non-Veg">Non-Veg</option>
-                    <option value="Beverage">Beverage</option>
-                    <option value="Dessert">Dessert</option>
-                    <option value="Other">Other</option>
+                    {foodTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
                   </select>
                 </div>
               </div>

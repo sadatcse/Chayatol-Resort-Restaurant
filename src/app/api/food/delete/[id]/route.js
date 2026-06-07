@@ -5,7 +5,7 @@ import Food from "@/models/Food";
 export async function DELETE(request, { params }) {
   try {
     await connectDB();
-    const { id } = params;
+    const { id } = await params;
 
     const deletedFood = await Food.findByIdAndDelete(id);
 
