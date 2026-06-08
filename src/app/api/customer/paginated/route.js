@@ -18,10 +18,11 @@ export async function GET(req) {
 
     const query = {};
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { phoneNumber: { $regex: search, $options: "i" } },
-        { emailAddress: { $regex: search, $options: "i" } },
+        { fullName: { $regex: escapedSearch, $options: "i" } },
+        { phoneNumber: { $regex: escapedSearch, $options: "i" } },
+        { emailAddress: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 

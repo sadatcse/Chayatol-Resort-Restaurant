@@ -281,7 +281,7 @@ const CustomerModal = ({ isOpen, onClose, customerToEdit, onSuccess, initialPhon
       } else {
         await axiosSecure.post("/customer/post", formData);
       }
-      if (onSuccess) await onSuccess();
+      if (onSuccess) await onSuccess(formData);
       closeModal();
       Swal.fire({
         title: "Success",

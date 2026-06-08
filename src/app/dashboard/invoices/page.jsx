@@ -209,10 +209,10 @@ export default function InvoicesPage() {
               <div className="mt-4">
                 <h4 className="font-bold mb-2 dark:text-white border-b pb-1 dark:border-gray-700">Items</h4>
                 <div className="space-y-2">
-                  {selectedInvoice.items.map((item, idx) => (
+                  {selectedInvoice.items?.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm dark:text-gray-300">
                       <span>{item.itemName} x{item.quantity}</span>
-                      <span>৳ {item.totalPrice.toFixed(2)}</span>
+                      <span>৳ {item.totalPrice?.toFixed(2) || item.totalPrice}</span>
                     </div>
                   ))}
                 </div>
@@ -221,35 +221,35 @@ export default function InvoicesPage() {
               <div className="bg-gray-50 dark:bg-brand-dark-grey p-4 rounded-lg mt-4 border border-gray-200 dark:border-gray-700 space-y-1 text-sm dark:text-gray-300">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span>৳ {selectedInvoice.subTotal.toFixed(2)}</span>
+                  <span>৳ {selectedInvoice.subTotal?.toFixed(2) || '0.00'}</span>
                 </div>
                 {selectedInvoice.discount > 0 && (
                   <div className="flex justify-between text-red-500">
                     <span>Discount:</span>
-                    <span>- ৳ {selectedInvoice.discount.toFixed(2)}</span>
+                    <span>- ৳ {selectedInvoice.discount?.toFixed(2) || '0.00'}</span>
                   </div>
                 )}
                 {selectedInvoice.vat > 0 && (
                   <div className="flex justify-between">
                     <span>VAT:</span>
-                    <span>+ ৳ {selectedInvoice.vat.toFixed(2)}</span>
+                    <span>+ ৳ {selectedInvoice.vat?.toFixed(2) || '0.00'}</span>
                   </div>
                 )}
                 {selectedInvoice.sd > 0 && (
                   <div className="flex justify-between">
                     <span>SD:</span>
-                    <span>+ ৳ {selectedInvoice.sd.toFixed(2)}</span>
+                    <span>+ ৳ {selectedInvoice.sd?.toFixed(2) || '0.00'}</span>
                   </div>
                 )}
                 {selectedInvoice.serviceCharge > 0 && (
                   <div className="flex justify-between">
                     <span>Service Charge:</span>
-                    <span>+ ৳ {selectedInvoice.serviceCharge.toFixed(2)}</span>
+                    <span>+ ৳ {selectedInvoice.serviceCharge?.toFixed(2) || '0.00'}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg dark:text-white pt-2 border-t mt-2 dark:border-gray-600">
                   <span>Grand Total:</span>
-                  <span className="text-brand-primary">৳ {selectedInvoice.grandTotal.toFixed(2)}</span>
+                  <span className="text-brand-primary">৳ {selectedInvoice.grandTotal?.toFixed(2) || '0.00'}</span>
                 </div>
               </div>
             </div>

@@ -8,6 +8,7 @@ import ReceiptPrint from "@/components/pos/ReceiptPrint";
 import { useReactToPrint } from "react-to-print";
 import Swal from "sweetalert2";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
+import CustomerModal from "@/components/CustomerModal";
 
 export default function POSPage() {
   const axiosSecure = useAxiosSecure();
@@ -24,6 +25,9 @@ export default function POSPage() {
 
   const [vatValue, setVatValue] = useState(5);
   const [vatType, setVatType] = useState("PERCENT");
+
+  const [sdValue, setSdValue] = useState(0);
+  const [sdType, setSdType] = useState("PERCENT");
 
   const [serviceChargeValue, setServiceChargeValue] = useState(0);
   const [serviceChargeType, setServiceChargeType] = useState("FLAT");
@@ -42,6 +46,10 @@ export default function POSPage() {
   
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   
   const [activeTab, setActiveTab] = useState("Order Details"); // "Order Details" or "Guest Info"
 
@@ -65,12 +73,12 @@ export default function POSPage() {
       try {
         const [tablesRes, roomsRes, staffRes, settingsRes] = await Promise.all([
           axiosSecure.get("/restauranttable").catch(() => ({ data: [] })),
-          axiosSecure.get("/rooms").catch(() => ({ data: { data: [] } })),
+          axiosSecure.get("/room").catch(() => ({ data: [] })),
           axiosSecure.get("/userrole").catch(() => ({ data: { data: [] } })),
           axiosSecure.get("/settings/charges").catch(() => ({ data: null }))
         ]);
         if (tablesRes.data) setTables(tablesRes.data);
-        if (roomsRes.data && roomsRes.data.data) setRooms(roomsRes.data.data);
+        if (roomsRes.data) setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : (roomsRes.data.data || []));
         if (staffRes.data && staffRes.data.data) setStaff(staffRes.data.data);
         if (settingsRes.data) setChargeSettings(settingsRes.data);
       } catch (e) {
@@ -107,6 +115,18 @@ export default function POSPage() {
       setServiceChargeValue(0);
     }
 
+    // Evaluate SD
+    if (chargeSettings.sd?.enabled) {
+      setSdType("PERCENT"); // Settings are always percent
+      if (chargeSettings.sd.customApplicability) {
+        setSdValue(chargeSettings.sd.applicability[orderType] ? chargeSettings.sd.value : 0);
+      } else {
+        setSdValue(chargeSettings.sd.value);
+      }
+    } else {
+      setSdValue(0);
+    }
+
     // Evaluate Delivery
     if (chargeSettings.deliveryCharge?.enabled) {
       if (["Delivery", "Foodpanda", "Foodi", "Pathao"].includes(orderType)) {
@@ -119,6 +139,32 @@ export default function POSPage() {
       setDeliveryChargeValue(0);
     }
   }, [orderType, chargeSettings]);
+
+  const handleCheckCustomer = async () => {
+    if (!customerPhone || customerPhone.length < 3) return;
+    setCustomerSearchLoading(true);
+    setSearchResults([]);
+    setSelectedCustomer(null);
+    try {
+      const res = await axiosSecure.get(`/customer/paginated?search=${encodeURIComponent(customerPhone)}&limit=5`);
+      if (res.data.customers && res.data.customers.length > 0) {
+        setSearchResults(res.data.customers);
+      } else {
+        setIsCustomerModalOpen(true);
+      }
+    } catch (e) {
+      console.error("Check customer error", e);
+    } finally {
+      setCustomerSearchLoading(false);
+    }
+  };
+
+  const selectCustomer = (cust) => {
+    setCustomerName(cust.fullName);
+    setCustomerPhone(cust.phoneNumber);
+    setSelectedCustomer(cust);
+    setSearchResults([]);
+  };
 
   const filteredFoods = useMemo(() => {
     if (activeCategory === "All") return foods;
@@ -142,6 +188,8 @@ export default function POSPage() {
         quantity: 1,
         unitPrice: food.price,
         totalPrice: food.price,
+        discountValue: 0,
+        discountType: "PERCENT",
         orderStatus: "Pending"
       }];
     });
@@ -164,27 +212,37 @@ export default function POSPage() {
     setCart(prev => prev.filter(item => item.foodId !== foodId));
   };
 
+  const updateItemDiscount = (foodId, value, type) => {
+    setCart((prev) => {
+      return prev.map(item => {
+        if (item.foodId === foodId) {
+          return { ...item, discountValue: value, discountType: type };
+        }
+        return item;
+      });
+    });
+  };
+
   // Calculations
   const subTotal = cart.reduce((acc, item) => acc + item.totalPrice, 0);
   
-  let discount = 0;
-  if (discountScope === "Full") {
-     discount = discountType === "PERCENT" ? (subTotal * discountValue) / 100 : discountValue;
-  } else {
-     // Item Wise
-     if (discountType === "PERCENT") {
-        discount = (subTotal * discountValue) / 100;
-     } else {
-        const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
-        discount = discountValue * totalItems;
-     }
-  }
+  const itemDiscounts = cart.reduce((acc, item) => {
+     if (!item.discountValue) return acc;
+     const itemDiscountAmt = item.discountType === "PERCENT" 
+        ? (item.totalPrice * item.discountValue) / 100 
+        : (item.discountValue * item.quantity);
+     return acc + itemDiscountAmt;
+  }, 0);
+
+  const orderDiscount = discountType === "PERCENT" ? ((subTotal - itemDiscounts) * discountValue) / 100 : discountValue;
+  const discount = itemDiscounts + orderDiscount;
   
   const subTotalAfterDiscount = subTotal - discount;
   const vat = vatType === "PERCENT" ? (subTotalAfterDiscount * vatValue) / 100 : vatValue;
+  const sdAmt = sdType === "PERCENT" ? (subTotalAfterDiscount * sdValue) / 100 : sdValue;
   const serviceChargeAmt = serviceChargeType === "PERCENT" ? (subTotalAfterDiscount * serviceChargeValue) / 100 : serviceChargeValue;
   const deliveryAmt = deliveryChargeType === "PERCENT" ? (subTotalAfterDiscount * deliveryChargeValue) / 100 : deliveryChargeValue;
-  const grandTotal = subTotalAfterDiscount + vat + serviceChargeAmt + deliveryAmt;
+  const grandTotal = subTotalAfterDiscount + vat + sdAmt + serviceChargeAmt + deliveryAmt;
 
   const handleSubmitOrder = async (status = "Unpaid") => {
     if (cart.length === 0) {
@@ -201,8 +259,8 @@ export default function POSPage() {
         name: customerName,
         phone: customerPhone
       },
-      tableNo: orderType === "Dine In" ? tableNo : null,
-      roomNo: orderType === "Room Service" ? roomNo : null,
+      tableNo: orderType?.toLowerCase().includes("dine") ? tableNo : null,
+      roomNo: orderType?.toLowerCase().includes("room") ? roomNo : null,
       waiterName,
       orderBatches: [
         {
@@ -214,11 +272,11 @@ export default function POSPage() {
       subTotal,
       discount,
       vat,
-      sd: 0,
+      sd: sdAmt,
       serviceCharge: serviceChargeAmt,
       deliveryCharge: deliveryAmt,
       grandTotal,
-      paymentMethod: status === "Paid" ? "Cash" : (orderType === "Room Service" ? "Room Charge" : "Cash"), // Defaulting
+      paymentMethod: status === "Paid" ? "Cash" : (orderType?.toLowerCase().includes("room") ? "Room Charge" : "Cash"), // Defaulting
       paymentStatus: status,
       invoiceType: "Restaurant"
     };
@@ -336,17 +394,25 @@ export default function POSPage() {
                <div>
                   <label className="text-xs text-gray-500 font-medium mb-1 block dark:text-gray-400">Order Type</label>
                   <select value={orderType} onChange={(e) => setOrderType(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 text-sm font-medium dark:bg-gray-800 dark:border-gray-700 dark:text-white outline-none focus:border-brand-primary">
-                     <option value="Dine In">Dine In</option>
-                     <option value="Takeaway">Takeaway</option>
-                     <option value="Delivery">Delivery</option>
-                     <option value="Room Service">Room Service</option>
-                     <option value="Foodpanda">Foodpanda</option>
-                     <option value="Foodi">Foodi</option>
-                     <option value="Pathao">Pathao</option>
+                     {chargeSettings?.vat?.applicability 
+                       ? Object.keys(chargeSettings.vat.applicability).map(type => (
+                           <option key={type} value={type}>{type}</option>
+                         ))
+                       : (
+                         <>
+                           <option value="Dine In">Dine In</option>
+                           <option value="Takeaway">Takeaway</option>
+                           <option value="Delivery">Delivery</option>
+                           <option value="Room Service">Room Service</option>
+                           <option value="Foodpanda">Foodpanda</option>
+                           <option value="Foodi">Foodi</option>
+                           <option value="Pathao">Pathao</option>
+                         </>
+                       )}
                   </select>
                </div>
                
-               {orderType === "Dine In" && (
+               {orderType?.toLowerCase().includes("dine") && (
                  <div>
                     <label className="text-xs text-gray-500 font-medium mb-1 block dark:text-gray-400">Change Table</label>
                     <select value={tableNo} onChange={(e) => setTableNo(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 text-sm font-medium dark:bg-gray-800 dark:border-gray-700 dark:text-white outline-none focus:border-brand-primary">
@@ -356,7 +422,7 @@ export default function POSPage() {
                  </div>
                )}
 
-               {orderType === "Room Service" && (
+               {orderType?.toLowerCase().includes("room") && (
                  <div>
                     <label className="text-xs text-gray-500 font-medium mb-1 block dark:text-gray-400">Change Room</label>
                     <select value={roomNo} onChange={(e) => setRoomNo(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 text-sm font-medium dark:bg-gray-800 dark:border-gray-700 dark:text-white outline-none focus:border-brand-primary">
@@ -398,6 +464,28 @@ export default function POSPage() {
                         </div>
                         <span className="font-black text-brand-dark-grey dark:text-white">{(item.totalPrice).toFixed(2)}</span>
                       </div>
+                      <div className="flex justify-between items-center mt-1 pt-1 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] uppercase text-gray-500 font-bold">Disc:</span>
+                          <select 
+                            className="text-xs bg-transparent border-none outline-none cursor-pointer text-brand-primary font-bold p-0 dark:text-brand-sage"
+                            value={item.discountType || "PERCENT"}
+                            onChange={(e) => updateItemDiscount(item.foodId, item.discountValue, e.target.value)}
+                          >
+                            <option value="PERCENT">%</option>
+                            <option value="FLAT">৳</option>
+                          </select>
+                          <input 
+                            type="text" 
+                            className="w-10 text-xs border-b border-gray-200 dark:border-gray-600 outline-none text-center bg-transparent dark:text-white" 
+                            value={item.discountValue || 0}
+                            onChange={(e) => { const raw = e.target.value.replace(/\D/g, ''); updateItemDiscount(item.foodId, raw === '' ? 0 : parseInt(raw, 10), item.discountType); }}
+                          />
+                        </div>
+                        {item.discountValue > 0 && (
+                           <span className="text-xs font-bold text-red-500">-{(item.discountType === 'PERCENT' ? (item.totalPrice * item.discountValue / 100) : (item.discountValue * item.quantity)).toFixed(2)}</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -409,13 +497,10 @@ export default function POSPage() {
                <div className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">Advance</div>
                <div className="mb-3">
                   <div className="flex items-center gap-4 mb-2">
-                     <label className="text-xs font-bold text-gray-500 dark:text-gray-400">Discount</label>
+                     <label className="text-xs font-bold text-gray-500 dark:text-gray-400">Total Discount</label>
                      <div className="flex items-center gap-3">
                         <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer">
-                           <input type="radio" name="discountScope" checked={discountScope === "Full"} onChange={() => setDiscountScope("Full")} className="cursor-pointer accent-brand-primary" /> Full
-                        </label>
-                        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer">
-                           <input type="radio" name="discountScope" checked={discountScope === "Item Wise"} onChange={() => setDiscountScope("Item Wise")} className="cursor-pointer accent-brand-primary" /> Item Wise
+                           <input type="radio" name="discountScope" checked={true} readOnly className="cursor-pointer accent-brand-primary" /> Full Order
                         </label>
                      </div>
                   </div>
@@ -432,28 +517,7 @@ export default function POSPage() {
                   </div>
                </div>
                
-               <div className="flex gap-3 mb-3">
-                  <div className="flex-1">
-                     <label className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 block">VAT</label>
-                     <div className="flex bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden focus-within:border-brand-primary transition-colors">
-                        <input type="text" value={vatValue} onChange={(e) => { const raw = e.target.value.replace(/\D/g, ''); setVatValue(raw === '' ? 0 : parseInt(raw, 10)); }} className="w-full p-2 text-sm outline-none bg-transparent min-w-0" />
-                        <select value={vatType} onChange={e => setVatType(e.target.value)} className="bg-gray-50 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-2 text-xs font-bold text-gray-600 dark:text-gray-300 outline-none cursor-pointer">
-                           <option value="PERCENT">PERCENT</option>
-                           <option value="FLAT">FLAT</option>
-                        </select>
-                     </div>
-                  </div>
-                  <div className="flex-1">
-                     <label className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 block">S. Charge</label>
-                     <div className="flex bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden focus-within:border-brand-primary transition-colors">
-                        <input type="text" value={serviceChargeValue} onChange={(e) => { const raw = e.target.value.replace(/\D/g, ''); setServiceChargeValue(raw === '' ? 0 : parseInt(raw, 10)); }} className="w-full p-2 text-sm outline-none bg-transparent min-w-0" />
-                        <select value={serviceChargeType} onChange={e => setServiceChargeType(e.target.value)} className="bg-gray-50 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 px-2 text-xs font-bold text-gray-600 dark:text-gray-300 outline-none cursor-pointer">
-                           <option value="PERCENT">PERCENT</option>
-                           <option value="FLAT">FLAT</option>
-                        </select>
-                     </div>
-                  </div>
-               </div>
+
 
                <div className="flex gap-3 mb-3">
                   <div className="flex-1">
@@ -485,6 +549,12 @@ export default function POSPage() {
                         <span className="font-bold">TK {vat.toFixed(2)}</span>
                      </div>
                   )}
+                  {sdAmt > 0 && (
+                     <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                        <span>SD {sdType === "PERCENT" ? `(${sdValue}%)` : ''}</span>
+                        <span className="font-bold">TK {sdAmt.toFixed(2)}</span>
+                     </div>
+                  )}
                   {serviceChargeAmt > 0 && (
                      <div className="flex justify-between text-gray-600 dark:text-gray-300">
                         <span>S. Charge {serviceChargeType === "PERCENT" ? `(${serviceChargeValue}%)` : ''}</span>
@@ -508,14 +578,43 @@ export default function POSPage() {
              </div>
              
              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1 block">Name (Optional)</label>
-                <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="e.g. John Doe" className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-lg p-2.5 outline-none focus:border-brand-primary transition-colors" />
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1 block">Phone Number</label>
+                <div className="flex gap-2">
+                  <input type="text" value={customerPhone} onChange={(e) => { setCustomerPhone(e.target.value); setSelectedCustomer(null); setCustomerName(""); setSearchResults([]); }} placeholder="e.g. 01700000000" className="flex-1 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-lg p-2.5 outline-none focus:border-brand-primary transition-colors" />
+                  <button type="button" onClick={handleCheckCustomer} disabled={customerSearchLoading} className="bg-brand-primary text-white px-4 rounded-lg font-bold disabled:opacity-50 hover:bg-brand-secondary transition-colors">
+                    {customerSearchLoading ? "..." : "Search"}
+                  </button>
+                </div>
              </div>
-             
-             <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1 block">Phone (Optional)</label>
-                <input type="text" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="e.g. 01700000000" className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-lg p-2.5 outline-none focus:border-brand-primary transition-colors" />
-             </div>
+
+             {searchResults.length > 0 && (
+               <div className="flex flex-col gap-2 mt-2 animate-fade-in">
+                 <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Search Results</div>
+                 {searchResults.map((cust) => (
+                   <div key={cust._id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                     <div className="flex flex-col">
+                       <span className="text-sm font-bold text-gray-800 dark:text-gray-200">{cust.fullName}</span>
+                       <span className="text-xs text-gray-500">{cust.phoneNumber}</span>
+                     </div>
+                     <button type="button" onClick={() => selectCustomer(cust)} className="btn btn-xs bg-brand-primary text-white border-none hover:bg-brand-secondary px-3">Select</button>
+                   </div>
+                 ))}
+                 <button type="button" onClick={() => { setSearchResults([]); setIsCustomerModalOpen(true); }} className="text-xs text-blue-500 font-bold hover:underline self-start mt-1">
+                   + Add New Customer
+                 </button>
+               </div>
+             )}
+
+             {selectedCustomer && searchResults.length === 0 && (
+               <div className="bg-brand-offwhite dark:bg-gray-800 p-3 rounded-lg border border-brand-beige dark:border-gray-700 mt-2">
+                  <div className="flex justify-between items-start">
+                    <div className="text-xs text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Customer</div>
+                    <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerName(""); }} className="text-xs text-red-500 hover:underline">Remove</button>
+                  </div>
+                  <div className="font-bold text-gray-800 dark:text-white">{selectedCustomer.fullName}</div>
+                  <div className="text-xs text-gray-500">{selectedCustomer.phoneNumber}</div>
+               </div>
+             )}
           </div>
         )}
 
@@ -561,6 +660,17 @@ export default function POSPage() {
 
       {/* Hidden printer component */}
       {lastInvoice && <ReceiptPrint ref={printRef} invoice={lastInvoice} />}
+
+      <CustomerModal 
+        isOpen={isCustomerModalOpen} 
+        onClose={() => setIsCustomerModalOpen(false)} 
+        initialPhoneNumber={customerPhone}
+        onSuccess={(formData) => {
+          setCustomerName(formData.fullName);
+          setCustomerPhone(formData.phoneNumber);
+          setSelectedCustomer(formData);
+        }}
+      />
     </div>
   );
 }

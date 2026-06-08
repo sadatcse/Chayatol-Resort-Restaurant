@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useContext } from "react";
-import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus } from "react-icons/fi";
+import React, { useState, useContext, useEffect } from "react";
+import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiUpload, FiDownload } from "react-icons/fi";
+import { MdInfoOutline } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import Select from "react-select";
+import * as XLSX from "xlsx";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -25,6 +27,7 @@ const INITIAL_FORM_DATA = {
   price: "",
   status: "Available",
   vat: 0,
+  sc: 0,
   sd: 0,
 };
 
@@ -66,6 +69,23 @@ const FoodPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [chargeSettings, setChargeSettings] = useState(null);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [bulkPreview, setBulkPreview] = useState([]);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data } = await axiosSecure.get("/settings/charges");
+        if (data) setChargeSettings(data);
+      } catch (err) {
+        console.error("Failed to fetch charge settings:", err);
+      }
+    };
+    fetchSettings();
+  }, [axiosSecure]);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
 
   const openModal = (foodToEdit = null) => {
@@ -80,6 +100,7 @@ const FoodPage = () => {
         price: foodToEdit.price || "",
         status: foodToEdit.status || "Available",
         vat: foodToEdit.vat || 0,
+        sc: foodToEdit.sc || 0,
         sd: foodToEdit.sd || 0,
       });
     } else {
@@ -92,6 +113,86 @@ const FoodPage = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditId(null);
+  };
+
+  const openBulkModal = () => {
+    setBulkFile(null);
+    setBulkPreview([]);
+    setIsBulkModalOpen(true);
+  };
+
+  const closeBulkModal = () => {
+    setIsBulkModalOpen(false);
+    setBulkFile(null);
+    setBulkPreview([]);
+  };
+
+  const handleBulkFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setBulkFile(file);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet);
+        setBulkPreview(json);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      {
+        foodName: "Example Food",
+        category: "Main Course",
+        foodType: "Fast Food",
+        details: "Delicious details",
+        price: "150",
+        vat: "5",
+        sc: "0",
+        sd: "0",
+        status: "Available"
+      }
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Template");
+    XLSX.writeFile(workbook, "food_bulk_template.xlsx");
+  };
+
+  const handleBulkSubmit = async () => {
+    if (!bulkPreview || bulkPreview.length === 0) {
+      Swal.fire("Error", "No data to import. Please upload a valid Excel or CSV file.", "error");
+      return;
+    }
+
+    setIsBulkSubmitting(true);
+    try {
+      const payload = bulkPreview.map(item => ({
+        foodName: item.foodName?.trim() || "Unknown Food",
+        category: item.category?.trim() || "Uncategorized",
+        foodType: item.foodType?.trim() || "Fast Food",
+        details: item.details?.trim() || "",
+        price: Number(item.price) || 0,
+        vat: Number(item.vat) || 0,
+        sc: Number(item.sc) || 0,
+        sd: Number(item.sd) || 0,
+        status: item.status?.trim() || "Available"
+      }));
+
+      const res = await axiosSecure.post("/food/bulk-post", payload);
+      await refetch();
+      closeBulkModal();
+      Swal.fire("Success", res.data.message || "Bulk import successful.", "success");
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Bulk import failed.", "error");
+    } finally {
+      setIsBulkSubmitting(false);
+    }
   };
 
   const handleImageUpload = async (e) => {
@@ -145,6 +246,7 @@ const FoodPage = () => {
       details: formData.details.trim(),
       price: Number(formData.price),
       vat: Number(formData.vat || 0),
+      sc: Number(formData.sc || 0),
       sd: Number(formData.sd || 0),
     };
 
@@ -245,10 +347,16 @@ const FoodPage = () => {
         </div>
 
         {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
-            <FiPlus className="text-lg" />
-            <span className="uppercase tracking-widest text-xs font-bold">New Food</span>
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => openBulkModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10">
+              <FiUpload className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">Bulk Add</span>
+            </button>
+            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+              <FiPlus className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">New Food</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -319,7 +427,7 @@ const FoodPage = () => {
                           </td>
                           <td className="py-4">
                             <span className={`badge badge-sm font-bold tracking-wider uppercase text-[10px] border-none ${food.status === "Available" ? "bg-green-100 text-green-700" :
-                                "bg-red-100 text-red-700"
+                              "bg-red-100 text-red-700"
                               }`}>
                               {food.status}
                             </span>
@@ -433,29 +541,54 @@ const FoodPage = () => {
                 />
               </div>
 
-              <div className="flex gap-4">
-                <div className="form-control w-1/2">
-                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">VAT (%)</span></label>
-                  <input
-                    type="number"
-                    value={formData.vat}
-                    onChange={(e) => setFormData({ ...formData, vat: e.target.value })}
-                    className="input input-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
-                    placeholder="e.g. 15"
-                  />
-                </div>
+              {chargeSettings && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">VAT</span>
+                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.vat.value}% VAT`} />
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          className="toggle toggle-sm bg-brand-primary" 
+                          checked={formData.vat > 0} 
+                          onChange={(e) => setFormData({ ...formData, vat: e.target.checked ? chargeSettings.vat.value : 0 })} 
+                        />
+                      </div>
+                    </div>
 
-                <div className="form-control w-1/2">
-                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">SD (%)</span></label>
-                  <input
-                    type="number"
-                    value={formData.sd}
-                    onChange={(e) => setFormData({ ...formData, sd: e.target.value })}
-                    className="input input-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
-                    placeholder="e.g. 5"
-                  />
+                  <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SC</span>
+                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sc.value}% SC`} />
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          className="toggle toggle-sm bg-brand-primary" 
+                          checked={formData.sc > 0} 
+                          onChange={(e) => setFormData({ ...formData, sc: e.target.checked ? chargeSettings.sc.value : 0 })} 
+                        />
+                      </div>
+                    </div>
+
+                  <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SD</span>
+                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sd.value}% SD`} />
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          className="toggle toggle-sm bg-brand-primary" 
+                          checked={formData.sd > 0} 
+                          onChange={(e) => setFormData({ ...formData, sd: e.target.checked ? chargeSettings.sd.value : 0 })} 
+                        />
+                      </div>
+                    </div>
                 </div>
-              </div>
+              )}
 
               <div className="form-control w-full">
                 <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Food Details</span></label>
@@ -512,6 +645,78 @@ const FoodPage = () => {
           </div>
           <form method="dialog" className="modal-backdrop">
             <button onClick={closeModal}>close</button>
+          </form>
+        </dialog>
+      )}
+
+      {isBulkModalOpen && (
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-2xl bg-white dark:bg-brand-charcoal p-0 overflow-hidden rounded-2xl shadow-2xl border border-brand-beige dark:border-brand-beige/20">
+            <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <h3 className="font-bold text-lg text-brand-charcoal dark:text-brand-offwhite uppercase tracking-widest">Bulk Add Food</h3>
+              <button onClick={closeBulkModal} className="btn btn-sm btn-circle btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite"><FiX size={18} /></button>
+            </div>
+
+            <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+              <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
+                <div>
+                  <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">Need a template?</h4>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Download the Excel template to see the required format.</p>
+                </div>
+                <button onClick={handleDownloadTemplate} className="btn btn-sm bg-white text-blue-600 hover:bg-blue-50 border-blue-200 shadow-sm gap-2">
+                  <FiDownload /> Template
+                </button>
+              </div>
+
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Upload Excel/CSV File</span></label>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={handleBulkFileUpload}
+                  className="file-input file-input-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
+                />
+              </div>
+
+              {bulkPreview.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <h4 className="font-bold text-sm text-brand-charcoal dark:text-brand-offwhite mb-2">Preview ({bulkPreview.length} items found)</h4>
+                  <div className="overflow-x-auto">
+                    <table className="table table-xs w-full">
+                      <thead>
+                        <tr>
+                          <th>Food Name</th>
+                          <th>Category</th>
+                          <th>Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkPreview.slice(0, 5).map((item, index) => (
+                          <tr key={index}>
+                            <td>{item.foodName}</td>
+                            <td>{item.category}</td>
+                            <td>{item.price}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {bulkPreview.length > 5 && (
+                    <p className="text-xs text-center text-gray-500 mt-2">Showing 5 of {bulkPreview.length} items</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <button onClick={closeBulkModal} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
+              <button onClick={handleBulkSubmit} disabled={!bulkPreview.length || isBulkSubmitting} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">
+                {isBulkSubmitting ? 'Uploading...' : 'Upload Data'}
+              </button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={closeBulkModal}>close</button>
           </form>
         </dialog>
       )}
