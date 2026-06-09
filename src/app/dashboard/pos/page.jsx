@@ -9,8 +9,12 @@ import { useReactToPrint } from "react-to-print";
 import Swal from "sweetalert2";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import CustomerModal from "@/components/CustomerModal";
+import { useSearchParams } from "next/navigation";
 
 export default function POSPage() {
+  const searchParams = useSearchParams();
+  const invoiceId = searchParams.get("invoiceId");
+  
   const axiosSecure = useAxiosSecure();
   const { foods, isLoading: foodsLoading } = useFood(1, 1000);
   const { categories, isLoading: categoriesLoading } = useFoodCategories(1, 100);
@@ -60,6 +64,7 @@ export default function POSPage() {
 
   const [loading, setLoading] = useState(false);
   const [lastInvoice, setLastInvoice] = useState(null);
+  const [existingInvoice, setExistingInvoice] = useState(null);
 
   const printRef = useRef(null);
   
@@ -87,6 +92,33 @@ export default function POSPage() {
     };
     fetchData();
   }, [axiosSecure]);
+
+  // Fetch Existing Invoice if ID is provided
+  useEffect(() => {
+    if (!invoiceId) return;
+    const fetchInvoice = async () => {
+      try {
+        setLoading(true);
+        const { data } = await axiosSecure.get(`/pos/invoice/${invoiceId}`);
+        if (data.success && data.data) {
+          const inv = data.data;
+          setExistingInvoice(inv);
+          setOrderType(inv.orderType || "Dine In");
+          setTableNo(inv.tableNo || "");
+          setRoomNo(inv.roomNo || "");
+          setWaiterName(inv.waiterName || "");
+          setCustomerName(inv.customer?.name || "");
+          setCustomerPhone(inv.customer?.phone || "");
+        }
+      } catch (err) {
+        console.error("Error fetching invoice", err);
+        Swal.fire("Error", "Could not load the invoice for editing.", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInvoice();
+  }, [invoiceId, axiosSecure]);
 
   useEffect(() => {
     if (!chargeSettings) return;
@@ -190,7 +222,10 @@ export default function POSPage() {
         totalPrice: food.price,
         discountValue: 0,
         discountType: "PERCENT",
-        orderStatus: "Pending"
+        orderStatus: "Pending",
+        vatRate: Number(food.vat) || 0,
+        scRate: Number(food.sc) || 0,
+        sdRate: Number(food.sd) || 0
       }];
     });
   };
@@ -238,14 +273,48 @@ export default function POSPage() {
   const discount = itemDiscounts + orderDiscount;
   
   const subTotalAfterDiscount = subTotal - discount;
-  const vat = vatType === "PERCENT" ? (subTotalAfterDiscount * vatValue) / 100 : vatValue;
-  const sdAmt = sdType === "PERCENT" ? (subTotalAfterDiscount * sdValue) / 100 : sdValue;
-  const serviceChargeAmt = serviceChargeType === "PERCENT" ? (subTotalAfterDiscount * serviceChargeValue) / 100 : serviceChargeValue;
+  const discountFactor = (subTotal - itemDiscounts) > 0 ? ((subTotal - itemDiscounts) - orderDiscount) / (subTotal - itemDiscounts) : 1;
+
+  let dynamicVat = 0;
+  let dynamicSd = 0;
+  let dynamicSc = 0;
+
+  cart.forEach(item => {
+    const itemDiscountAmt = item.discountType === "PERCENT" 
+        ? (item.totalPrice * item.discountValue) / 100 
+        : (item.discountValue * item.quantity);
+    
+    const netItemPrice = item.totalPrice - itemDiscountAmt;
+    const finalItemPrice = netItemPrice * discountFactor;
+
+    // Use the rates strictly saved on the product
+    dynamicVat += finalItemPrice * ((item.vatRate || 0) / 100);
+    dynamicSd += finalItemPrice * ((item.sdRate || 0) / 100);
+    dynamicSc += finalItemPrice * ((item.scRate || 0) / 100);
+  });
+
+  const vat = dynamicVat;
+  const sdAmt = dynamicSd;
+  const serviceChargeAmt = dynamicSc;
+  
+  // Extract the actual rates applied for UI display
+  const appliedVatRate = cart.find(i => i.vatRate > 0)?.vatRate || 0;
+  const appliedSdRate = cart.find(i => i.sdRate > 0)?.sdRate || 0;
+  const appliedScRate = cart.find(i => i.scRate > 0)?.scRate || 0;
   const deliveryAmt = deliveryChargeType === "PERCENT" ? (subTotalAfterDiscount * deliveryChargeValue) / 100 : deliveryChargeValue;
   const grandTotal = subTotalAfterDiscount + vat + sdAmt + serviceChargeAmt + deliveryAmt;
 
+  // Combined totals for display when editing
+  const displaySubTotal = (existingInvoice?.subTotal || 0) + subTotal;
+  const displayDiscount = (existingInvoice?.discount || 0) + discount;
+  const displayVat = (existingInvoice?.vat || 0) + vat;
+  const displaySdAmt = (existingInvoice?.sd || 0) + sdAmt;
+  const displayServiceChargeAmt = (existingInvoice?.serviceCharge || 0) + serviceChargeAmt;
+  const displayDeliveryAmt = (existingInvoice?.deliveryCharge || 0) + deliveryAmt;
+  const displayGrandTotal = (existingInvoice?.grandTotal || 0) + grandTotal;
+
   const handleSubmitOrder = async (status = "Unpaid") => {
-    if (cart.length === 0) {
+    if (cart.length === 0 && !existingInvoice) {
       Swal.fire("Error", "Cart is empty", "error");
       return;
     }
@@ -262,33 +331,50 @@ export default function POSPage() {
       tableNo: orderType?.toLowerCase().includes("dine") ? tableNo : null,
       roomNo: orderType?.toLowerCase().includes("room") ? roomNo : null,
       waiterName,
-      orderBatches: [
-        {
-           batchId: `BATCH-${Date.now()}`,
-           orderedAt: new Date(),
-           items: cart
-        }
-      ],
-      subTotal,
-      discount,
-      vat,
-      sd: sdAmt,
-      serviceCharge: serviceChargeAmt,
-      deliveryCharge: deliveryAmt,
-      grandTotal,
+      subTotal: displaySubTotal,
+      discount: displayDiscount,
+      vat: displayVat,
+      sd: displaySdAmt,
+      serviceCharge: displayServiceChargeAmt,
+      deliveryCharge: displayDeliveryAmt,
+      grandTotal: displayGrandTotal,
       paymentMethod: status === "Paid" ? "Cash" : (orderType?.toLowerCase().includes("room") ? "Room Charge" : "Cash"), // Defaulting
       paymentStatus: status,
       invoiceType: "Restaurant"
     };
 
+    if (cart.length > 0) {
+      const newBatch = {
+         batchId: `BATCH-${Date.now()}`,
+         orderedAt: new Date(),
+         items: cart
+      };
+      if (existingInvoice) {
+        payload.orderBatches = [...(existingInvoice.orderBatches || []), newBatch];
+      } else {
+        payload.orderBatches = [newBatch];
+      }
+    } else if (existingInvoice) {
+      // Just updating guest info, no new items
+      payload.orderBatches = existingInvoice.orderBatches;
+    }
+
     try {
-      const { data } = await axiosSecure.post("/pos/invoice", payload);
-      if (data.success) {
+      let resData;
+      if (existingInvoice) {
+        const { data } = await axiosSecure.put(`/pos/invoice/${existingInvoice._id}`, payload);
+        resData = data;
+      } else {
+        const { data } = await axiosSecure.post("/pos/invoice", payload);
+        resData = data;
+      }
+
+      if (resData.success) {
         setCart([]);
-        setLastInvoice(data.data);
+        setLastInvoice(resData.data);
         Swal.fire({
           title: "Success",
-          text: `Order ${status === "Paid" ? "Paid" : "Placed"} successfully.`,
+          text: `Order ${existingInvoice ? "Updated" : (status === "Paid" ? "Paid" : "Placed")} successfully.`,
           icon: "success",
           showCancelButton: true,
           confirmButtonText: "Print Receipt",
@@ -296,6 +382,10 @@ export default function POSPage() {
         }).then((result) => {
           if (result.isConfirmed) {
             setTimeout(() => handlePrint(), 100);
+          }
+          if (existingInvoice) {
+             // If we were editing, maybe reload or go back
+             window.location.href = "/dashboard/invoices";
           }
         });
       }
@@ -443,6 +533,24 @@ export default function POSPage() {
 
             {/* Cart Items */}
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 -mr-1">
+              {existingInvoice && existingInvoice.orderBatches?.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 border-b border-gray-100 dark:border-gray-800 pb-1">Previously Ordered</div>
+                  <div className="flex flex-col gap-2">
+                    {existingInvoice.orderBatches.map((batch, bIdx) => (
+                      <div key={batch.batchId || bIdx} className="bg-gray-100 dark:bg-gray-800/80 p-2 rounded-lg border border-gray-200 dark:border-gray-700 opacity-70">
+                        {batch.items?.map((item, iIdx) => (
+                          <div key={iIdx} className="flex justify-between items-center text-sm py-1 border-b border-gray-200 dark:border-gray-700 last:border-0">
+                            <span className="font-medium text-gray-600 dark:text-gray-300">{item.itemName} x{item.quantity}</span>
+                            <span className="font-bold text-gray-500">{(item.totalPrice).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {cart.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600 gap-3">
                   <MdOutlineTableRestaurant className="text-6xl" />
@@ -533,37 +641,45 @@ export default function POSPage() {
                </div>
 
                <div className="flex flex-col gap-1 text-sm">
+                  {existingInvoice && (
+                     <>
+                        <div className="flex justify-between text-gray-500 text-xs mb-1 border-b border-gray-100 dark:border-gray-700 pb-1">
+                           <span>Previous Total</span>
+                           <span className="font-bold">TK {existingInvoice.grandTotal?.toFixed(2)}</span>
+                        </div>
+                     </>
+                  )}
                   <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                     <span>Subtotal</span>
+                     <span>{existingInvoice ? "New Subtotal" : "Subtotal"}</span>
                      <span className="font-bold">TK {subTotal.toFixed(2)}</span>
                   </div>
                   {discount > 0 && (
                      <div className="flex justify-between text-red-500">
-                        <span>Discount</span>
+                        <span>New Discount</span>
                         <span className="font-bold">- TK {discount.toFixed(2)}</span>
                      </div>
                   )}
                   {vat > 0 && (
                      <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                        <span>VAT {vatType === "PERCENT" ? `(${vatValue}%)` : ''}</span>
+                        <span>{existingInvoice ? "New VAT" : "VAT"} {appliedVatRate > 0 ? `(${appliedVatRate}%)` : ''}</span>
                         <span className="font-bold">TK {vat.toFixed(2)}</span>
                      </div>
                   )}
                   {sdAmt > 0 && (
                      <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                        <span>SD {sdType === "PERCENT" ? `(${sdValue}%)` : ''}</span>
+                        <span>{existingInvoice ? "New SD" : "SD"} {appliedSdRate > 0 ? `(${appliedSdRate}%)` : ''}</span>
                         <span className="font-bold">TK {sdAmt.toFixed(2)}</span>
                      </div>
                   )}
                   {serviceChargeAmt > 0 && (
                      <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                        <span>S. Charge {serviceChargeType === "PERCENT" ? `(${serviceChargeValue}%)` : ''}</span>
+                        <span>{existingInvoice ? "New S. Charge" : "S. Charge"} {appliedScRate > 0 ? `(${appliedScRate}%)` : ''}</span>
                         <span className="font-bold">TK {serviceChargeAmt.toFixed(2)}</span>
                      </div>
                   )}
                   {deliveryAmt > 0 && (
                      <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                        <span>Delivery {deliveryChargeType === "PERCENT" ? `(${deliveryChargeValue}%)` : ''}</span>
+                        <span>New Delivery {deliveryChargeType === "PERCENT" ? `(${deliveryChargeValue}%)` : ''}</span>
                         <span className="font-bold">TK {deliveryAmt.toFixed(2)}</span>
                      </div>
                   )}
@@ -622,23 +738,23 @@ export default function POSPage() {
         <div className="mt-auto shrink-0">
            {/* Grand Total Bar */}
            <div className="bg-brand-primary p-3 px-4 flex justify-between items-center text-white">
-              <span className="font-medium text-white/80">Total to Pay</span>
-              <span className="font-black text-xl">TK {grandTotal.toFixed(2)}</span>
+              <span className="font-medium text-white/80">{existingInvoice ? "Updated Total" : "Total to Pay"}</span>
+              <span className="font-black text-xl">TK {displayGrandTotal.toFixed(2)}</span>
            </div>
            
            {/* Action Buttons */}
            <div className="grid grid-cols-3 divide-x divide-gray-200 dark:divide-gray-700 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-brand-charcoal rounded-b-xl overflow-hidden">
               <button 
-                disabled={loading || cart.length === 0}
+                disabled={loading || (cart.length === 0 && !existingInvoice)}
                 onClick={() => handleSubmitOrder("Paid")}
                 className="py-3 px-2 font-bold text-white bg-brand-primary hover:bg-brand-primary/90 transition-colors flex flex-col items-center justify-center gap-1 disabled:opacity-50 disabled:bg-gray-400"
               >
-                 <span className="text-xs uppercase tracking-wider opacity-80">Pay</span>
-                 <span className="text-sm">{grandTotal.toFixed(0)}</span>
+                 <span className="text-xs uppercase tracking-wider opacity-80">{existingInvoice ? "Pay All" : "Pay"}</span>
+                 <span className="text-sm">{displayGrandTotal.toFixed(0)}</span>
               </button>
               
               <button 
-                disabled={loading || cart.length === 0}
+                disabled={loading || (cart.length === 0 && !existingInvoice)}
                 className="py-3 px-2 font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex flex-col items-center justify-center gap-1 disabled:opacity-50"
               >
                  <MdPrint size={18} className="text-gray-400" />
@@ -646,11 +762,11 @@ export default function POSPage() {
               </button>
 
               <button 
-                disabled={loading || cart.length === 0}
+                disabled={loading || (cart.length === 0 && !existingInvoice)}
                 onClick={() => handleSubmitOrder("Unpaid")}
                 className="py-3 px-2 font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex flex-col items-center justify-center gap-1 disabled:opacity-50"
               >
-                 <span className="text-xs uppercase tracking-wider">Update</span>
+                 <span className="text-xs uppercase tracking-wider">{existingInvoice ? "Update Order" : "Update"}</span>
                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Send to Kitchen</span>
               </button>
            </div>

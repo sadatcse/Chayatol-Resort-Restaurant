@@ -44,6 +44,11 @@ const FoodSchema = Schema(
       default: 0,
       min: [0, "SD cannot be negative"],
     },
+    sc: {
+      type: Number,
+      default: 0,
+      min: [0, "SC cannot be negative"],
+    },
   },
   { timestamps: true }
 );
