@@ -91,7 +91,13 @@ const UserProfile = () => {
       const data = response.data;
       
       // Update local storage/context with new user details
-      setUser(prevUser => ({ ...prevUser, ...data }));
+      setUser(prevUser => {
+        const updatedUser = { ...prevUser, ...data };
+        if (typeof window !== "undefined") {
+          localStorage.setItem("authUser", JSON.stringify(updatedUser));
+        }
+        return updatedUser;
+      });
       
       Swal.fire({ 
         icon: "success", 
@@ -154,7 +160,7 @@ const UserProfile = () => {
       <Mtitle title="My Profile" />
 
       {/* --- Title Area --- */}
-      <div className="max-w-5xl mx-auto mb-8 pb-4 border-b border-brand-beige/50 dark:border-brand-dark-grey/50">
+      <div className="w-full mx-auto mb-8 pb-4 border-b border-brand-beige/50 dark:border-brand-dark-grey/50">
         <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-brand-primary to-brand-secondary dark:from-brand-sage dark:to-brand-offwhite bg-clip-text text-transparent">
           Account Settings
         </h1>
@@ -163,14 +169,14 @@ const UserProfile = () => {
         </p>
       </div>
 
-      <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-8 items-start">
+      <div className="w-full mx-auto flex flex-col xl:flex-row gap-8 items-start">
         
         {/* --- Left Profile Card --- */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 100, damping: 15 }}
-          className="w-full lg:w-1/3 bg-brand-white dark:bg-brand-charcoal border border-brand-beige/50 dark:border-brand-dark-grey/50 rounded-3xl p-6 shadow-xl flex flex-col items-center relative overflow-hidden"
+          className="w-full xl:w-1/3 bg-brand-white dark:bg-brand-charcoal border border-brand-beige/50 dark:border-brand-dark-grey/50 rounded-3xl p-6 shadow-xl flex flex-col items-center relative overflow-hidden"
         >
           {/* Background banner */}
           <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-brand-primary to-brand-secondary opacity-95 z-0"></div>
@@ -227,7 +233,7 @@ const UserProfile = () => {
           initial={{ opacity: 0, y: 20 }} 
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 100, damping: 15, delay: 0.1 }}
-          className="w-full lg:w-2/3 bg-brand-white dark:bg-brand-charcoal border border-brand-beige/50 dark:border-brand-dark-grey/50 rounded-3xl p-6 lg:p-8 shadow-xl"
+          className="w-full xl:w-2/3 bg-brand-white dark:bg-brand-charcoal border border-brand-beige/50 dark:border-brand-dark-grey/50 rounded-3xl p-6 lg:p-8 shadow-xl"
         >
           {/* Tabs Navigation */}
           <div className="flex bg-brand-offwhite dark:bg-brand-charcoal/50 border border-brand-beige/10 dark:border-brand-dark-grey/10 p-1.5 rounded-2xl mb-8 w-full sm:max-w-md">
@@ -267,7 +273,7 @@ const UserProfile = () => {
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="form-control w-full">
-                    <label className="label font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Full Name</label>
+                    <label className="block mb-1.5 font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Full Name</label>
                     <input 
                       type="text" 
                       name="name" 
@@ -278,7 +284,7 @@ const UserProfile = () => {
                     />
                   </div>
                   <div className="form-control w-full">
-                    <label className="label font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Email Address</label>
+                    <label className="block mb-1.5 font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Email Address</label>
                     <input 
                       type="email" 
                       name="email" 
@@ -289,7 +295,7 @@ const UserProfile = () => {
                     />
                   </div>
                   <div className="form-control w-full">
-                    <label className="label font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Mobile Number</label>
+                    <label className="block mb-1.5 font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Mobile Number</label>
                     <input 
                       type="text" 
                       name="mobileNumber" 
@@ -300,7 +306,7 @@ const UserProfile = () => {
                     />
                   </div>
                   <div className="form-control w-full">
-                    <label className="label font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Department</label>
+                    <label className="block mb-1.5 font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Department</label>
                     <input 
                       type="text" 
                       name="department" 
@@ -352,7 +358,7 @@ const UserProfile = () => {
                 className="space-y-6"
               >
                 <div className="form-control w-full">
-                  <label className="label font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Current Password</label>
+                  <label className="block mb-1.5 font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Current Password</label>
                   <input 
                     type="password" 
                     name="currentPassword" 
@@ -363,29 +369,28 @@ const UserProfile = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="form-control w-full">
-                    <label className="label font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">New Password</label>
-                    <input 
-                      type="password" 
-                      name="newPassword" 
-                      value={passwordData.newPassword} 
-                      onChange={handlePasswordChange} 
-                      className="input input-bordered bg-brand-offwhite/50 dark:bg-brand-dark-grey border-brand-beige/50 dark:border-brand-dark-grey/50 focus:border-brand-primary focus:outline-none rounded-xl text-sm text-brand-charcoal dark:text-brand-offwhite" 
-                      required 
-                    />
-                  </div>
-                  <div className="form-control w-full">
-                    <label className="label font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Confirm New Password</label>
-                    <input 
-                      type="password" 
-                      name="confirmPassword" 
-                      value={passwordData.confirmPassword} 
-                      onChange={handlePasswordChange} 
-                      className="input input-bordered bg-brand-offwhite/50 dark:bg-brand-dark-grey border-brand-beige/50 dark:border-brand-dark-grey/50 focus:border-brand-primary focus:outline-none rounded-xl text-sm text-brand-charcoal dark:text-brand-offwhite" 
-                      required 
-                    />
-                  </div>
+                <div className="form-control w-full">
+                  <label className="block mb-1.5 font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">New Password</label>
+                  <input 
+                    type="password" 
+                    name="newPassword" 
+                    value={passwordData.newPassword} 
+                    onChange={handlePasswordChange} 
+                    className="input input-bordered bg-brand-offwhite/50 dark:bg-brand-dark-grey border-brand-beige/50 dark:border-brand-dark-grey/50 focus:border-brand-primary focus:outline-none rounded-xl text-sm text-brand-charcoal dark:text-brand-offwhite" 
+                    required 
+                  />
+                </div>
+                
+                <div className="form-control w-full">
+                  <label className="block mb-1.5 font-bold text-xs uppercase tracking-wider text-brand-dark-grey dark:text-brand-sage">Confirm New Password</label>
+                  <input 
+                    type="password" 
+                    name="confirmPassword" 
+                    value={passwordData.confirmPassword} 
+                    onChange={handlePasswordChange} 
+                    className="input input-bordered bg-brand-offwhite/50 dark:bg-brand-dark-grey border-brand-beige/50 dark:border-brand-dark-grey/50 focus:border-brand-primary focus:outline-none rounded-xl text-sm text-brand-charcoal dark:text-brand-offwhite" 
+                    required 
+                  />
                 </div>
 
                 <div className="flex justify-end pt-4 border-t border-brand-beige/20 dark:border-brand-dark-grey/25">

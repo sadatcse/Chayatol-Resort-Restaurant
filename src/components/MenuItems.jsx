@@ -114,11 +114,7 @@ const menuItems = () => {
       title: "Setting",
       icon: <MdSettings className="text-lg" />,
       children: [
-        {
-          title: "Company Settings",
-          path: "/dashboard/settings/company",
-          icon: <MdBusiness className="text-base" />,
-        },
+
         {
           title: "Departments",
           path: "/dashboard/settings/departments",
@@ -144,6 +140,12 @@ const menuItems = () => {
           title: "Expense Category",
           path: "/dashboard/setting/expensecategory",
           icon: <MdPayments className="text-base" />,
+        },
+
+        {
+          title: "System Controls",
+          path: "/dashboard/settings/controls",
+          icon: <MdSettings className="text-base" />,
         },
         {
           title: "My Profile",

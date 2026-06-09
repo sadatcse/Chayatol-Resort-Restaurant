@@ -198,11 +198,7 @@ const CompanySettingsPage = () => {
   return (
     <div className="bg-brand-offwhite dark:bg-brand-charcoal/30 min-h-screen p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-300">
       
-      {/* Header section */}
-      <SectionHeader 
-        title="Company Settings" 
-        subtitle="Manage business profiles, logo branding, taxation parameters, and ownership details."
-      />
+
 
       <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-8 items-start mt-6">
         

@@ -22,7 +22,7 @@ const ReceiptPrint = React.forwardRef(({ invoice }, ref) => {
             <span>{new Date(invoice.createdAt || Date.now()).toLocaleDateString()}</span>
           </div>
           <div className="flex justify-between text-xs mt-1">
-            <span>Type: {invoice.orderSource}</span>
+            <span>Type: {invoice.orderType || invoice.orderSource || "Dine In"}</span>
             <span>{new Date(invoice.createdAt || Date.now()).toLocaleTimeString()}</span>
           </div>
           {invoice.tableNo && <p className="text-xs mt-1">Table: {invoice.tableNo}</p>}
@@ -40,11 +40,11 @@ const ReceiptPrint = React.forwardRef(({ invoice }, ref) => {
             </tr>
           </thead>
           <tbody>
-            {invoice.items.map((item, idx) => (
+            {(invoice.orderBatches?.reduce((acc, batch) => acc.concat(batch.items), []) || invoice.items || []).map((item, idx) => (
               <tr key={idx} className="align-top">
                 <td className="py-1 pr-1">{item.itemName}</td>
                 <td className="py-1 text-center">{item.quantity}</td>
-                <td className="py-1 text-right">{item.totalPrice.toFixed(2)}</td>
+                <td className="py-1 text-right">{item.totalPrice?.toFixed(2) || "0.00"}</td>
               </tr>
             ))}
           </tbody>

@@ -650,8 +650,8 @@ const CustomersPage = () => {
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   className={`flex-1 py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-center border-b-2 transition-all ${activeTab === tab
-                      ? "border-brand-primary text-brand-primary dark:text-brand-offwhite bg-white dark:bg-brand-charcoal/10"
-                      : "border-transparent text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite"
+                    ? "border-brand-primary text-brand-primary dark:text-brand-offwhite bg-white dark:bg-brand-charcoal/10"
+                    : "border-transparent text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite"
                     }`}
                 >
                   {tab === "basic" && "Basic Info"}

@@ -9,38 +9,70 @@ const invoiceSchema = new Schema(
       unique: true,
     },
 
+    orderType: {
+      type: String,
+      enum: ["Dine In", "Takeaway", "Delivery", "Room Service", "Foodpanda", "Foodi", "Pathao"],
+      required: true,
+    },
+
     customer: {
       name: String,
       phone: String,
+      email: String,
+      address: String, // useful for delivery
     },
 
-    items: [
+    tableNo: {
+      type: String,
+      default: null,
+    },
+
+    roomNo: {
+      type: String,
+      default: null,
+    },
+
+    waiterName: {
+      type: String,
+      default: null,
+    },
+
+    guestCount: {
+      type: Number,
+      default: 1,
+    },
+
+    orderBatches: [
       {
-        itemName: {
-          type: String,
-          required: true,
+        batchId: String,
+
+        orderedAt: Date,
+
+        orderedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
         },
 
-        category: {
-          type: String,
-          enum: ["Food", "Drink", "Room Service", "Accommodation", "Other"],
-          default: "Food",
-        },
-
-        quantity: {
-          type: Number,
-          required: true,
-        },
-
-        unitPrice: {
-          type: Number,
-          required: true,
-        },
-
-        totalPrice: {
-          type: Number,
-          required: true,
-        },
+        items: [
+          {
+            itemName: String,
+            category: String,
+            quantity: Number,
+            unitPrice: Number,
+            totalPrice: Number,
+            orderStatus: {
+              type: String,
+              enum: [
+                "Pending",
+                "Cooking",
+                "Ready",
+                "Served",
+                "Cancelled",
+              ],
+              default: "Pending",
+            },
+          },
+        ],
       },
     ],
 
@@ -76,57 +108,34 @@ const invoiceSchema = new Schema(
 
     paymentMethod: {
       type: String,
-      enum: ["Cash", "Card", "Mobile Banking", "Bank Transfer", "Room Charge"],
+      enum: [
+        "Cash",
+        "Card",
+        "Mobile Banking",
+        "Bank Transfer",
+        "Room Charge"
+      ],
       default: "Cash",
     },
 
     paymentStatus: {
       type: String,
       enum: ["Paid", "Partial", "Unpaid"],
-      default: "Paid",
+      default: "Unpaid",
     },
 
     invoiceType: {
       type: String,
       enum: ["Restaurant", "Hotel", "Resort"],
-      required: true,
+      default: "Restaurant"
     },
 
-    // Additional Production-grade Fields
-    branchId: {
-      type: String,
-    },
-    tableNo: {
-      type: String,
-    },
-    roomNo: {
-      type: String,
-    },
-    checkInDate: {
-      type: Date,
-    },
-    checkOutDate: {
-      type: Date,
-    },
-    guestCount: {
-      type: Number,
-      default: 1,
-    },
-    orderSource: {
-      type: String,
-      enum: ["Dine In", "Takeaway", "Room Service", "Delivery"],
-      default: "Dine In",
-    },
-    transactionId: {
-      type: String,
-    },
-    notes: {
-      type: String,
-    },
+    notes: String,
 
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
+      required: false, // temporarily false so POS can create anonymously if user context missing
     },
   },
   {
