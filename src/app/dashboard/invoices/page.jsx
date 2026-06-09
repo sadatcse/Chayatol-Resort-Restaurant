@@ -3,12 +3,15 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { format } from "date-fns";
-import { MdSearch, MdReceipt, MdVisibility, MdDelete, MdPrint, MdClose } from "react-icons/md";
+import { MdSearch, MdReceipt, MdVisibility, MdDelete, MdPrint, MdClose, MdEdit } from "react-icons/md";
 import Swal from "sweetalert2";
+import { useRouter } from "next/navigation";
 import ReceiptPrint from "@/components/pos/ReceiptPrint";
 import { useReactToPrint } from "react-to-print";
+import SectionHeader from "@/components/Comon/SectionHeader";
 
 export default function InvoicesPage() {
+  const router = useRouter();
   const axiosSecure = useAxiosSecure();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,17 +44,38 @@ export default function InvoicesPage() {
     fetchInvoices();
   }, [fetchInvoices]);
 
-  const handlePrintAction = useReactToPrint({
+  const handlePrint = useReactToPrint({
     contentRef: printRef,
-    onAfterPrint: () => setPrintingInvoice(null)
+    documentTitle: "Invoice",
   });
 
-  const printReceipt = (invoice) => {
+  const printReceipt = useCallback((invoice) => {
     setPrintingInvoice(invoice);
     setTimeout(() => {
-      handlePrintAction();
+      handlePrint();
     }, 100);
-  };
+  }, [handlePrint]);
+
+  const printBatchReceipt = useCallback((invoice, batch, batchIndex) => {
+    const batchSubTotal = batch.items?.reduce((acc, item) => acc + (item.totalPrice || 0), 0) || 0;
+    const batchInvoice = {
+      ...invoice,
+      invoiceNo: `${invoice.invoiceNo}-B${batchIndex + 1}`,
+      orderBatches: null, // Clear to force printing from items
+      items: batch.items,
+      subTotal: batchSubTotal,
+      discount: 0,
+      vat: 0,
+      sd: 0,
+      serviceCharge: 0,
+      grandTotal: batchSubTotal,
+      paymentMethod: "Pending" // KOT isn't fully paid on its own usually
+    };
+    setPrintingInvoice(batchInvoice);
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
+  }, [handlePrint]);
 
   const deleteInvoice = async (id) => {
     const result = await Swal.fire({
@@ -81,11 +105,12 @@ export default function InvoicesPage() {
     <div className="bg-white dark:bg-brand-charcoal rounded-xl shadow-md border border-brand-beige/50 dark:border-brand-dark-grey/50">
       
       {/* Header */}
-      <div className="p-4 md:p-6 border-b border-brand-beige/50 dark:border-brand-dark-grey/50 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-brand-dark-grey dark:text-brand-offwhite">Invoices History</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">View and manage all POS transactions</p>
-        </div>
+      <div className="p-4 md:p-6 border-b border-brand-beige/50 dark:border-brand-dark-grey/50">
+        <SectionHeader 
+          title="Invoices History" 
+          subtitle="View and manage all POS transactions" 
+          className="!mb-0" 
+        />
       </div>
 
       {/* Table */}
@@ -125,7 +150,7 @@ export default function InvoicesPage() {
                   </td>
                   <td>
                     <span className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs">
-                      {inv.orderSource}
+                      {inv.orderType || inv.orderSource}
                     </span>
                   </td>
                   <td className="text-gray-600 dark:text-gray-300">{inv.paymentMethod}</td>
@@ -139,6 +164,9 @@ export default function InvoicesPage() {
                   </td>
                   <td>
                     <div className="flex gap-2 justify-center">
+                      <button onClick={() => router.push(`/dashboard/pos?invoiceId=${inv._id}`)} className="p-2 bg-orange-50 text-orange-600 rounded hover:bg-orange-100 transition" title="Add Items / Edit">
+                        <MdEdit />
+                      </button>
                       <button onClick={() => { setSelectedInvoice(inv); setIsViewModalOpen(true); }} className="p-2 bg-green-50 text-green-600 rounded hover:bg-green-100 transition" title="View">
                         <MdVisibility />
                       </button>
@@ -198,7 +226,7 @@ export default function InvoicesPage() {
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs">Order Source</p>
-                  <p className="font-medium">{selectedInvoice.orderSource} {selectedInvoice.tableNo ? `(Table: ${selectedInvoice.tableNo})` : ''} {selectedInvoice.roomNo ? `(Room: ${selectedInvoice.roomNo})` : ''}</p>
+                  <p className="font-medium">{selectedInvoice.orderType || selectedInvoice.orderSource} {selectedInvoice.tableNo ? `(Table: ${selectedInvoice.tableNo})` : ''} {selectedInvoice.roomNo ? `(Room: ${selectedInvoice.roomNo})` : ''}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs">Payment Method</p>
@@ -207,15 +235,43 @@ export default function InvoicesPage() {
               </div>
 
               <div className="mt-4">
-                <h4 className="font-bold mb-2 dark:text-white border-b pb-1 dark:border-gray-700">Items</h4>
-                <div className="space-y-2">
-                  {selectedInvoice.items?.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-sm dark:text-gray-300">
-                      <span>{item.itemName} x{item.quantity}</span>
-                      <span>৳ {item.totalPrice?.toFixed(2) || item.totalPrice}</span>
-                    </div>
-                  ))}
-                </div>
+                <h4 className="font-bold mb-2 dark:text-white border-b pb-1 dark:border-gray-700">Orders</h4>
+                {selectedInvoice.orderBatches && selectedInvoice.orderBatches.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedInvoice.orderBatches.map((batch, bIdx) => (
+                      <div key={bIdx} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex justify-between items-center mb-2 border-b border-gray-200 dark:border-gray-700 pb-2">
+                           <span className="font-bold text-sm dark:text-gray-200">
+                              Order {bIdx + 1} 
+                              <span className="text-xs font-normal text-gray-500 ml-2">
+                                 {batch.orderedAt ? format(new Date(batch.orderedAt), 'p') : ''}
+                              </span>
+                           </span>
+                           <button onClick={() => printBatchReceipt(selectedInvoice, batch, bIdx)} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 flex items-center gap-1 transition-colors">
+                              <MdPrint size={14} /> Print Batch
+                           </button>
+                        </div>
+                        <div className="space-y-1">
+                          {batch.items?.map((item, idx) => (
+                            <div key={idx} className="flex justify-between text-sm dark:text-gray-300">
+                              <span>{item.itemName} x{item.quantity}</span>
+                              <span>৳ {item.totalPrice?.toFixed(2) || item.totalPrice}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedInvoice.items?.map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-sm dark:text-gray-300">
+                        <span>{item.itemName} x{item.quantity}</span>
+                        <span>৳ {item.totalPrice?.toFixed(2) || item.totalPrice}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="bg-gray-50 dark:bg-brand-dark-grey p-4 rounded-lg mt-4 border border-gray-200 dark:border-gray-700 space-y-1 text-sm dark:text-gray-300">

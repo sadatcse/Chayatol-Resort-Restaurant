@@ -6,6 +6,7 @@ import { MdInfoOutline } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import Select from "react-select";
+import CreatableSelect from "react-select/creatable";
 import * as XLSX from "xlsx";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
@@ -74,6 +75,10 @@ const FoodPage = () => {
   const [bulkFile, setBulkFile] = useState(null);
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
   const [bulkPreview, setBulkPreview] = useState([]);
+  
+  // New Bulk Add Form UI State
+  const [isBulkUiModalOpen, setIsBulkUiModalOpen] = useState(false);
+  const [bulkUiFormData, setBulkUiFormData] = useState([]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -125,6 +130,17 @@ const FoodPage = () => {
     setIsBulkModalOpen(false);
     setBulkFile(null);
     setBulkPreview([]);
+  };
+
+  const openBulkUiModal = () => {
+    // Initialize with one blank row
+    setBulkUiFormData([{ ...INITIAL_FORM_DATA, id: Date.now() }]);
+    setIsBulkUiModalOpen(true);
+  };
+
+  const closeBulkUiModal = () => {
+    setIsBulkUiModalOpen(false);
+    setBulkUiFormData([]);
   };
 
   const handleBulkFileUpload = (e) => {
@@ -192,6 +208,87 @@ const FoodPage = () => {
       Swal.fire("Error", error.response?.data?.message || "Bulk import failed.", "error");
     } finally {
       setIsBulkSubmitting(false);
+    }
+  };
+
+  const handleBulkUiSubmit = async () => {
+    // Basic validation: ensure all rows have names and prices (Category is optional)
+    const invalidRows = bulkUiFormData.filter(f => !f.foodName?.trim() || !f.price || isNaN(f.price) || Number(f.price) < 0);
+    if (invalidRows.length > 0) {
+      Swal.fire("Validation Error", "Please ensure all rows have a Name and a valid Price.", "warning");
+      return;
+    }
+
+    if (bulkUiFormData.length === 0) {
+      Swal.fire("Warning", "Please add at least one item.", "warning");
+      return;
+    }
+
+    setIsBulkSubmitting(true);
+    try {
+      const payload = bulkUiFormData.map(item => ({
+        foodName: item.foodName?.trim(),
+        category: item.category?.trim() || "Uncategorized",
+        foodType: item.foodType || "Fast Food",
+        details: item.details?.trim() || "",
+        price: Number(item.price) || 0,
+        vat: Number(item.vat) || 0,
+        sc: Number(item.sc) || 0,
+        sd: Number(item.sd) || 0,
+        status: item.status || "Available",
+        image: item.image || ""
+      }));
+
+      const res = await axiosSecure.post("/food/bulk-post", payload);
+      await refetch();
+      closeBulkUiModal();
+      Swal.fire("Success", res.data.message || "Bulk items added successfully.", "success");
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to add bulk items.", "error");
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
+
+  const handleAddBulkUiRow = () => {
+    setBulkUiFormData([...bulkUiFormData, { ...INITIAL_FORM_DATA, id: Date.now() }]);
+  };
+
+  const handleRemoveBulkUiRow = (id) => {
+    setBulkUiFormData(bulkUiFormData.filter(row => row.id !== id));
+  };
+
+  const handleBulkUiChange = (id, field, value) => {
+    setBulkUiFormData(prev => prev.map(row => row.id === id ? { ...row, [field]: value } : row));
+  };
+
+  const handleBulkImageUpload = async (id, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Use a temporary field "isUploadingImage" for UI feedback if needed
+    handleBulkUiChange(id, 'isUploadingImage', true);
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        handleBulkUiChange(id, 'image', data.url);
+      } else {
+        Swal.fire("Error", "Image upload failed. Please try again.", "error");
+      }
+    } catch (error) {
+      console.error("Image upload error:", error);
+      Swal.fire("Error", "Failed to upload image.", "error");
+    } finally {
+      handleBulkUiChange(id, 'isUploadingImage', false);
     }
   };
 
@@ -350,7 +447,11 @@ const FoodPage = () => {
           <div className="flex gap-2">
             <button onClick={() => openBulkModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10">
               <FiUpload className="text-lg" />
-              <span className="uppercase tracking-widest text-xs font-bold">Bulk Add</span>
+              <span className="uppercase tracking-widest text-xs font-bold">Bulk Add XL File</span>
+            </button>
+            <button onClick={() => openBulkUiModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10">
+              <FiPlus className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">Bulk Add Form</span>
             </button>
             <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
               <FiPlus className="text-lg" />
@@ -720,6 +821,147 @@ const FoodPage = () => {
           </form>
         </dialog>
       )}
+      {isBulkUiModalOpen && (
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-6xl bg-white dark:bg-brand-charcoal p-0 overflow-hidden rounded-2xl shadow-2xl border border-brand-beige dark:border-brand-beige/20">
+            <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <h3 className="font-bold text-lg text-brand-charcoal dark:text-brand-offwhite uppercase tracking-widest">Bulk Add Food (Form)</h3>
+              <button onClick={closeBulkUiModal} className="btn btn-sm btn-circle btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite"><FiX size={18} /></button>
+            </div>
+
+            <div className="p-6 max-h-[65vh] overflow-y-auto overflow-x-auto bg-gray-50 dark:bg-brand-charcoal/30">
+              <table className="table table-xs w-full bg-white dark:bg-brand-charcoal shadow-sm rounded-xl">
+                <thead className="bg-brand-primary text-white font-bold uppercase tracking-widest text-[10px]">
+                  <tr>
+                    <th className="py-3 px-2 w-48">Food Name *</th>
+                    <th className="py-3 px-2 w-48">Category</th>
+                    <th className="py-3 px-2 w-24">Image</th>
+                    <th className="py-3 px-2 w-32">Type</th>
+                    <th className="py-3 px-2 w-24">Price *</th>
+                    <th className="py-3 px-2 w-16 text-center">VAT</th>
+                    <th className="py-3 px-2 w-16 text-center">SC</th>
+                    <th className="py-3 px-2 w-16 text-center">SD</th>
+                    <th className="py-3 px-2 w-16 text-center">Remove</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulkUiFormData.map((row, index) => (
+                    <tr key={row.id} className="border-b border-gray-100 dark:border-gray-800">
+                      <td className="p-2">
+                        <input
+                          type="text"
+                          value={row.foodName}
+                          onChange={(e) => handleBulkUiChange(row.id, 'foodName', e.target.value)}
+                          className="input input-bordered input-sm w-full text-xs bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite border-brand-primary/20 focus:border-brand-primary"
+                          placeholder="Name"
+                        />
+                      </td>
+                      <td className="p-2 min-w-[200px]">
+                        <CreatableSelect
+                          options={categoryOptions}
+                          value={categoryOptions.find(option => option.value === row.category) || (row.category ? { label: row.category, value: row.category } : null)}
+                          onChange={(selectedOption) => handleBulkUiChange(row.id, 'category', selectedOption ? selectedOption.value : "")}
+                          isClearable
+                          isSearchable
+                          placeholder="Select Category"
+                          styles={customSelectStyles}
+                          className="text-xs text-brand-charcoal"
+                          menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
+                          menuPosition="fixed"
+                        />
+                      </td>
+                      <td className="p-2 text-center align-middle">
+                        {row.isUploadingImage ? (
+                          <span className="loading loading-spinner loading-xs text-brand-primary"></span>
+                        ) : row.image ? (
+                          <div className="relative w-8 h-8 group mx-auto">
+                            <img src={row.image} alt="preview" className="w-full h-full object-cover rounded shadow-sm border border-brand-beige/50" />
+                            <button onClick={() => handleBulkUiChange(row.id, 'image', '')} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <FiX size={10} />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="btn btn-xs btn-circle btn-ghost text-brand-primary hover:bg-brand-primary/10 cursor-pointer">
+                            <FiUpload size={14} />
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleBulkImageUpload(row.id, e)} />
+                          </label>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <select
+                          value={row.foodType}
+                          onChange={(e) => handleBulkUiChange(row.id, 'foodType', e.target.value)}
+                          className="select select-bordered select-sm w-full text-xs bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite border-brand-primary/20 focus:border-brand-primary"
+                        >
+                          {foodTypes.map((type) => (
+                            <option key={type} value={type}>{type}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          value={row.price}
+                          onChange={(e) => handleBulkUiChange(row.id, 'price', e.target.value)}
+                          className="input input-bordered input-sm w-full text-xs bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite border-brand-primary/20 focus:border-brand-primary"
+                          placeholder="Price"
+                          min="0"
+                        />
+                      </td>
+                      <td className="p-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={row.vat > 0}
+                          onChange={(e) => handleBulkUiChange(row.id, 'vat', e.target.checked ? chargeSettings?.vat?.value || 0 : 0)}
+                          className="toggle toggle-sm bg-brand-primary"
+                        />
+                      </td>
+                      <td className="p-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={row.sc > 0}
+                          onChange={(e) => handleBulkUiChange(row.id, 'sc', e.target.checked ? chargeSettings?.sc?.value || 0 : 0)}
+                          className="toggle toggle-sm bg-brand-primary"
+                        />
+                      </td>
+                      <td className="p-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={row.sd > 0}
+                          onChange={(e) => handleBulkUiChange(row.id, 'sd', e.target.checked ? chargeSettings?.sd?.value || 0 : 0)}
+                          className="toggle toggle-sm bg-brand-primary"
+                        />
+                      </td>
+                      <td className="p-2 text-center">
+                        <button onClick={() => handleRemoveBulkUiRow(row.id)} className="btn btn-xs btn-circle btn-ghost text-red-500 hover:bg-red-50">
+                          <FiTrash2 />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="mt-4 flex justify-center">
+                <button onClick={handleAddBulkUiRow} className="btn btn-sm bg-white text-brand-primary border-brand-primary hover:bg-brand-primary hover:text-white hover:border-brand-primary rounded-full gap-2 shadow-sm">
+                  <FiPlus /> Add Another Item
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <button onClick={closeBulkUiModal} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
+              <button onClick={handleBulkUiSubmit} disabled={isBulkSubmitting} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">
+                {isBulkSubmitting ? 'Saving...' : 'Save All Items'}
+              </button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={closeBulkUiModal}>close</button>
+          </form>
+        </dialog>
+      )}
+
     </div>
   );
 };
