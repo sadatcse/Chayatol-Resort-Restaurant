@@ -1,0 +1,73 @@
+import mongoose from "mongoose";
+const { Schema } = mongoose;
+
+const PurchaseItemSchema = Schema({
+  ingredient: {
+    type: Schema.Types.ObjectId,
+    ref: "Ingredient",
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: [0, "Quantity cannot be negative"],
+  },
+  unitPrice: {
+    type: Number,
+    required: true,
+    min: [0, "Unit price cannot be negative"],
+  },
+  totalPrice: {
+    type: Number,
+    required: true,
+  },
+});
+
+const PurchaseSchema = Schema(
+  {
+    vendor: {
+      type: Schema.Types.ObjectId,
+      ref: "Vendor",
+      required: true,
+    },
+    purchaseDate: {
+      type: Date,
+      default: Date.now,
+    },
+    invoiceNumber: {
+      type: String,
+      trim: true,
+    },
+    items: [PurchaseItemSchema],
+    grandTotal: {
+      type: Number,
+      required: true,
+    },
+    paymentStatus: {
+      type: String,
+      required: true,
+      enum: ["Paid", "Unpaid", "Partial"],
+      default: "Unpaid",
+    },
+    paidAmount: {
+      type: Number,
+      default: 0,
+    },
+    paymentMethod: {
+      type: String,
+      required: [true, "Please provide a payment method"],
+      enum: ["Cash", "Card", "Mobile", "Other"],
+      default: "Cash",
+    },
+    notes: {
+      type: String,
+      trim: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const Purchase =
+  mongoose.models.Purchase || mongoose.model("Purchase", PurchaseSchema);
+
+export default Purchase;

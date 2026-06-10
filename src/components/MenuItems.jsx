@@ -109,6 +109,39 @@ const menuItems = () => {
       ],
     },
 
+    // ================= MAINTAIN STOCKS =================
+    {
+      title: "Maintain Stocks",
+      icon: <MdInventory className="text-lg" />,
+      children: [
+        {
+          title: "Ingredients Categories",
+          path: "/dashboard/maintain-stocks/categories",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Ingredients Name",
+          path: "/dashboard/maintain-stocks/ingredients",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Vendor Management",
+          path: "/dashboard/maintain-stocks/vendors",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Current Stock",
+          path: "/dashboard/maintain-stocks/stock",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Purchase Management",
+          path: "/dashboard/maintain-stocks/purchases",
+          icon: <MdListAlt className="text-base" />,
+        },
+      ],
+    },
+
     // ================= SETTINGS =================
     {
       title: "Setting",
