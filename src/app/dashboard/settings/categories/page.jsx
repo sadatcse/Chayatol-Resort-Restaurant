@@ -39,6 +39,10 @@ const FoodCategoriesPage = () => {
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
 
+  // Bulk Add UI State
+  const [isBulkUiModalOpen, setIsBulkUiModalOpen] = useState(false);
+  const [bulkUiFormData, setBulkUiFormData] = useState([]);
+
   const openModal = (catToEdit = null) => {
     if (catToEdit) {
       setEditId(catToEdit._id);
@@ -57,6 +61,60 @@ const FoodCategoriesPage = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditId(null);
+  };
+
+  const openBulkUiModal = () => {
+    setBulkUiFormData([{ ...INITIAL_FORM_DATA, id: Date.now() }]);
+    setIsBulkUiModalOpen(true);
+  };
+
+  const closeBulkUiModal = () => {
+    setIsBulkUiModalOpen(false);
+    setBulkUiFormData([]);
+  };
+
+  const handleBulkUiSubmit = async () => {
+    const invalidRows = bulkUiFormData.filter(f => !f.categoryName?.trim() || (f.serial !== "" && isNaN(f.serial)) || (f.serial !== "" && Number(f.serial) < 0));
+    if (invalidRows.length > 0) {
+      Swal.fire("Validation Error", "Please ensure all rows have a valid Category Name.", "warning");
+      return;
+    }
+
+    if (bulkUiFormData.length === 0) {
+      Swal.fire("Warning", "Please add at least one category.", "warning");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = bulkUiFormData.map(item => ({
+        categoryName: item.categoryName?.trim(),
+        serial: Number(item.serial),
+        isActive: item.isActive
+      }));
+
+      const res = await axiosSecure.post("/category/bulk-post", payload);
+      localStorage.removeItem("categories");
+      await refetch();
+      closeBulkUiModal();
+      Swal.fire("Success", res.data.message || "Bulk categories added successfully.", "success");
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to add bulk categories.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddBulkUiRow = () => {
+    setBulkUiFormData([...bulkUiFormData, { ...INITIAL_FORM_DATA, id: Date.now() }]);
+  };
+
+  const handleRemoveBulkUiRow = (id) => {
+    setBulkUiFormData(bulkUiFormData.filter(row => row.id !== id));
+  };
+
+  const handleBulkUiChange = (id, field, value) => {
+    setBulkUiFormData(prev => prev.map(row => row.id === id ? { ...row, [field]: value } : row));
   };
 
   const handleAddOrEditCategory = async () => {
@@ -235,10 +293,16 @@ const FoodCategoriesPage = () => {
         </div>
 
         {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
-            <FiPlus className="text-lg" />
-            <span className="uppercase tracking-widest text-xs font-bold">New Category</span>
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => openBulkUiModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10">
+              <FiPlus className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">Bulk Add Form</span>
+            </button>
+            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+              <FiPlus className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">New Category</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -406,6 +470,99 @@ const FoodCategoriesPage = () => {
           </form>
         </dialog>
       )}
+
+      {/* Bulk UI Modal */}
+      {isBulkUiModalOpen && (
+        <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
+          <div className="modal-box max-w-5xl bg-white dark:bg-brand-charcoal p-0 overflow-hidden rounded-2xl shadow-2xl border border-brand-beige dark:border-brand-beige/20">
+            <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <h3 className="font-bold text-lg text-brand-charcoal dark:text-brand-offwhite uppercase tracking-widest">Bulk Add Category (Form)</h3>
+              <button onClick={closeBulkUiModal} className="btn btn-sm btn-circle btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite"><FiX size={18} /></button>
+            </div>
+
+            <div className="p-6 bg-gray-50 dark:bg-brand-charcoal/30 overflow-x-auto min-h-[300px] max-h-[60vh] custom-scrollbar">
+              <table className="w-full min-w-[600px] border-collapse bg-white dark:bg-brand-charcoal rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800">
+                <thead className="bg-brand-primary text-white uppercase tracking-widest text-[10px] font-bold">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Category Name *</th>
+                    <th className="px-4 py-3 text-left w-32">Display Serial</th>
+                    <th className="px-4 py-3 text-center w-24">Active</th>
+                    <th className="px-4 py-3 text-center w-16">Remove</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  <AnimatePresence>
+                    {bulkUiFormData.map((row) => (
+                      <motion.tr 
+                        key={row.id}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
+                      >
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            value={row.categoryName}
+                            onChange={(e) => handleBulkUiChange(row.id, 'categoryName', e.target.value)}
+                            placeholder="Name"
+                            className="input input-sm input-bordered w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite border-brand-primary/30 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="number"
+                            value={row.serial}
+                            onChange={(e) => handleBulkUiChange(row.id, 'serial', e.target.value)}
+                            placeholder="Serial"
+                            className="input input-sm input-bordered w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite border-brand-primary/30 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
+                          />
+                        </td>
+                        <td className="p-3 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="toggle toggle-sm bg-brand-primary" 
+                            checked={row.isActive} 
+                            onChange={(e) => handleBulkUiChange(row.id, 'isActive', e.target.checked)} 
+                          />
+                        </td>
+                        <td className="p-3 text-center">
+                          <button 
+                            onClick={() => handleRemoveBulkUiRow(row.id)}
+                            className="btn btn-ghost btn-sm btn-circle text-red-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </tbody>
+              </table>
+
+              <div className="mt-4 flex justify-center">
+                <button 
+                  onClick={handleAddBulkUiRow}
+                  className="btn btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white btn-sm rounded-full gap-2 px-6"
+                >
+                  <FiPlus /> Add Another Item
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-white dark:bg-brand-charcoal">
+              <button onClick={closeBulkUiModal} className="btn btn-ghost text-xs font-bold uppercase tracking-widest">Cancel</button>
+              <button onClick={handleBulkUiSubmit} className="btn bg-brand-primary text-white border-none text-xs font-bold uppercase tracking-widest px-8" disabled={isSubmitting}>
+                {isSubmitting ? <span className="loading loading-spinner loading-sm"></span> : 'Save All Items'}
+              </button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={closeBulkUiModal}>close</button>
+          </form>
+        </dialog>
+      )}
+
     </div>
   );
 };

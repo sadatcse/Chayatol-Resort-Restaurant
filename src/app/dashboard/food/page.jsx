@@ -188,17 +188,43 @@ const FoodPage = () => {
 
     setIsBulkSubmitting(true);
     try {
-      const payload = bulkPreview.map(item => ({
-        foodName: item.foodName?.trim() || "Unknown Food",
-        category: item.category?.trim() || "Uncategorized",
-        foodType: item.foodType?.trim() || "Fast Food",
-        details: item.details?.trim() || "",
-        price: Number(item.price) || 0,
-        vat: Number(item.vat) || 0,
-        sc: Number(item.sc) || 0,
-        sd: Number(item.sd) || 0,
-        status: item.status?.trim() || "Available"
-      }));
+      const payload = bulkPreview.map(item => {
+        let parsedStatus = "Available";
+        const rawStatus = item.status?.trim().toUpperCase();
+        if (rawStatus === "INACTIVE" || rawStatus === "UNAVAILABLE") {
+            parsedStatus = "Unavailable";
+        }
+
+        let parsedVat = 0;
+        if (chargeSettings?.vat?.enabled) {
+          parsedVat = Number(item.vat) || 0;
+          if (item.vat?.toString().trim().toUpperCase() === "YES" && chargeSettings?.vat?.value) parsedVat = chargeSettings.vat.value;
+        }
+
+        let parsedSc = 0;
+        if (chargeSettings?.sc?.enabled) {
+          parsedSc = Number(item.sc) || 0;
+          if (item.sc?.toString().trim().toUpperCase() === "YES" && chargeSettings?.sc?.value) parsedSc = chargeSettings.sc.value;
+        }
+
+        let parsedSd = 0;
+        if (chargeSettings?.sd?.enabled) {
+          parsedSd = Number(item.sd) || 0;
+          if (item.sd?.toString().trim().toUpperCase() === "YES" && chargeSettings?.sd?.value) parsedSd = chargeSettings.sd.value;
+        }
+
+        return {
+          foodName: item.foodName?.trim() || "Unknown Food",
+          category: item.category?.trim() || "Uncategorized",
+          foodType: item.foodType?.trim() || "Fast Food",
+          details: item.details?.trim() || "",
+          price: Number(item.price) || 0,
+          vat: parsedVat,
+          sc: parsedSc,
+          sd: parsedSd,
+          status: parsedStatus
+        };
+      });
 
       const res = await axiosSecure.post("/food/bulk-post", payload);
       await refetch();
@@ -342,9 +368,9 @@ const FoodPage = () => {
       foodName: formData.foodName.trim(),
       details: formData.details.trim(),
       price: Number(formData.price),
-      vat: Number(formData.vat || 0),
-      sc: Number(formData.sc || 0),
-      sd: Number(formData.sd || 0),
+      vat: chargeSettings?.vat?.enabled ? Number(formData.vat || 0) : 0,
+      sc: chargeSettings?.sc?.enabled ? Number(formData.sc || 0) : 0,
+      sd: chargeSettings?.sd?.enabled ? Number(formData.sd || 0) : 0,
     };
 
     try {
@@ -644,50 +670,56 @@ const FoodPage = () => {
 
               {chargeSettings && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-1">
-                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">VAT</span>
-                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.vat.value}% VAT`} />
+                  {chargeSettings.vat?.enabled && (
+                    <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">VAT</span>
+                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.vat.value}% VAT`} />
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            className="toggle toggle-sm bg-brand-primary" 
+                            checked={formData.vat > 0} 
+                            onChange={(e) => setFormData({ ...formData, vat: e.target.checked ? chargeSettings.vat.value : 0 })} 
+                          />
                         </div>
-                        <input 
-                          type="checkbox" 
-                          className="toggle toggle-sm bg-brand-primary" 
-                          checked={formData.vat > 0} 
-                          onChange={(e) => setFormData({ ...formData, vat: e.target.checked ? chargeSettings.vat.value : 0 })} 
-                        />
                       </div>
-                    </div>
+                  )}
 
-                  <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-1">
-                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SC</span>
-                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sc.value}% SC`} />
+                  {chargeSettings.sc?.enabled && (
+                    <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SC</span>
+                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sc.value}% SC`} />
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            className="toggle toggle-sm bg-brand-primary" 
+                            checked={formData.sc > 0} 
+                            onChange={(e) => setFormData({ ...formData, sc: e.target.checked ? chargeSettings.sc.value : 0 })} 
+                          />
                         </div>
-                        <input 
-                          type="checkbox" 
-                          className="toggle toggle-sm bg-brand-primary" 
-                          checked={formData.sc > 0} 
-                          onChange={(e) => setFormData({ ...formData, sc: e.target.checked ? chargeSettings.sc.value : 0 })} 
-                        />
                       </div>
-                    </div>
+                  )}
 
-                  <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-1">
-                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SD</span>
-                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sd.value}% SD`} />
+                  {chargeSettings.sd?.enabled && (
+                    <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SD</span>
+                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sd.value}% SD`} />
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            className="toggle toggle-sm bg-brand-primary" 
+                            checked={formData.sd > 0} 
+                            onChange={(e) => setFormData({ ...formData, sd: e.target.checked ? chargeSettings.sd.value : 0 })} 
+                          />
                         </div>
-                        <input 
-                          type="checkbox" 
-                          className="toggle toggle-sm bg-brand-primary" 
-                          checked={formData.sd > 0} 
-                          onChange={(e) => setFormData({ ...formData, sd: e.target.checked ? chargeSettings.sd.value : 0 })} 
-                        />
                       </div>
-                    </div>
+                  )}
                 </div>
               )}
 

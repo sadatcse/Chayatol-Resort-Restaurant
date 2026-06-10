@@ -279,6 +279,10 @@ export default function POSPage() {
   let dynamicSd = 0;
   let dynamicSc = 0;
 
+  const isVatEnabled = chargeSettings?.vat?.enabled && vatValue > 0;
+  const isSdEnabled = chargeSettings?.sd?.enabled && sdValue > 0;
+  const isScEnabled = chargeSettings?.sc?.enabled && serviceChargeValue > 0;
+
   cart.forEach(item => {
     const itemDiscountAmt = item.discountType === "PERCENT" 
         ? (item.totalPrice * item.discountValue) / 100 
@@ -287,10 +291,14 @@ export default function POSPage() {
     const netItemPrice = item.totalPrice - itemDiscountAmt;
     const finalItemPrice = netItemPrice * discountFactor;
 
-    // Use the rates strictly saved on the product
-    dynamicVat += finalItemPrice * ((item.vatRate || 0) / 100);
-    dynamicSd += finalItemPrice * ((item.sdRate || 0) / 100);
-    dynamicSc += finalItemPrice * ((item.scRate || 0) / 100);
+    // Apply rates only if globally enabled and applicable
+    const effectiveVatRate = isVatEnabled ? (item.vatRate || 0) : 0;
+    const effectiveSdRate = isSdEnabled ? (item.sdRate || 0) : 0;
+    const effectiveScRate = isScEnabled ? (item.scRate || 0) : 0;
+
+    dynamicVat += finalItemPrice * (effectiveVatRate / 100);
+    dynamicSd += finalItemPrice * (effectiveSdRate / 100);
+    dynamicSc += finalItemPrice * (effectiveScRate / 100);
   });
 
   const vat = dynamicVat;
@@ -298,9 +306,9 @@ export default function POSPage() {
   const serviceChargeAmt = dynamicSc;
   
   // Extract the actual rates applied for UI display
-  const appliedVatRate = cart.find(i => i.vatRate > 0)?.vatRate || 0;
-  const appliedSdRate = cart.find(i => i.sdRate > 0)?.sdRate || 0;
-  const appliedScRate = cart.find(i => i.scRate > 0)?.scRate || 0;
+  const appliedVatRate = isVatEnabled ? cart.find(i => i.vatRate > 0)?.vatRate || 0 : 0;
+  const appliedSdRate = isSdEnabled ? cart.find(i => i.sdRate > 0)?.sdRate || 0 : 0;
+  const appliedScRate = isScEnabled ? cart.find(i => i.scRate > 0)?.scRate || 0 : 0;
   const deliveryAmt = deliveryChargeType === "PERCENT" ? (subTotalAfterDiscount * deliveryChargeValue) / 100 : deliveryChargeValue;
   const grandTotal = subTotalAfterDiscount + vat + sdAmt + serviceChargeAmt + deliveryAmt;
 
@@ -404,7 +412,7 @@ export default function POSPage() {
   return (
     <div className="h-[calc(100vh-100px)] flex gap-4">
       {/* MIDDLE: Food Grid & Top Categories */}
-      <div className="flex-1 flex flex-col gap-4">
+      <div className="flex-1 flex flex-col gap-4 min-w-0">
         {/* Horizontal Categories like ChillyPOS */}
         <div className="bg-white dark:bg-brand-charcoal rounded-xl shadow-sm p-3 flex gap-2 overflow-x-auto custom-scrollbar border border-gray-100 dark:border-gray-800 shrink-0">
            <button 
@@ -459,7 +467,7 @@ export default function POSPage() {
       </div>
 
       {/* RIGHT: Advanced Order Panel */}
-      <div className="w-[420px] bg-white dark:bg-brand-charcoal rounded-xl shadow-lg flex flex-col border border-gray-100 dark:border-gray-800 shrink-0">
+      <div className="w-[340px] lg:w-[380px] xl:w-[420px] bg-white dark:bg-brand-charcoal rounded-xl shadow-lg flex flex-col border border-gray-100 dark:border-gray-800 shrink-0">
         
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-gray-700 shrink-0">
