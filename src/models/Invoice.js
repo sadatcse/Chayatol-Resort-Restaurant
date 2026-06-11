@@ -108,13 +108,6 @@ const invoiceSchema = new Schema(
 
     paymentMethod: {
       type: String,
-      enum: [
-        "Cash",
-        "Card",
-        "Mobile Banking",
-        "Bank Transfer",
-        "Room Charge"
-      ],
       default: "Cash",
     },
 
