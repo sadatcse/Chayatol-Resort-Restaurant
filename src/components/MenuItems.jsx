@@ -59,6 +59,19 @@ const menuItems = () => {
           icon: <MdGroup className="text-base" />,
         },
         {
+          title: "User Access Logs",
+          path: "/dashboard/user-access",
+          icon: <MdListAlt className="text-base" />,
+        },
+      ],
+    },
+
+    // ================= RESORT MANAGEMENT =================
+    {
+      title: "Resort Management",
+      icon: <MdBeachAccess className="text-lg" />,
+      children: [
+        {
           title: "Room Bookings",
           path: "/dashboard/bookings",
           icon: <MdEventAvailable className="text-base" />,
@@ -66,11 +79,6 @@ const menuItems = () => {
         {
           title: "Room Management",
           path: "/dashboard/rooms",
-          icon: <MdListAlt className="text-base" />,
-        },
-        {
-          title: "User Access Logs",
-          path: "/dashboard/user-access",
           icon: <MdListAlt className="text-base" />,
         },
       ],
