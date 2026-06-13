@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useContext, useMemo } from "react";
+import React, { useState, useContext, useMemo, useEffect } from "react";
 import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCheckCircle, FiXCircle, FiList } from "react-icons/fi";
+import { MdInfoOutline } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import Select from "react-select";
@@ -21,6 +22,9 @@ const INITIAL_FORM_DATA = {
   price: "",
   image: "",
   status: "Available",
+  vat: 0,
+  sc: 0,
+  sd: 0,
 };
 
 const customSelectStyles = {
@@ -62,6 +66,19 @@ const ResortServicesPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
+  const [chargeSettings, setChargeSettings] = useState(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data } = await axiosSecure.get("/settings/charges");
+        if (data) setChargeSettings(data);
+      } catch (err) {
+        console.error("Failed to fetch charge settings:", err);
+      }
+    };
+    fetchSettings();
+  }, [axiosSecure]);
 
   const openModal = (serviceToEdit = null) => {
     if (serviceToEdit) {
@@ -72,6 +89,9 @@ const ResortServicesPage = () => {
         price: serviceToEdit.price || "",
         image: serviceToEdit.image || "",
         status: serviceToEdit.status || "Available",
+        vat: serviceToEdit.vat || 0,
+        sc: serviceToEdit.sc || 0,
+        sd: serviceToEdit.sd || 0,
       });
     } else {
       setEditId(null);
@@ -132,6 +152,9 @@ const ResortServicesPage = () => {
       ...formData,
       serviceName: formData.serviceName.trim(),
       price: Number(formData.price),
+      vat: chargeSettings?.vat?.enabled ? Number(formData.vat || 0) : 0,
+      sc: chargeSettings?.sc?.enabled ? Number(formData.sc || 0) : 0,
+      sd: chargeSettings?.sd?.enabled ? Number(formData.sd || 0) : 0,
     };
 
     try {
@@ -340,6 +363,61 @@ const ResortServicesPage = () => {
                 <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Price (৳) *</span></label>
                 <input type="number" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary w-full bg-white text-brand-charcoal" placeholder="e.g. 500" />
               </div>
+
+              {chargeSettings && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {chargeSettings.vat?.enabled && (
+                    <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">VAT</span>
+                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.vat.value}% VAT`} />
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            className="toggle toggle-sm bg-brand-primary" 
+                            checked={formData.vat > 0} 
+                            onChange={(e) => setFormData({ ...formData, vat: e.target.checked ? chargeSettings.vat.value : 0 })} 
+                          />
+                        </div>
+                      </div>
+                  )}
+
+                  {chargeSettings.sc?.enabled && (
+                    <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SC</span>
+                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sc.value}% SC`} />
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            className="toggle toggle-sm bg-brand-primary" 
+                            checked={formData.sc > 0} 
+                            onChange={(e) => setFormData({ ...formData, sc: e.target.checked ? chargeSettings.sc.value : 0 })} 
+                          />
+                        </div>
+                      </div>
+                  )}
+
+                  {chargeSettings.sd?.enabled && (
+                    <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SD</span>
+                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sd.value}% SD`} />
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            className="toggle toggle-sm bg-brand-primary" 
+                            checked={formData.sd > 0} 
+                            onChange={(e) => setFormData({ ...formData, sd: e.target.checked ? chargeSettings.sd.value : 0 })} 
+                          />
+                        </div>
+                      </div>
+                  )}
+                </div>
+              )}
 
               <div className="form-control w-full">
                 <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Status</span></label>
