@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useContext, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { FiArrowLeft, FiDollarSign, FiFileText, FiCheckCircle, FiXCircle, FiAlertCircle, FiX, FiInfo } from "react-icons/fi";
+import { FiArrowLeft, FiDollarSign, FiFileText, FiCheckCircle, FiXCircle, FiAlertCircle, FiX, FiInfo, FiCalendar } from "react-icons/fi";
 import Swal from "sweetalert2";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -26,8 +28,65 @@ const VendorLedgerPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
+  // ── Date / Month filter ──────────────────────────────────────────────────
+  // Generate last 12 months dynamically
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const d = new Date();
+    for (let i = 0; i < 12; i++) {
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const label = d.toLocaleDateString("default", { month: "long", year: "numeric" });
+      options.push({ label, year, month });
+      d.setMonth(d.getMonth() - 1);
+    }
+    return options;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth()}`;
+  });
+  const [fromDate, setFromDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  });
+  const [toDate, setToDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  });
+
+  // Sync selectedMonth label when DatePickers change manually
+  useEffect(() => {
+    if (!fromDate && !toDate) { if (selectedMonth !== "all") setSelectedMonth("all"); return; }
+    if (fromDate && toDate) {
+      const sy = fromDate.getFullYear(), sm = fromDate.getMonth(), sd = fromDate.getDate();
+      const ey = toDate.getFullYear(), em = toDate.getMonth();
+      const lastDay = new Date(sy, sm + 1, 0).getDate();
+      if (sy === ey && sm === em && sd === 1 && toDate.getDate() === lastDay) {
+        const val = `${sy}-${sm}`;
+        if (selectedMonth !== val) setSelectedMonth(val);
+        return;
+      }
+    }
+    if (selectedMonth !== "custom") setSelectedMonth("custom");
+  }, [fromDate, toDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleMonthChange = (e) => {
+    const val = e.target.value;
+    setSelectedMonth(val);
+    setCurrentPage(1);
+    if (val === "all") { setFromDate(null); setToDate(null); }
+    else if (val !== "custom") {
+      const [yr, mo] = val.split("-").map(Number);
+      setFromDate(new Date(yr, mo, 1, 0, 0, 0, 0));
+      setToDate(new Date(yr, mo + 1, 0, 23, 59, 59, 999));
+    }
+  };
+
   // Track all invoices, active tab, and payment history transactions
   const [allInvoices, setAllInvoices] = useState([]);
+  const [allPaymentTransactions, setAllPaymentTransactions] = useState([]);
   const [activeTab, setActiveTab] = useState("invoices");
   const [paymentTransactions, setPaymentTransactions] = useState([]);
   const [isPaymentsLoading, setIsPaymentsLoading] = useState(false);
@@ -35,24 +94,26 @@ const VendorLedgerPage = () => {
   // Compute total statistics dynamically from invoices and payment logs reactively
   const stats = useMemo(() => {
     const totalAmount = allInvoices.reduce((sum, item) => sum + (item.grandTotal || 0), 0);
-    const totalPaid = paymentTransactions.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalPaid = allPaymentTransactions.reduce((sum, item) => sum + (item.amount || 0), 0);
     const totalDue = totalAmount - totalPaid;
     return { totalAmount, totalPaid, totalDue };
-  }, [allInvoices, paymentTransactions]);
+  }, [allInvoices, allPaymentTransactions]);
 
   // Fetch Vendor Payment History from the new model endpoint
   const fetchPaymentTransactions = useCallback(async () => {
     if (!vendorId) return;
     setIsPaymentsLoading(true);
     try {
-      const { data } = await axiosSecure.get(`/vendor-payment?vendorId=${vendorId}`);
+      const fromParam = fromDate ? `&fromDate=${fromDate.toISOString()}` : "";
+      const toParam = toDate ? `&toDate=${toDate.toISOString()}` : "";
+      const { data } = await axiosSecure.get(`/vendor-payment?vendorId=${vendorId}${fromParam}${toParam}`);
       setPaymentTransactions(data || []);
     } catch (error) {
       console.error("Failed to fetch vendor payment transactions:", error);
     } finally {
       setIsPaymentsLoading(false);
     }
-  }, [vendorId, axiosSecure]);
+  }, [vendorId, fromDate, toDate, axiosSecure]);
 
   // Payment modal state
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -92,7 +153,7 @@ const VendorLedgerPage = () => {
       // Fetch all invoices for allocation
       const { data } = await axiosSecure.get(`/purchase/paginated?page=1&limit=1000&vendorId=${vendorId}`);
       const allInvoices = data.data || [];
-      
+
       // Filter pending invoices, sorted by purchaseDate ASC (oldest first)
       const pendingInvoices = allInvoices
         .filter(inv => (inv.grandTotal - inv.paidAmount) > 0)
@@ -169,8 +230,8 @@ const VendorLedgerPage = () => {
         text: remainingPayment > 0 && payAmt > remainingPayment
           ? `Cleared pending dues across ${updates.length} invoice(s) and logged ${remainingPayment.toFixed(2)} BDT as general advance payment.`
           : remainingPayment > 0
-          ? `Recorded ${remainingPayment.toFixed(2)} BDT as general advance payment.`
-          : `Bulk payment of ${payAmt.toFixed(2)} BDT successfully distributed across ${updates.length} invoice(s).`,
+            ? `Recorded ${remainingPayment.toFixed(2)} BDT as general advance payment.`
+            : `Bulk payment of ${payAmt.toFixed(2)} BDT successfully distributed across ${updates.length} invoice(s).`,
         icon: "success",
         confirmButtonColor: "#346E36"
       });
@@ -211,24 +272,29 @@ const VendorLedgerPage = () => {
     if (!vendorId) return;
     setIsLoading(true);
     try {
+      const fromParam = fromDate ? `&fromDate=${fromDate.toISOString()}` : "";
+      const toParam = toDate ? `&toDate=${toDate.toISOString()}` : "";
       const { data } = await axiosSecure.get(
-        `/purchase/paginated?page=${currentPage}&limit=${itemsPerPage}&vendorId=${vendorId}`
+        `/purchase/paginated?page=${currentPage}&limit=${itemsPerPage}&vendorId=${vendorId}${fromParam}${toParam}`
       );
       setInvoices(data.data || []);
       setTotalPages(data.pagination?.totalPages || 1);
       setTotalItems(data.pagination?.totalDocuments || 0);
 
-      // Compute total statistics across all invoices for this vendor
+      // Compute total statistics across all invoices for this vendor (no date filter for balance)
       const allInvoicesRes = await axiosSecure.get(`/purchase/paginated?page=1&limit=1000&vendorId=${vendorId}`);
-      const allInvoices = allInvoicesRes.data.data || [];
-      setAllInvoices(allInvoices);
-      // Stats are computed dynamically from allInvoices and paymentTransactions using useMemo
+      const allInvs = allInvoicesRes.data.data || [];
+      setAllInvoices(allInvs);
+
+      // Fetch all-time payment transactions for statistics calculation
+      const allPaymentsRes = await axiosSecure.get(`/vendor-payment?vendorId=${vendorId}`);
+      setAllPaymentTransactions(allPaymentsRes.data || []);
     } catch (error) {
       console.error("Failed to fetch vendor ledger:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [vendorId, currentPage, itemsPerPage, axiosSecure]);
+  }, [vendorId, currentPage, itemsPerPage, fromDate, toDate, axiosSecure]);
 
   // Fetch All Vendors (fallback for when vendorId query param is absent)
   const [vendorsList, setVendorsList] = useState([]);
@@ -246,15 +312,28 @@ const VendorLedgerPage = () => {
     }
   }, [axiosSecure]);
 
+  // Fetch details and all vendors once on load or vendorId change
   useEffect(() => {
     if (vendorId) {
       fetchVendorDetails();
-      fetchVendorInvoices();
-      fetchPaymentTransactions();
     } else {
       fetchAllVendors();
     }
-  }, [vendorId, fetchVendorDetails, fetchVendorInvoices, fetchPaymentTransactions, fetchAllVendors]);
+  }, [vendorId, fetchVendorDetails, fetchAllVendors]);
+
+  // Fetch invoices on vendorId, pagination, or date filter change
+  useEffect(() => {
+    if (vendorId) {
+      fetchVendorInvoices();
+    }
+  }, [vendorId, currentPage, itemsPerPage, fromDate, toDate, fetchVendorInvoices]);
+
+  // Fetch payment transactions on vendorId or date filter change
+  useEffect(() => {
+    if (vendorId) {
+      fetchPaymentTransactions();
+    }
+  }, [vendorId, fromDate, toDate, fetchPaymentTransactions]);
 
   const openPaymentModal = (invoice) => {
     setSelectedInvoice(invoice);
@@ -284,7 +363,7 @@ const VendorLedgerPage = () => {
     const excessAmount = payAmt - invoiceAllocated;
 
     setIsSubmitting(true);
-    
+
     // Prepare updated purchase invoice details payload
     const updatedPaidAmount = Number(selectedInvoice.paidAmount) + invoiceAllocated;
     let paymentStatus = "Unpaid";
@@ -340,7 +419,7 @@ const VendorLedgerPage = () => {
 
       Swal.fire({
         title: "Success",
-        text: excessAmount > 0 
+        text: excessAmount > 0
           ? `Cleared invoice ${selectedInvoice.invoiceNumber} due and recorded ${excessAmount.toFixed(2)} BDT as general advance payment.`
           : `Logged payment of ${payAmt} BDT against invoice ${selectedInvoice.invoiceNumber}.`,
         icon: "success",
@@ -362,10 +441,10 @@ const VendorLedgerPage = () => {
   };
 
   const renderStatusBadge = (status) => {
-    const styles = { 
-      Paid: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider", 
-      Unpaid: "bg-red-100 text-red-850 dark:bg-red-950/30 dark:text-red-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider", 
-      Partial: "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider" 
+    const styles = {
+      Paid: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider",
+      Unpaid: "bg-red-100 text-red-850 dark:bg-red-950/30 dark:text-red-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider",
+      Partial: "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider"
     };
     return <span className={`badge ${styles[status]}`}>{status}</span>;
   };
@@ -375,10 +454,10 @@ const VendorLedgerPage = () => {
   if (!vendorId) {
     return (
       <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
-        
+
         {/* Back to Vendors & Title Header */}
         <div className="mb-4">
-          <button 
+          <button
             onClick={() => router.push("/dashboard/maintain-stocks/vendors")}
             className="btn btn-sm btn-ghost gap-2 pl-0 hover:bg-transparent text-brand-sage hover:text-brand-primary"
           >
@@ -387,7 +466,7 @@ const VendorLedgerPage = () => {
           </button>
         </div>
 
-        <SectionHeader 
+        <SectionHeader
           title="Supplier Ledger Select"
           subtitle="Select a supplier to view their ledger, purchase bills, payment history, and clear outstanding balances."
         />
@@ -444,10 +523,10 @@ const VendorLedgerPage = () => {
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
-      
+
       {/* Back to Vendors & Title Header */}
       <div className="mb-4">
-        <button 
+        <button
           onClick={() => router.push("/dashboard/maintain-stocks/vendors")}
           className="btn btn-sm btn-ghost gap-2 pl-0 hover:bg-transparent text-brand-sage hover:text-brand-primary"
         >
@@ -456,7 +535,7 @@ const VendorLedgerPage = () => {
         </button>
       </div>
 
-      <SectionHeader 
+      <SectionHeader
         title={`Supplier Ledger: ${vendor?.vendorName || "Loading..."}`}
         subtitle={`Audit supplier purchase bills, payment schedules, and clear outstanding balances.`}
       />
@@ -464,7 +543,7 @@ const VendorLedgerPage = () => {
       {/* Supplier Profile Info Block */}
       {vendor && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          
+
           {/* Contact Details Card */}
           <div className="bg-white dark:bg-brand-charcoal p-6 rounded-2xl border border-brand-beige dark:border-brand-beige/25 shadow-sm space-y-3">
             <h3 className="text-xs font-bold text-brand-primary dark:text-brand-sage uppercase tracking-wider border-b border-brand-beige dark:border-brand-beige/15 pb-2">Supplier Profile</h3>
@@ -553,22 +632,20 @@ const VendorLedgerPage = () => {
         <div className="flex border-b border-brand-beige dark:border-brand-beige/25 mb-6 gap-2">
           <button
             onClick={() => setActiveTab("invoices")}
-            className={`flex items-center gap-2 px-5 py-3 font-bold text-xs uppercase tracking-wider transition-colors border-b-2 rounded-t-xl ${
-              activeTab === "invoices"
+            className={`flex items-center gap-2 px-5 py-3 font-bold text-xs uppercase tracking-wider transition-colors border-b-2 rounded-t-xl ${activeTab === "invoices"
                 ? "text-brand-primary border-brand-primary bg-brand-primary/5 dark:bg-brand-primary/10"
                 : "border-transparent text-brand-sage hover:text-brand-primary hover:bg-brand-offwhite/50 dark:hover:bg-brand-charcoal/50"
-            }`}
+              }`}
           >
             <FiFileText size={16} />
             Purchase Invoices & Dues
           </button>
           <button
             onClick={() => setActiveTab("payments")}
-            className={`flex items-center gap-2 px-5 py-3 font-bold text-xs uppercase tracking-wider transition-colors border-b-2 rounded-t-xl ${
-              activeTab === "payments"
+            className={`flex items-center gap-2 px-5 py-3 font-bold text-xs uppercase tracking-wider transition-colors border-b-2 rounded-t-xl ${activeTab === "payments"
                 ? "text-brand-primary border-brand-primary bg-brand-primary/5 dark:bg-brand-primary/10"
                 : "border-transparent text-brand-sage hover:text-brand-primary hover:bg-brand-offwhite/50 dark:hover:bg-brand-charcoal/50"
-            }`}
+              }`}
           >
             <FiDollarSign size={16} />
             Supplier Payment History
@@ -576,10 +653,69 @@ const VendorLedgerPage = () => {
         </div>
       )}
 
+      {/* Global Date Filter Toolbar */}
+      {vendor && (
+        <div className="flex flex-wrap items-center gap-3 p-4 mb-6 border border-brand-beige dark:border-brand-beige/20 bg-white dark:bg-brand-charcoal rounded-2xl shadow-sm">
+          <div className="flex items-center gap-2 flex-nowrap">
+            <FiCalendar className="text-brand-sage text-lg shrink-0" />
+
+            {/* Month quick-selector */}
+            <select
+              value={selectedMonth}
+              onChange={handleMonthChange}
+              className="select select-bordered select-xs bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary h-9 text-xs font-semibold shrink-0"
+            >
+              <option value="all">All Time</option>
+              {monthOptions.map(({ label, year, month }) => (
+                <option key={`${year}-${month}`} value={`${year}-${month}`}>{label}</option>
+              ))}
+              {selectedMonth === "custom" && <option value="custom">Custom Range</option>}
+            </select>
+
+            {/* From DatePicker */}
+            <DatePicker
+              selected={fromDate}
+              onChange={(d) => { setFromDate(d); setCurrentPage(1); }}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="From Date"
+              isClearable
+              wrapperClassName="!w-auto inline-block shrink-0"
+              className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-9 text-xs font-semibold px-4 w-32 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm shrink-0"
+            />
+
+            {/* To DatePicker */}
+            <DatePicker
+              selected={toDate}
+              onChange={(d) => { setToDate(d); setCurrentPage(1); }}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="To Date"
+              isClearable
+              wrapperClassName="!w-auto inline-block shrink-0"
+              className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-9 text-xs font-semibold px-4 w-32 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm shrink-0"
+            />
+          </div>
+          {selectedMonth !== `${new Date().getFullYear()}-${new Date().getMonth()}` && (
+            <button
+              onClick={() => handleMonthChange({ target: { value: `${new Date().getFullYear()}-${new Date().getMonth()}` } })}
+              className="btn btn-xs rounded-full bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20 border-none font-bold uppercase tracking-widest text-[9px] px-4 h-9"
+            >
+              Current Month
+            </button>
+          )}
+
+          <span className="ml-auto text-[10px] font-bold text-brand-sage uppercase tracking-widest">
+            {activeTab === "invoices"
+              ? `${totalItems} invoice${totalItems !== 1 ? "s" : ""} found`
+              : `${paymentTransactions.length} transaction${paymentTransactions.length !== 1 ? "s" : ""} found`}
+          </span>
+        </div>
+      )}
+
       {/* Tab Contents */}
       {activeTab === "invoices" ? (
         /* Invoices List Table Section */
         <div className="bg-white dark:bg-brand-charcoal rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 overflow-hidden">
+
           <div className="p-0">
             {isLoading ? (
               <div className="p-6">
@@ -619,8 +755,8 @@ const VendorLedgerPage = () => {
                                   <span className="text-[8px] text-brand-sage font-bold uppercase tracking-wider block">Payments Log:</span>
                                   {invoice.payments.map((p, idx) => (
                                     <div key={p._id || idx} className="text-[9px] text-brand-sage font-mono leading-tight flex flex-wrap items-center gap-1 bg-brand-offwhite/40 dark:bg-brand-offwhite/5 px-1.5 py-0.5 rounded border border-brand-beige/20 w-fit">
-                                      <span className="font-bold text-brand-primary dark:text-brand-sage">{p.amount.toFixed(2)} BDT</span> 
-                                      <span>via {p.paymentMethod}</span> 
+                                      <span className="font-bold text-brand-primary dark:text-brand-sage">{p.amount.toFixed(2)} BDT</span>
+                                      <span>via {p.paymentMethod}</span>
                                       <span>on {new Date(p.paymentDate).toLocaleDateString()}</span>
                                       {p.note && <span className="italic opacity-80">({p.note})</span>}
                                     </div>
@@ -646,7 +782,7 @@ const VendorLedgerPage = () => {
                             <td className="pr-8 py-4 text-center">
                               {isDue ? (
                                 canPerformAction ? (
-                                  <button 
+                                  <button
                                     onClick={() => openPaymentModal(invoice)}
                                     className="btn btn-xs bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-[9px] px-3 py-1.5 h-auto rounded-full shadow-sm cursor-pointer"
                                   >
@@ -753,7 +889,7 @@ const VendorLedgerPage = () => {
       {selectedInvoice && (
         <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
           <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-md rounded-2xl shadow-2xl border border-brand-beige/20 dark:border-brand-beige/20 animate-scale-in">
-            
+
             {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
               <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">
@@ -766,7 +902,7 @@ const VendorLedgerPage = () => {
 
             <form onSubmit={handleClearDue} className="p-0">
               <div className="p-8 space-y-4">
-                
+
                 {/* Due Info Alert Block */}
                 <div className="flex gap-3 bg-brand-primary/10 dark:bg-brand-primary/20 p-4 rounded-xl border border-brand-primary/25 text-xs">
                   <FiInfo size={20} className="text-brand-primary dark:text-brand-sage shrink-0" />
@@ -799,10 +935,10 @@ const VendorLedgerPage = () => {
                 {/* Payment Method */}
                 <div className="form-control w-full">
                   <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Payment Method *</span></label>
-                  <select 
-                    value={paymentMethod} 
-                    onChange={e => setPaymentMethod(e.target.value)} 
-                    className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite" 
+                  <select
+                    value={paymentMethod}
+                    onChange={e => setPaymentMethod(e.target.value)}
+                    className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite"
                     required
                   >
                     <option value="Cash">Cash</option>
@@ -846,7 +982,7 @@ const VendorLedgerPage = () => {
       {isBulkOpen && (
         <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
           <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-md rounded-2xl shadow-2xl border border-brand-beige/20 dark:border-brand-beige/20 animate-scale-in">
-            
+
             {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
               <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">
@@ -859,7 +995,7 @@ const VendorLedgerPage = () => {
 
             <form onSubmit={handleBulkPayment} className="p-0">
               <div className="p-8 space-y-4">
-                
+
                 {/* Due Info Alert Block */}
                 <div className="flex gap-3 bg-brand-primary/10 dark:bg-brand-primary/20 p-4 rounded-xl border border-brand-primary/25 text-xs">
                   <FiInfo size={20} className="text-brand-primary dark:text-brand-sage shrink-0" />
@@ -895,10 +1031,10 @@ const VendorLedgerPage = () => {
                 {/* Payment Method */}
                 <div className="form-control w-full">
                   <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Payment Method *</span></label>
-                  <select 
-                    value={bulkMethod} 
-                    onChange={e => setBulkMethod(e.target.value)} 
-                    className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite" 
+                  <select
+                    value={bulkMethod}
+                    onChange={e => setBulkMethod(e.target.value)}
+                    className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite"
                     required
                   >
                     <option value="Cash">Cash</option>

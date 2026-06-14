@@ -9,13 +9,27 @@ export async function GET(req) {
     await dbConnect();
     const { searchParams } = new URL(req.url);
     const vendorId = searchParams.get("vendorId");
+    const fromDate = searchParams.get("fromDate");
+    const toDate   = searchParams.get("toDate");
 
     if (!vendorId) {
       return NextResponse.json({ error: "vendorId query parameter is required" }, { status: 400 });
     }
 
+    // Build date filter
+    const dateFilter = {};
+    if (fromDate || toDate) {
+      dateFilter.paymentDate = {};
+      if (fromDate) dateFilter.paymentDate.$gte = new Date(fromDate);
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        dateFilter.paymentDate.$lte = end;
+      }
+    }
+
     // 1. Fetch existing payments from VendorPayment collection
-    let payments = await VendorPayment.find({ vendor: vendorId }).sort({ paymentDate: -1 });
+    let payments = await VendorPayment.find({ vendor: vendorId, ...dateFilter }).sort({ paymentDate: -1 });
 
     // 2. Migration fallback: If no payments exist in the new collection,
     // fetch all purchases for this vendor to migrate any embedded payments on-the-fly.

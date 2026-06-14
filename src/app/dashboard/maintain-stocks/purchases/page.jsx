@@ -23,11 +23,9 @@ const INITIAL_FORM_DATA = {
   grandTotal: 0,
   paymentStatus: "Unpaid",
   paidAmount: 0,
-  paymentMethod: "Cash",
+  paymentMethod: "",
   notes: ""
 };
-
-const PAYMENT_METHODS = ["Cash", "Card", "Mobile", "Other"];
 
 const PurchasesPage = () => {
   const axiosSecure = useAxiosSecure();
@@ -134,19 +132,30 @@ const PurchasesPage = () => {
   const [vendors, setVendors] = useState([]);
   const [ingredients, setIngredients] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [paymentTypes, setPaymentTypes] = useState([]);
   const [itemCategories, setItemCategories] = useState([""]); // category selection track per row
 
-  // Fetch all suppliers, ingredients, and categories for dropdown selections
+  // Fetch all suppliers, ingredients, categories, and payment types for dropdown selections
   const fetchPrerequisites = useCallback(async () => {
     try {
-      const [vendorsRes, ingredientsRes, categoriesRes] = await Promise.all([
+      const [vendorsRes, ingredientsRes, categoriesRes, paymentTypesRes] = await Promise.all([
         axiosSecure.get("/vendor"),
         axiosSecure.get("/ingredient"),
-        axiosSecure.get("/ingredient-category")
+        axiosSecure.get("/ingredient-category"),
+        axiosSecure.get("/paymenttype"),
       ]);
       setVendors(vendorsRes.data || []);
       setIngredients(ingredientsRes.data || []);
       setCategories(categoriesRes.data || []);
+      const types = paymentTypesRes.data || [];
+      setPaymentTypes(types);
+      // Set the default paymentMethod to the first type from DB if not already set
+      if (types.length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          paymentMethod: prev.paymentMethod || types[0].name,
+        }));
+      }
     } catch (error) {
       console.error("Error fetching purchase prerequisites:", error);
     }
@@ -171,7 +180,8 @@ const PurchasesPage = () => {
 
   const openCreateModal = async () => {
     setEditId(null);
-    setFormData({ ...INITIAL_FORM_DATA, purchaseDate: new Date() });
+    const defaultMethod = paymentTypes.length > 0 ? paymentTypes[0].name : "";
+    setFormData({ ...INITIAL_FORM_DATA, purchaseDate: new Date(), paymentMethod: defaultMethod });
     setItemCategories([""]);
     setIsModalOpen(true);
     try {
@@ -193,7 +203,7 @@ const PurchasesPage = () => {
       grandTotal: purchase.grandTotal || 0,
       paymentStatus: purchase.paymentStatus || "Unpaid",
       paidAmount: purchase.paidAmount || 0,
-      paymentMethod: purchase.paymentMethod || "Cash",
+      paymentMethod: purchase.paymentMethod || (paymentTypes.length > 0 ? paymentTypes[0].name : ""),
       notes: purchase.notes || "",
       items: purchase.items.map(item => ({
         ingredient: item.ingredient?._id || item.ingredient || "",
@@ -392,50 +402,54 @@ const PurchasesPage = () => {
         title="Purchase Invoices"
         subtitle="Manage ingredient supply bills, track payment statuses, and review stock adjustments."
       >
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          {/* Monthly Selector */}
-          <select
-            value={selectedMonth}
-            onChange={handleMonthChange}
-            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-44 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige"
-          >
-            <option value="all">All Months</option>
-            {monthOptions.map((opt) => (
-              <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
-                {opt.label}
-              </option>
-            ))}
-            <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
-          </select>
+        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-2 flex-nowrap w-full sm:w-auto">
+            {/* Monthly Selector */}
+            <select
+              value={selectedMonth}
+              onChange={handleMonthChange}
+              className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-44 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
+            >
+              <option value="all">All Months</option>
+              {monthOptions.map((opt) => (
+                <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
+                  {opt.label}
+                </option>
+              ))}
+              <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
+            </select>
 
-          {/* From Date */}
-          <DatePicker
-            selected={fromDate}
-            onChange={(date) => {
-              setFromDate(date);
-              setCurrentPage(1);
-            }}
-            dateFormat="dd/MM/yyyy"
-            className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige"
-            placeholderText="From Date"
-            isClearable
-          />
+            {/* From Date */}
+            <DatePicker
+              selected={fromDate}
+              onChange={(date) => {
+                setFromDate(date);
+                setCurrentPage(1);
+              }}
+              dateFormat="dd/MM/yyyy"
+              className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
+              placeholderText="From Date"
+              isClearable
+              wrapperClassName="!w-auto inline-block shrink-0"
+            />
 
-          {/* To Date */}
-          <DatePicker
-            selected={toDate}
-            onChange={(date) => {
-              setToDate(date);
-              setCurrentPage(1);
-            }}
-            dateFormat="dd/MM/yyyy"
-            className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige"
-            placeholderText="To Date"
-            isClearable
-          />
+            {/* To Date */}
+            <DatePicker
+              selected={toDate}
+              onChange={(date) => {
+                setToDate(date);
+                setCurrentPage(1);
+              }}
+              dateFormat="dd/MM/yyyy"
+              className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
+              placeholderText="To Date"
+              isClearable
+              wrapperClassName="!w-auto inline-block shrink-0"
+            />
+          </div>
 
           {/* Search Box */}
-          <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full sm:w-64 h-12">
+          <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-64 h-12">
             <FiSearch className="text-brand-sage text-lg" />
             <input
               type="text"
@@ -813,9 +827,13 @@ const PurchasesPage = () => {
                         className="select select-bordered select-sm border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite w-44"
                         required
                       >
-                        {PAYMENT_METHODS.map(m => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
+                        {paymentTypes.length === 0 ? (
+                          <option value="" disabled>No payment types configured</option>
+                        ) : (
+                          paymentTypes.map(pt => (
+                            <option key={pt._id} value={pt.name}>{pt.name}</option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>

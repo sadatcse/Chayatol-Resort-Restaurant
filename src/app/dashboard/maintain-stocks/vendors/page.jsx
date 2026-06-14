@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useContext, useMemo } from "react";
-import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCheckCircle, FiXCircle, FiTruck, FiBookOpen } from "react-icons/fi";
+import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCheckCircle, FiXCircle, FiTruck, FiBookOpen, FiAlertCircle, FiDollarSign } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -45,6 +45,18 @@ const VendorsPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
+  const [paymentFilter, setPaymentFilter] = useState("all"); // "all" | "outstanding" | "settled"
+
+  // Compute counts from loaded vendors (all pages are server-side, but we filter the current page display)
+  const outstandingCount = useMemo(() => vendors.filter(v => (v.totalDue || 0) > 0).length, [vendors]);
+  const settledCount = useMemo(() => vendors.filter(v => (v.totalDue || 0) === 0).length, [vendors]);
+
+  // Apply client-side payment filter on top of server-side paginated data
+  const filteredVendors = useMemo(() => {
+    if (paymentFilter === "outstanding") return vendors.filter(v => (v.totalDue || 0) > 0);
+    if (paymentFilter === "settled") return vendors.filter(v => (v.totalDue || 0) === 0);
+    return vendors;
+  }, [vendors, paymentFilter]);
 
   const openModal = (vendorToEdit = null) => {
     if (vendorToEdit) {
@@ -222,26 +234,77 @@ const VendorsPage = () => {
           <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">Inactive Suppliers</div>
           <div className="stat-value text-red-500 dark:text-red-400 text-4xl mt-1">{inactiveCount}</div>
         </div>
+        <div
+          className={`stat place-items-center py-6 border-l border-brand-beige dark:border-brand-beige/20 cursor-pointer transition-colors ${
+            paymentFilter === "outstanding" ? "bg-red-50 dark:bg-red-950/20" : "hover:bg-red-50/50 dark:hover:bg-red-950/10"
+          }`}
+          onClick={() => setPaymentFilter(prev => prev === "outstanding" ? "all" : "outstanding")}
+          title="Click to filter by Outstanding"
+        >
+          <div className="stat-figure text-red-500 bg-red-500/10 p-4 rounded-full">
+            <FiAlertCircle className="w-8 h-8" />
+          </div>
+          <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">Outstanding (This Page)</div>
+          <div className="stat-value text-red-500 dark:text-red-400 text-4xl mt-1">{outstandingCount}</div>
+          {paymentFilter === "outstanding" && <div className="stat-desc text-[9px] font-bold text-red-500 uppercase tracking-wider mt-1">● Filtering Active</div>}
+        </div>
+        <div
+          className={`stat place-items-center py-6 border-l border-brand-beige dark:border-brand-beige/20 cursor-pointer transition-colors ${
+            paymentFilter === "settled" ? "bg-emerald-50 dark:bg-emerald-950/20" : "hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10"
+          }`}
+          onClick={() => setPaymentFilter(prev => prev === "settled" ? "all" : "settled")}
+          title="Click to filter by Settled"
+        >
+          <div className="stat-figure text-emerald-500 bg-emerald-500/10 p-4 rounded-full">
+            <FiDollarSign className="w-8 h-8" />
+          </div>
+          <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">Settled (This Page)</div>
+          <div className="stat-value text-emerald-600 dark:text-emerald-400 text-4xl mt-1">{settledCount}</div>
+          {paymentFilter === "settled" && <div className="stat-desc text-[9px] font-bold text-emerald-600 uppercase tracking-wider mt-1">● Filtering Active</div>}
+        </div>
       </div>
 
-      {/* Display selector & Add button */}
+      {/* Display selector, payment filter & Add button */}
       <div className="flex flex-wrap justify-between items-center bg-white dark:bg-brand-charcoal p-4 rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 mb-6 gap-4">
-        <div className="flex items-center gap-3 text-xs font-bold text-brand-sage uppercase tracking-widest">
-          <span>Display</span>
-          <select
-            value={itemsPerPage}
-            className="select select-bordered select-xs bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 px-2"
-            onChange={(e) => {
-              setItemsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-          >
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="15">15</option>
-            <option value="50">50</option>
-          </select>
-          <span className="ml-4">Total Records: {totalItems}</span>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Per-page selector */}
+          <div className="flex items-center gap-2 text-xs font-bold text-brand-sage uppercase tracking-widest">
+            <span>Display</span>
+            <select
+              value={itemsPerPage}
+              className="select select-bordered select-xs bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 px-2"
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+            >
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="50">50</option>
+            </select>
+            <span className="ml-2">Total Records: {totalItems}</span>
+          </div>
+
+          {/* Payment status filter */}
+          <div className="flex items-center gap-2 text-xs font-bold text-brand-sage uppercase tracking-widest">
+            <span>Filter</span>
+            <select
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              className="select select-bordered select-xs bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 px-2"
+            >
+              <option value="all">All Vendors</option>
+              <option value="outstanding">Outstanding</option>
+              <option value="settled">Settled</option>
+            </select>
+          </div>
+
+          {paymentFilter !== "all" && (
+            <span className="text-[10px] font-bold uppercase tracking-widest text-brand-sage">
+              Showing {filteredVendors.length} of {vendors.length} on this page
+            </span>
+          )}
         </div>
 
         {canPerformAction && (
@@ -280,14 +343,16 @@ const VendorsPage = () => {
                 </thead>
                 <tbody>
                   <AnimatePresence mode="popLayout">
-                    {vendors.length === 0 ? (
+                    {filteredVendors.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
-                          No vendors found.
+                          {paymentFilter !== "all"
+                            ? `No ${paymentFilter === "outstanding" ? "outstanding" : "settled"} vendors on this page.`
+                            : "No vendors found."}
                         </td>
                       </tr>
                     ) : (
-                      vendors.map((vendor) => (
+                      filteredVendors.map((vendor) => (
                         <motion.tr
                           key={vendor._id}
                           layout
