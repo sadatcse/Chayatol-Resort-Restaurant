@@ -32,12 +32,18 @@ export async function POST(req) {
 
     await newInvoice.save();
 
+    // Clean up any old running service bills that have now been merged into this master bill
+    if (body.associatedResortInvoiceIds && body.associatedResortInvoiceIds.length > 0) {
+      await ResortInvoice.deleteMany({ _id: { $in: body.associatedResortInvoiceIds } });
+    }
+
     // If the master bill is paid, we should mark the associated booking and food invoices as Paid
     if (body.paymentStatus === "Paid") {
        if (body.associatedBookingId) {
           await Booking.findByIdAndUpdate(body.associatedBookingId, {
              paymentStatus: "Paid",
-             bookingStatus: "Checked-Out" // auto checkout since bill is settled
+             bookingStatus: "Checked-out", // auto checkout since bill is settled
+             checkOutDate: new Date()
           });
        }
 

@@ -16,8 +16,16 @@ export async function POST(req) {
     await dbConnect();
     const bookingData = await req.json();
 
-    if ((!bookingData.isNewCustomer && !bookingData.customer) || (bookingData.isNewCustomer && !bookingData.customerName) || !bookingData.room || !bookingData.checkInDate || !bookingData.checkOutDate || bookingData.totalAmount === undefined) {
+    if ((!bookingData.isNewCustomer && !bookingData.customer) || (bookingData.isNewCustomer && !bookingData.customerName) || !bookingData.room || bookingData.totalAmount === undefined) {
       return NextResponse.json({ message: "Please provide all required fields." }, { status: 400 });
+    }
+
+    if (!bookingData.checkInDate) {
+      bookingData.checkInDate = new Date();
+    }
+
+    if (!bookingData.checkOutDate) {
+      delete bookingData.checkOutDate;
     }
 
     if (bookingData.isNewCustomer) {

@@ -15,11 +15,9 @@ const BookingSchema = Schema(
     },
     checkInDate: {
       type: Date,
-      required: [true, "Please provide the check-in date"],
     },
     checkOutDate: {
       type: Date,
-      required: [true, "Please provide the check-out date"],
     },
     totalAmount: {
       type: Number,
@@ -40,5 +38,8 @@ const BookingSchema = Schema(
   { timestamps: true }
 );
 
-const Booking = mongoose.models.Booking || mongoose.model("Booking", BookingSchema);
+if (mongoose.models.Booking) {
+  delete mongoose.models.Booking;
+}
+const Booking = mongoose.model("Booking", BookingSchema);
 export default Booking;

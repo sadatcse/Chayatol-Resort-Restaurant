@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import Room from "@/models/Room";
 import Booking from "@/models/Booking";
 import Invoice from "@/models/Invoice";
+import ResortInvoice from "@/models/ResortInvoice";
 
 export async function GET(req) {
   try {
@@ -33,11 +34,18 @@ export async function GET(req) {
        paymentStatus: { $in: ["Due", "Unpaid", "Partial"] }
     });
 
+    // Find unpaid resort invoices (running service bills) for this room
+    const unpaidResortInvoices = await ResortInvoice.find({
+       roomNo: roomNo,
+       paymentStatus: { $in: ["Unpaid", "Partial"] }
+    });
+
     return NextResponse.json({
       success: true,
       room,
       booking: activeBooking,
-      foodInvoices: unpaidFoodInvoices
+      foodInvoices: unpaidFoodInvoices,
+      unpaidResortInvoices: unpaidResortInvoices
     });
   } catch (error) {
     console.error("Room details error:", error);
