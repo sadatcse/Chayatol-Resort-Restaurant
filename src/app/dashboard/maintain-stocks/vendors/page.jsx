@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useContext, useMemo } from "react";
-import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCheckCircle, FiXCircle, FiTruck } from "react-icons/fi";
+import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCheckCircle, FiXCircle, FiTruck, FiBookOpen } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -271,16 +272,17 @@ const VendorsPage = () => {
                     <th className="pl-8 py-5 w-28">Vendor ID</th>
                     <th className="py-5">Vendor Name</th>
                     <th className="py-5">Phone</th>
-                    <th className="py-5">Email</th>
+                    <th className="py-5 text-center">Purchases</th>
+                    <th className="py-5">Total Due</th>
                     <th className="py-5">Status</th>
-                    <th className="pr-8 text-center py-5 w-36">Manage</th>
+                    <th className="pr-8 text-center py-5 w-44">Manage</th>
                   </tr>
                 </thead>
                 <tbody>
                   <AnimatePresence mode="popLayout">
                     {vendors.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
+                        <td colSpan="8" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
                           No vendors found.
                         </td>
                       </tr>
@@ -300,11 +302,14 @@ const VendorsPage = () => {
                           <td className="py-4 font-bold uppercase tracking-wide">
                             {vendor.vendorName}
                           </td>
-                          <td className="py-4 font-mono">
+                           <td className="py-4 font-mono">
                             {vendor.primaryPhone}
                           </td>
-                          <td className="py-4 font-mono text-xs text-brand-sage">
-                            {vendor.primaryEmail || "N/A"}
+                          <td className="py-4 font-mono font-bold text-center text-brand-primary dark:text-brand-sage">
+                            {vendor.purchaseCount || 0}
+                          </td>
+                          <td className={`py-4 font-mono font-bold ${(vendor.totalDue || 0) > 0 ? "text-red-500 font-extrabold" : "text-emerald-600 dark:text-emerald-400"}`}>
+                            {(vendor.totalDue || 0).toFixed(2)} BDT
                           </td>
                           <td className="py-4">
                             {vendor.status === "Active" ? (
@@ -317,6 +322,11 @@ const VendorsPage = () => {
                             <div className="flex justify-center items-center gap-2">
                               {canPerformAction ? (
                                 <>
+                                  <Link href={`/dashboard/maintain-stocks/vendors/ledger?vendorId=${vendor._id}`}>
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="View Ledger">
+                                      <FiBookOpen size={16} />
+                                    </motion.button>
+                                  </Link>
                                   <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(vendor)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Vendor">
                                     <FiEdit size={16} />
                                   </motion.button>
@@ -325,7 +335,11 @@ const VendorsPage = () => {
                                   </motion.button>
                                 </>
                               ) : (
-                                <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>
+                                <Link href={`/dashboard/maintain-stocks/vendors/ledger?vendorId=${vendor._id}`}>
+                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="View Ledger">
+                                    <FiBookOpen size={16} />
+                                  </motion.button>
+                                </Link>
                               )}
                             </div>
                           </td>

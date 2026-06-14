@@ -21,7 +21,7 @@ export async function PUT(req) {
       return NextResponse.json({ message: "A valid positive new quantity is required." }, { status: 400 });
     }
 
-    const userId = auth.user._id;
+    const userId = auth.user.id || auth.user._id;
 
     // Check if stockId matches a Stock record or a virtual Ingredient ID
     let stock = await Stock.findById(stockId);

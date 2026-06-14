@@ -4,7 +4,15 @@ import { useState, useCallback, useEffect, useContext } from "react";
 import { AuthContext } from "../providers/AuthProvider";
 import useAxiosSecure from "./useAxiosSecure";
 
-const useIngredients = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
+const useIngredients = (
+  currentPage = 1,
+  itemsPerPage = 10,
+  searchTerm = "",
+  status = "all",
+  category = "",
+  unit = "",
+  lowStock = "false"
+) => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
   const [ingredients, setIngredients] = useState([]);
@@ -20,7 +28,7 @@ const useIngredients = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => 
     setIsLoading(true);
     try {
       const response = await axiosSecure.get(
-        `/ingredient/paginated?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}`
+        `/ingredient/paginated?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}&status=${status}&category=${category}&unit=${unit}&lowStock=${lowStock}`
       );
       setIngredients(response.data.ingredients || []);
       setTotalPages(response.data.totalPages || 1);
@@ -33,7 +41,7 @@ const useIngredients = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => 
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, user]);
+  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, status, category, unit, lowStock, user]);
 
   useEffect(() => {
     fetchIngredients();

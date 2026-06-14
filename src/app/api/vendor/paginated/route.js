@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Vendor from "@/models/Vendor";
+import Purchase from "@/models/Purchase";
 
 export async function GET(req) {
   try {
@@ -31,9 +32,26 @@ export async function GET(req) {
       Vendor.countDocuments({ status: "Inactive" }),
     ]);
 
+    const vendorsWithStats = await Promise.all(
+      vendors.map(async (v) => {
+        const vendorObj = v.toObject();
+        const purchases = await Purchase.find({ vendor: v._id });
+        const purchaseCount = purchases.length;
+        const totalDue = purchases.reduce((sum, p) => {
+          const due = (p.grandTotal || 0) - (p.paidAmount || 0);
+          return sum + (due > 0 ? due : 0);
+        }, 0);
+        return {
+          ...vendorObj,
+          purchaseCount,
+          totalDue,
+        };
+      })
+    );
+
     return NextResponse.json(
       {
-        vendors,
+        vendors: vendorsWithStats,
         totalPages: Math.ceil(total / limit),
         currentPage: page,
         totalItems: total,

@@ -47,11 +47,19 @@ const IngredientsPage = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [unitFilter, setUnitFilter] = useState("");
+  const [lowStockFilter, setLowStockFilter] = useState(false);
 
   const { ingredients, totalPages, totalItems, totalCount, activeCount, inactiveCount, isLoading, refetch } = useIngredients(
     currentPage,
     itemsPerPage,
-    debouncedSearchTerm
+    debouncedSearchTerm,
+    statusFilter,
+    categoryFilter,
+    unitFilter,
+    lowStockFilter ? "true" : "false"
   );
 
   const [activeCategories, setActiveCategories] = useState([]);
@@ -63,7 +71,7 @@ const IngredientsPage = () => {
   // Fetch active categories for dropdown selection
   const loadActiveCategories = async () => {
     try {
-      const response = await axiosSecure.get("/ingredient-category?activeOnly=true");
+      const response = await axiosSecure.get("/ingredient-category");
       setActiveCategories(response.data || []);
     } catch (error) {
       console.error("Error fetching active categories:", error);
@@ -187,7 +195,12 @@ const IngredientsPage = () => {
             confirmButtonColor: "#346E36",
           });
         } catch (error) {
-          Swal.fire("Error!", "Failed to delete ingredient.", "error");
+          Swal.fire({
+            title: "Action Failed",
+            text: error.response?.data?.message || "Failed to delete ingredient.",
+            icon: "error",
+            confirmButtonColor: "#346E36",
+          });
         }
       }
     });
@@ -205,19 +218,37 @@ const IngredientsPage = () => {
         title="Ingredients Stock Manager" 
         subtitle="Maintain register of ingredients, stock codes, purchasing units, and alert thresholds."
       >
-        <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-80 h-12">
-          <FiSearch className="text-brand-sage text-lg" />
-          <input
-            type="text"
-            className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none"
-            placeholder="Search name, SKU, category..."
-            value={searchTerm}
-            onChange={e => {
-              setSearchTerm(e.target.value);
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          {/* Category Filter */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
               setCurrentPage(1);
             }}
-          />
-        </label>
+            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-brand-charcoal dark:text-brand-offwhite font-semibold text-xs tracking-wide cursor-pointer w-full sm:w-48 shadow-sm"
+          >
+            <option value="">All Categories</option>
+            {activeCategories.map((cat) => (
+              <option key={cat._id} value={cat._id}>{cat.categoryName}</option>
+            ))}
+          </select>
+
+          {/* Search Box */}
+          <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full sm:w-72 h-12">
+            <FiSearch className="text-brand-sage text-lg" />
+            <input
+              type="text"
+              className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none"
+              placeholder="Search name, SKU, category..."
+              value={searchTerm}
+              onChange={e => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </label>
+        </div>
       </SectionHeader>
 
       {/* Stats Block */}
@@ -251,7 +282,7 @@ const IngredientsPage = () => {
           <span>Display</span>
           <select
             value={itemsPerPage}
-            className="select select-bordered select-xs bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 px-2"
+            className="select select-bordered select-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 pl-3 pr-8 w-20 text-xs font-semibold cursor-pointer"
             onChange={(e) => {
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
@@ -265,12 +296,65 @@ const IngredientsPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
-            <FiPlus className="text-lg" />
-            <span className="uppercase tracking-widest text-xs font-bold">New Ingredient</span>
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Status Filter */}
+          <div className="flex items-center gap-2 text-xs font-bold text-brand-sage uppercase tracking-widest">
+            <span>Status</span>
+            <select
+              value={statusFilter}
+              className="select select-bordered select-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 pl-3 pr-8 w-28 text-xs font-semibold cursor-pointer"
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+
+          {/* Unit Filter */}
+          <div className="flex items-center gap-2 text-xs font-bold text-brand-sage uppercase tracking-widest">
+            <span>Unit</span>
+            <select
+              value={unitFilter}
+              className="select select-bordered select-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 pl-3 pr-8 w-36 text-xs font-semibold cursor-pointer"
+              onChange={(e) => {
+                setUnitFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="">All Units</option>
+              {UNITS.map((unit) => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Low Stock Warning Filter */}
+          <button
+            onClick={() => {
+              setLowStockFilter(!lowStockFilter);
+              setCurrentPage(1);
+            }}
+            className={`btn btn-xs rounded-full gap-1 px-4 h-8 border-none shadow-sm transition-all ${
+              lowStockFilter 
+                ? "bg-red-500 text-white hover:bg-red-600" 
+                : "bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20 hover:bg-brand-primary/20 text-brand-primary dark:text-brand-sage"
+            }`}
+          >
+            <FiAlertCircle className="text-sm" />
+            <span className="uppercase tracking-widest text-[9px] font-bold">Low Stock Only</span>
           </button>
-        )}
+
+          {canPerformAction && (
+            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+              <FiPlus className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">New Ingredient</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table Section */}
@@ -414,8 +498,10 @@ const IngredientsPage = () => {
                     className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite font-semibold"
                   >
                     <option value="" disabled>Select category</option>
-                    {activeCategories.map((cat) => (
-                      <option key={cat._id} value={cat._id}>{cat.categoryName}</option>
+                    {activeCategories.filter(cat => cat.isActive || cat._id === formData.category).map((cat) => (
+                      <option key={cat._id} value={cat._id}>
+                        {cat.categoryName}{!cat.isActive ? " (Inactive)" : ""}
+                      </option>
                     ))}
                   </select>
                 </div>

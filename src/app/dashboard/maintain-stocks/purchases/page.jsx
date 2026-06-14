@@ -36,9 +36,84 @@ const PurchasesPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
-  const [fromDate, setFromDate] = useState(null);
-  const [toDate, setToDate] = useState(null);
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+
+  // Generate list of the last 12 months dynamically
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const date = new Date();
+    // Go back 12 months
+    for (let i = 0; i < 12; i++) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const label = date.toLocaleDateString("default", { month: "long", year: "numeric" });
+      options.push({ label, year, month });
+      date.setMonth(date.getMonth() - 1);
+    }
+    return options;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth()}`;
+  });
+
+  const [fromDate, setFromDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  });
+
+  const [toDate, setToDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  });
+
+  // Sync selectedMonth dropdown with fromDate/toDate changes
+  useEffect(() => {
+    if (fromDate === null && toDate === null) {
+      if (selectedMonth !== "all") setSelectedMonth("all");
+      return;
+    }
+
+    if (fromDate && toDate) {
+      const startYear = fromDate.getFullYear();
+      const startMonth = fromDate.getMonth();
+      const startDay = fromDate.getDate();
+
+      const endYear = toDate.getFullYear();
+      const endMonth = toDate.getMonth();
+      const lastDayOfStartMonth = new Date(startYear, startMonth + 1, 0).getDate();
+      const endDay = toDate.getDate();
+
+      if (startYear === endYear && startMonth === endMonth && startDay === 1 && endDay === lastDayOfStartMonth) {
+        const value = `${startYear}-${startMonth}`;
+        if (selectedMonth !== value) setSelectedMonth(value);
+        return;
+      }
+    }
+
+    if (selectedMonth !== "custom") {
+      setSelectedMonth("custom");
+    }
+  }, [fromDate, toDate, selectedMonth]);
+
+  // Handle month selection change
+  const handleMonthChange = (e) => {
+    const val = e.target.value;
+    setSelectedMonth(val);
+    setCurrentPage(1);
+
+    if (val === "all") {
+      setFromDate(null);
+      setToDate(null);
+    } else if (val !== "custom") {
+      const [year, month] = val.split("-").map(Number);
+      const start = new Date(year, month, 1, 0, 0, 0, 0);
+      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      setFromDate(start);
+      setToDate(end);
+    }
+  };
 
   const { purchases, totalPages, totalItems, totalCount, paidCount, partialCount, unpaidCount, isLoading, refetch } = usePurchases(
     currentPage,
@@ -65,9 +140,9 @@ const PurchasesPage = () => {
   const fetchPrerequisites = useCallback(async () => {
     try {
       const [vendorsRes, ingredientsRes, categoriesRes] = await Promise.all([
-        axiosSecure.get("/vendor?activeOnly=true"),
-        axiosSecure.get("/ingredient?activeOnly=true"),
-        axiosSecure.get("/ingredient-category?activeOnly=true")
+        axiosSecure.get("/vendor"),
+        axiosSecure.get("/ingredient"),
+        axiosSecure.get("/ingredient-category")
       ]);
       setVendors(vendorsRes.data || []);
       setIngredients(ingredientsRes.data || []);
@@ -220,10 +295,7 @@ const PurchasesPage = () => {
       Swal.fire({ title: "Validation Error", text: "Paid amount cannot be negative.", icon: "warning", confirmButtonColor: "#346E36" });
       return;
     }
-    if (Number(formData.paidAmount) > formData.grandTotal) {
-      Swal.fire({ title: "Validation Error", text: "Paid amount cannot exceed grand total.", icon: "warning", confirmButtonColor: "#346E36" });
-      return;
-    }
+
 
     setIsSubmitting(true);
     const payload = {
@@ -304,47 +376,62 @@ const PurchasesPage = () => {
   const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
 
   const renderStatusBadge = (status) => {
-    const styles = { 
-      Paid: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider", 
-      Unpaid: "bg-red-100 text-red-850 dark:bg-red-950/30 dark:text-red-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider", 
-      Partial: "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider" 
+    const styles = {
+      Paid: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider",
+      Unpaid: "bg-red-100 text-red-850 dark:bg-red-950/30 dark:text-red-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider",
+      Partial: "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400 border-none font-bold text-[10px] px-3 py-2.5 uppercase tracking-wider"
     };
     return <span className={`badge ${styles[status]}`}>{status}</span>;
   };
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
-      
+
       {/* Header & Inline Search */}
-      <SectionHeader 
-        title="Purchase Invoices" 
+      <SectionHeader
+        title="Purchase Invoices"
         subtitle="Manage ingredient supply bills, track payment statuses, and review stock adjustments."
       >
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          {/* Monthly Selector */}
+          <select
+            value={selectedMonth}
+            onChange={handleMonthChange}
+            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-44 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige"
+          >
+            <option value="all">All Months</option>
+            {monthOptions.map((opt) => (
+              <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
+                {opt.label}
+              </option>
+            ))}
+            <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
+          </select>
+
           {/* From Date */}
-          <DatePicker 
-            selected={fromDate} 
+          <DatePicker
+            selected={fromDate}
             onChange={(date) => {
               setFromDate(date);
               setCurrentPage(1);
-            }} 
-            dateFormat="dd/MM/yyyy" 
+            }}
+            dateFormat="dd/MM/yyyy"
             className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige"
-            placeholderText="From Date" 
-            isClearable 
+            placeholderText="From Date"
+            isClearable
           />
-          
+
           {/* To Date */}
-          <DatePicker 
-            selected={toDate} 
+          <DatePicker
+            selected={toDate}
             onChange={(date) => {
               setToDate(date);
               setCurrentPage(1);
-            }} 
-            dateFormat="dd/MM/yyyy" 
+            }}
+            dateFormat="dd/MM/yyyy"
             className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige"
-            placeholderText="To Date" 
-            isClearable 
+            placeholderText="To Date"
+            isClearable
           />
 
           {/* Search Box */}
@@ -527,7 +614,7 @@ const PurchasesPage = () => {
       {isModalOpen && (
         <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
           <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-5xl rounded-2xl shadow-2xl border border-brand-beige/20 dark:border-brand-beige/20 animate-scale-in">
-            
+
             {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
               <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">
@@ -551,8 +638,10 @@ const PurchasesPage = () => {
                     required
                   >
                     <option value="" disabled>Select Supplier</option>
-                    {vendors.map(v => (
-                      <option key={v._id} value={v._id}>{v.vendorName}</option>
+                    {vendors.filter(v => v.status === "Active" || v._id === formData.vendor).map(v => (
+                      <option key={v._id} value={v._id}>
+                        {v.vendorName}{v.status !== "Active" ? " (Inactive)" : ""}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -572,12 +661,12 @@ const PurchasesPage = () => {
 
                 <div className="form-control w-full">
                   <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Purchase Date *</span></label>
-                  <DatePicker 
-                    selected={formData.purchaseDate} 
-                    onChange={handleDateChange} 
-                    dateFormat="dd/MM/yyyy" 
+                  <DatePicker
+                    selected={formData.purchaseDate}
+                    onChange={handleDateChange}
+                    dateFormat="dd/MM/yyyy"
                     className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-xl w-full text-brand-charcoal dark:text-brand-offwhite text-sm"
-                    required 
+                    required
                     disabled={currentUser?.role !== 'admin' && currentUser?.role !== 'superadmin'}
                   />
                 </div>
@@ -603,61 +692,68 @@ const PurchasesPage = () => {
                     {formData.items.map((item, index) => (
                       <tr key={index} className="border-b border-brand-beige dark:border-brand-beige/10 last:border-none">
                         <td className="p-2">
-                          <select 
-                            value={itemCategories[index] || ""} 
-                            onChange={e => handleRowCategoryChange(index, e.target.value)} 
+                          <select
+                            value={itemCategories[index] || ""}
+                            onChange={e => handleRowCategoryChange(index, e.target.value)}
                             className="select select-bordered select-sm border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite w-full"
                             required
                           >
                             <option value="" disabled>Category</option>
-                            {categories.map(c => (
-                              <option key={c._id} value={c._id}>{c.categoryName}</option>
+                            {categories.filter(c => c.isActive || c._id === itemCategories[index]).map(c => (
+                              <option key={c._id} value={c._id}>
+                                {c.categoryName}{!c.isActive ? " (Inactive)" : ""}
+                              </option>
                             ))}
                           </select>
                         </td>
                         <td className="p-2">
-                          <select 
-                            name="ingredient" 
-                            value={item.ingredient} 
-                            onChange={e => handleItemChange(index, e)} 
+                          <select
+                            name="ingredient"
+                            value={item.ingredient}
+                            onChange={e => handleItemChange(index, e)}
                             className="select select-bordered select-sm border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite w-full"
-                            required 
+                            required
                             disabled={!itemCategories[index]}
                           >
                             <option value="" disabled>Ingredient</option>
-                            {ingredients.filter(i => (i.category?._id || i.category) === itemCategories[index]).map(i => (
-                              <option key={i._id} value={i._id}>{i.name} ({i.unit})</option>
-                            ))}
+                            {ingredients
+                              .filter(i => (i.category?._id || i.category) === itemCategories[index])
+                              .filter(i => i.isActive || i._id === item.ingredient)
+                              .map(i => (
+                                <option key={i._id} value={i._id}>
+                                  {i.name} ({i.unit}){!i.isActive ? " (Inactive)" : ""}
+                                </option>
+                              ))}
                           </select>
                         </td>
                         <td className="p-2">
-                          <input 
-                            type="number" 
-                            name="quantity" 
-                            value={item.quantity} 
-                            onChange={e => handleItemChange(index, e)} 
-                            className="input input-bordered input-sm border-brand-primary/50 focus:outline-none w-full bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite font-mono text-xs" 
-                            required 
+                          <input
+                            type="number"
+                            name="quantity"
+                            value={item.quantity}
+                            onChange={e => handleItemChange(index, e)}
+                            className="input input-bordered input-sm border-brand-primary/50 focus:outline-none w-full bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite font-mono text-xs"
+                            required
                           />
                         </td>
                         <td className="p-2">
-                          <input 
-                            type="number" 
-                            name="unitPrice" 
-                            value={item.unitPrice} 
-                            onChange={e => handleItemChange(index, e)} 
-                            className="input input-bordered input-sm border-brand-primary/50 focus:outline-none w-full bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite font-mono text-xs" 
-                            required 
+                          <input
+                            type="number"
+                            name="unitPrice"
+                            value={item.unitPrice}
+                            onChange={e => handleItemChange(index, e)}
+                            className="input input-bordered input-sm border-brand-primary/50 focus:outline-none w-full bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite font-mono text-xs"
+                            required
                           />
                         </td>
                         <td className="p-2 font-mono text-xs font-bold text-brand-primary dark:text-brand-sage pr-4 text-right">
                           {(item.totalPrice || 0).toFixed(2)}
                         </td>
                         <td className="p-2 text-center">
-                          <button 
+                          <button
                             type="button"
-                            onClick={() => removeItemRow(index)} 
-                            className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-30" 
+                            onClick={() => removeItemRow(index)}
+                            className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-30"
                             disabled={formData.items.length <= 1}
                           >
                             <FiTrash2 size={16} />
@@ -669,9 +765,9 @@ const PurchasesPage = () => {
                 </table>
               </div>
 
-              <button 
-                type="button" 
-                onClick={addItemRow} 
+              <button
+                type="button"
+                onClick={addItemRow}
                 className="btn btn-xs rounded-full bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20 dark:bg-brand-primary/20 dark:text-brand-sage gap-1 px-4 py-2 h-auto uppercase tracking-widest text-[9px] font-bold"
               >
                 <FiPlus /> Add Item Row
@@ -698,23 +794,23 @@ const PurchasesPage = () => {
 
                     <div className="flex justify-between items-center">
                       <label className="text-xs font-bold text-brand-sage uppercase tracking-widest">Paid Amount (BDT) *</label>
-                      <input 
-                        type="number" 
-                        name="paidAmount" 
-                        value={formData.paidAmount} 
-                        onChange={handleFormChange} 
-                        className="input input-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none w-44 text-right bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite font-mono" 
-                        required 
+                      <input
+                        type="number"
+                        name="paidAmount"
+                        value={formData.paidAmount}
+                        onChange={handleFormChange}
+                        className="input input-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none w-44 text-right bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite font-mono"
+                        required
                       />
                     </div>
 
                     <div className="flex justify-between items-center">
                       <label className="text-xs font-bold text-brand-sage uppercase tracking-widest">Payment Method *</label>
-                      <select 
-                        name="paymentMethod" 
-                        value={formData.paymentMethod} 
-                        onChange={handleFormChange} 
-                        className="select select-bordered select-sm border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite w-44" 
+                      <select
+                        name="paymentMethod"
+                        value={formData.paymentMethod}
+                        onChange={handleFormChange}
+                        className="select select-bordered select-sm border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite w-44"
                         required
                       >
                         {PAYMENT_METHODS.map(m => (
@@ -755,7 +851,7 @@ const PurchasesPage = () => {
       {isViewModalOpen && viewingPurchase && (
         <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
           <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-3xl rounded-2xl shadow-2xl border border-brand-beige/20 dark:border-brand-beige/20 animate-scale-in">
-            
+
             {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
               <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest flex items-center gap-2">
@@ -815,14 +911,32 @@ const PurchasesPage = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                <div>
+                <div className="space-y-4">
                   {viewingPurchase.notes && (
-                    <>
+                    <div>
                       <span className="block text-brand-sage font-extrabold uppercase tracking-wider text-[10px] mb-2">Invoice Notes</span>
                       <p className="bg-brand-offwhite dark:bg-brand-charcoal/40 p-4 rounded-xl border border-brand-beige/50 dark:border-brand-beige/10 text-xs text-brand-charcoal dark:text-brand-offwhite/80 whitespace-pre-line leading-relaxed">
                         {viewingPurchase.notes}
                       </p>
-                    </>
+                    </div>
+                  )}
+
+                  {viewingPurchase.payments && viewingPurchase.payments.length > 0 && (
+                    <div>
+                      <span className="block text-brand-sage font-extrabold uppercase tracking-wider text-[10px] mb-2">Payment History Logs</span>
+                      <div className="space-y-2 max-h-[20vh] overflow-y-auto pr-1">
+                        {viewingPurchase.payments.map((p, idx) => (
+                          <div key={p._id || idx} className="bg-brand-offwhite dark:bg-brand-charcoal/40 p-3 rounded-xl border border-brand-beige/50 dark:border-brand-beige/10 text-xs flex justify-between items-start">
+                            <div className="space-y-1">
+                              <span className="font-bold text-brand-black dark:text-brand-offwhite font-mono">{p.amount.toFixed(2)} BDT</span>
+                              <span className="text-[10px] text-brand-sage block font-mono">Date: {new Date(p.paymentDate).toLocaleString("en-GB")}</span>
+                              {p.note && <p className="text-[10px] text-brand-sage italic mt-1 font-sans">"{p.note}"</p>}
+                            </div>
+                            <span className="badge badge-sm font-semibold uppercase tracking-wider text-[9px] bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage border-none">{p.paymentMethod}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
 

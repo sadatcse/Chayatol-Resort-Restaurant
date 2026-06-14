@@ -4,6 +4,7 @@ import Purchase from "@/models/Purchase";
 import Stock from "@/models/Stock";
 import Ingredient from "@/models/Ingredient";
 import StockMovement from "@/models/StockMovement";
+import VendorPayment from "@/models/VendorPayment";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
@@ -30,7 +31,22 @@ export async function POST(req) {
       return NextResponse.json({ message: "At least one purchase item is required." }, { status: 400 });
     }
 
-    const userId = auth.user._id;
+    const userId = (auth.user.id || auth.user._id)?.toString();
+
+    const initialPaid = Number(paidAmount) || 0;
+    const gTotal = Number(grandTotal) || 0;
+    const invoicePaid = Math.min(initialPaid, gTotal);
+    const excessPaid = initialPaid - invoicePaid;
+
+    const paymentsList = [];
+    if (invoicePaid > 0) {
+      paymentsList.push({
+        amount: invoicePaid,
+        paymentDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+        paymentMethod: paymentMethod || "Cash",
+        note: "Initial payment upon invoice creation"
+      });
+    }
 
     // Create the purchase record
     const newPurchase = new Purchase({
@@ -42,15 +58,45 @@ export async function POST(req) {
         unitPrice: Number(item.unitPrice),
         totalPrice: Number(item.totalPrice),
       })),
-      grandTotal: Number(grandTotal),
-      paymentStatus,
-      paidAmount: Number(paidAmount) || 0,
+      grandTotal: gTotal,
+      paymentStatus: invoicePaid >= gTotal ? "Paid" : (invoicePaid > 0 ? "Partial" : "Unpaid"),
+      paidAmount: invoicePaid,
       paymentMethod,
       notes,
       purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+      payments: paymentsList,
     });
 
     await newPurchase.save();
+
+    // Log the initial payment in the separate VendorPayment collection if applicable
+    if (invoicePaid > 0) {
+      await VendorPayment.create({
+        vendor,
+        purchase: newPurchase._id,
+        invoiceNumber: invoiceNumber.trim(),
+        amount: invoicePaid,
+        paymentDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+        purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+        paymentMethod: paymentMethod || "Cash",
+        note: "Initial payment upon invoice creation",
+        createdBy: userId,
+      });
+    }
+
+    if (excessPaid > 0) {
+      await VendorPayment.create({
+        vendor,
+        purchase: newPurchase._id,
+        invoiceNumber: invoiceNumber.trim(),
+        amount: excessPaid,
+        paymentDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+        purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+        paymentMethod: paymentMethod || "Cash",
+        note: "Initial payment upon invoice creation (Excess Advance)",
+        createdBy: userId,
+      });
+    }
 
     // Loop through items and update stock level & movement logs
     for (const item of items) {

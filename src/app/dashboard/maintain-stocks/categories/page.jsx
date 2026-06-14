@@ -26,11 +26,13 @@ const IngredientCategoriesPage = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const { categories, totalPages, totalItems, totalCount, activeCount, inactiveCount, isLoading, refetch } = useIngredientCategories(
     currentPage,
     itemsPerPage,
-    debouncedSearchTerm
+    debouncedSearchTerm,
+    statusFilter
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -194,12 +196,12 @@ const IngredientCategoriesPage = () => {
       </div>
 
       {/* Display Count selector & Add button */}
-      <div className="flex flex-wrap justify-between items-center bg-white dark:bg-brand-charcoal p-4 rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 mb-6 gap-4">
+      <div className="flex flex-wrap justify-between items-center bg-white dark:bg-brand-charcoal p-4 rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 mb-6 gap-4 animate-fade-in">
         <div className="flex items-center gap-3 text-xs font-bold text-brand-sage uppercase tracking-widest">
           <span>Display</span>
           <select
             value={itemsPerPage}
-            className="select select-bordered select-xs bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 px-2"
+            className="select select-bordered select-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 pl-3 pr-8 w-20 text-xs font-semibold cursor-pointer"
             onChange={(e) => {
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
@@ -213,12 +215,30 @@ const IngredientCategoriesPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
-            <FiPlus className="text-lg" />
-            <span className="uppercase tracking-widest text-xs font-bold">New Category</span>
-          </button>
-        )}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-brand-sage uppercase tracking-widest">
+            <span>Status</span>
+            <select
+              value={statusFilter}
+              className="select select-bordered select-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite rounded-md border-brand-beige dark:border-brand-beige/20 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary h-8 pl-3 pr-8 w-28 text-xs font-semibold cursor-pointer"
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+
+          {canPerformAction && (
+            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+              <FiPlus className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">New Category</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table Section */}
@@ -240,6 +260,7 @@ const IngredientCategoriesPage = () => {
                   <tr>
                     <th className="pl-8 py-5 w-24">#</th>
                     <th className="py-5">Category Name</th>
+                    <th className="py-5 text-center">Ingredients Count</th>
                     <th className="py-5">Status</th>
                     <th className="pr-8 text-center py-5 w-36">Manage</th>
                   </tr>
@@ -248,7 +269,7 @@ const IngredientCategoriesPage = () => {
                   <AnimatePresence mode="popLayout">
                     {categories.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
+                        <td colSpan="5" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
                           No ingredient categories found.
                         </td>
                       </tr>
@@ -267,6 +288,9 @@ const IngredientCategoriesPage = () => {
                           </td>
                           <td className="py-4 font-bold uppercase tracking-wide">
                             {category.categoryName}
+                          </td>
+                          <td className="py-4 text-center font-bold text-brand-primary dark:text-brand-sage font-mono">
+                            {category.ingredientCount || 0}
                           </td>
                           <td className="py-4">
                             {category.isActive ? (

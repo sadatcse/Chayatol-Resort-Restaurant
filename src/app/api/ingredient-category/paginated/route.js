@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import IngredientCategory from "@/models/IngredientCategory";
+import Ingredient from "@/models/Ingredient";
 
 export async function GET(req) {
   try {
@@ -9,6 +10,7 @@ export async function GET(req) {
     const page = parseInt(searchParams.get("page")) || 1;
     const limit = parseInt(searchParams.get("limit")) || 10;
     const search = searchParams.get("search") || "";
+    const status = searchParams.get("status") || "all";
 
     const skip = (page - 1) * limit;
 
@@ -16,17 +18,33 @@ export async function GET(req) {
     if (search) {
       query.categoryName = { $regex: search, $options: "i" };
     }
+    if (status === "active") {
+      query.isActive = true;
+    } else if (status === "inactive") {
+      query.isActive = false;
+    }
 
-    const [categories, total, totalCount, activeCount, inactiveCount] = await Promise.all([
+    const [categoriesDocs, total, totalCount, activeCount, inactiveCount] = await Promise.all([
       IngredientCategory.find(query)
         .sort({ categoryName: 1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       IngredientCategory.countDocuments(query),
       IngredientCategory.countDocuments({}),
       IngredientCategory.countDocuments({ isActive: true }),
       IngredientCategory.countDocuments({ isActive: false }),
     ]);
+
+    const categories = await Promise.all(
+      categoriesDocs.map(async (cat) => {
+        const ingredientCount = await Ingredient.countDocuments({ category: cat._id });
+        return {
+          ...cat,
+          ingredientCount,
+        };
+      })
+    );
 
     return NextResponse.json(
       {

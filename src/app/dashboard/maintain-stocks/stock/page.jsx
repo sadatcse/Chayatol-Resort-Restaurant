@@ -167,6 +167,10 @@ const UpdateStockAlertModal = ({ stock, onClose, onSuccess, axiosSecure }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (newAlert === "" || isNaN(newAlert) || Number(newAlert) < 0) {
+      Swal.fire({ title: "Validation Error", text: "Alert quantity must be a non-negative number.", icon: "warning", confirmButtonColor: "#346E36" });
+      return;
+    }
     setIsSubmitting(true);
     try {
       await axiosSecure.put(`/stock/ingredient/${stock.ingredient._id}/alert`, { newStockAlert: Number(newAlert) });
@@ -174,7 +178,7 @@ const UpdateStockAlertModal = ({ stock, onClose, onSuccess, axiosSecure }) => {
       onSuccess();
       onClose();
     } catch (error) {
-      Swal.fire({ title: "Error!", text: "Could not update stock alert trigger level.", icon: "error", confirmButtonColor: "#346E36" });
+      Swal.fire({ title: "Error!", text: error.response?.data?.message || "Could not update stock alert trigger level.", icon: "error", confirmButtonColor: "#346E36" });
     } finally {
       setIsSubmitting(false);
     }
@@ -208,7 +212,12 @@ const UpdateStockAlertModal = ({ stock, onClose, onSuccess, axiosSecure }) => {
           <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
             <button type="button" onClick={onClose} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
             <button type="submit" className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md" disabled={isSubmitting}>
-              {isSubmitting ? <span className="loading loading-spinner loading-sm"></span> : "Save Alert"}
+              {isSubmitting ? (
+                <>
+                  <span className="loading loading-spinner loading-sm"></span>
+                  Saving...
+                </>
+              ) : "Save Alert"}
             </button>
           </div>
         </form>
@@ -225,8 +234,8 @@ const UpdateStockAdjustmentModal = ({ stock, onClose, onSuccess, axiosSecure }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (physicalQuantity == null || isNaN(physicalQuantity) || physicalQuantity < 0) {
-      Swal.fire({ title: "Validation Error", text: "Physical quantity must be a positive number.", icon: "warning", confirmButtonColor: "#346E36" });
+    if (physicalQuantity == null || physicalQuantity === "" || isNaN(physicalQuantity) || Number(physicalQuantity) < 0) {
+      Swal.fire({ title: "Validation Error", text: "Physical quantity must be a non-negative number.", icon: "warning", confirmButtonColor: "#346E36" });
       return;
     }
 
@@ -241,7 +250,7 @@ const UpdateStockAdjustmentModal = ({ stock, onClose, onSuccess, axiosSecure }) 
       onSuccess();
       onClose();
     } catch (error) {
-      Swal.fire({ title: "Error!", text: "Could not apply manual stock adjustments.", icon: "error", confirmButtonColor: "#346E36" });
+      Swal.fire({ title: "Error!", text: error.response?.data?.message || "Could not apply manual stock adjustments.", icon: "error", confirmButtonColor: "#346E36" });
     } finally {
       setIsSubmitting(false);
     }
@@ -290,7 +299,12 @@ const UpdateStockAdjustmentModal = ({ stock, onClose, onSuccess, axiosSecure }) 
           <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
             <button type="button" onClick={onClose} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
             <button type="submit" className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md" disabled={isSubmitting}>
-              {isSubmitting ? <span className="loading loading-spinner loading-sm"></span> : "Adjust Count"}
+              {isSubmitting ? (
+                <>
+                  <span className="loading loading-spinner loading-sm"></span>
+                  Adjusting...
+                </>
+              ) : "Adjust Count"}
             </button>
           </div>
         </form>

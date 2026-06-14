@@ -4,6 +4,7 @@ import Purchase from "@/models/Purchase";
 import Stock from "@/models/Stock";
 import Ingredient from "@/models/Ingredient";
 import StockMovement from "@/models/StockMovement";
+import VendorPayment from "@/models/VendorPayment";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
@@ -18,7 +19,7 @@ export async function PUT(req, { params }) {
     const { id } = await params;
     const purchaseData = await req.json();
 
-    const { vendor, invoiceNumber, items, grandTotal, paymentStatus, paidAmount, paymentMethod, notes, purchaseDate } = purchaseData;
+    const { vendor, invoiceNumber, items, grandTotal, paymentStatus, paidAmount, paymentMethod, notes, purchaseDate, payments } = purchaseData;
 
     // Validation
     if (!vendor) {
@@ -31,12 +32,91 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ message: "At least one purchase item is required." }, { status: 400 });
     }
 
-    const userId = auth.user._id;
+    const userId = (auth.user.id || auth.user._id)?.toString();
 
     // Fetch original purchase
     const originalPurchase = await Purchase.findById(id);
     if (!originalPurchase) {
       return NextResponse.json({ message: "Purchase not found." }, { status: 404 });
+    }
+
+    const originalPayments = originalPurchase.payments || [];
+    let updatedPayments = [];
+    let invoicePaidAmount = Number(paidAmount) || 0;
+
+    if (payments !== undefined) {
+      // Request came from ledger/page.jsx which supplies the full payments list
+      updatedPayments = payments;
+      invoicePaidAmount = Number(paidAmount) || 0;
+
+      const originalIds = new Set(originalPayments.map(p => p._id ? p._id.toString() : ''));
+      const newPayments = updatedPayments.filter(p => !p._id || !originalIds.has(p._id.toString()));
+
+      for (const p of newPayments) {
+        await VendorPayment.create({
+          vendor: vendor,
+          purchase: originalPurchase._id,
+          invoiceNumber: invoiceNumber.trim(),
+          amount: Number(p.amount),
+          paymentDate: p.paymentDate ? new Date(p.paymentDate) : new Date(),
+          purchaseDate: originalPurchase.purchaseDate ? new Date(originalPurchase.purchaseDate) : new Date(),
+          paymentMethod: p.paymentMethod || paymentMethod || "Cash",
+          note: p.note || "Invoice payment clearance",
+          createdBy: userId
+        });
+      }
+    } else {
+      // Request came from purchases/page.jsx edit form (which does not supply the payments list)
+      const incomingPaid = Number(paidAmount) || 0;
+      const gTotal = Number(grandTotal) || 0;
+      const originalPaid = originalPurchase.paidAmount || 0;
+
+      invoicePaidAmount = Math.min(incomingPaid, gTotal);
+      const excessPaid = incomingPaid - invoicePaidAmount;
+
+      updatedPayments = [...originalPayments];
+
+      const paidDiff = incomingPaid - originalPaid;
+      if (paidDiff > 0) {
+        const originalAllowedPaid = Math.min(originalPaid, gTotal);
+        const invoicePaidDiff = invoicePaidAmount - originalAllowedPaid;
+        const excessPaidDiff = paidDiff - invoicePaidDiff;
+
+        if (invoicePaidDiff > 0) {
+          updatedPayments.push({
+            amount: invoicePaidDiff,
+            paymentDate: new Date(),
+            paymentMethod: paymentMethod || "Cash",
+            note: "Payment adjustment during purchase update"
+          });
+
+          await VendorPayment.create({
+            vendor: vendor,
+            purchase: originalPurchase._id,
+            invoiceNumber: invoiceNumber.trim(),
+            amount: invoicePaidDiff,
+            paymentDate: new Date(),
+            purchaseDate: originalPurchase.purchaseDate ? new Date(originalPurchase.purchaseDate) : new Date(),
+            paymentMethod: paymentMethod || "Cash",
+            note: "Payment adjustment during purchase update",
+            createdBy: userId
+          });
+        }
+
+        if (excessPaidDiff > 0) {
+          await VendorPayment.create({
+            vendor: vendor,
+            purchase: originalPurchase._id,
+            invoiceNumber: invoiceNumber.trim(),
+            amount: excessPaidDiff,
+            paymentDate: new Date(),
+            purchaseDate: originalPurchase.purchaseDate ? new Date(originalPurchase.purchaseDate) : new Date(),
+            paymentMethod: paymentMethod || "Cash",
+            note: "Payment adjustment during purchase update (Excess Advance)",
+            createdBy: userId
+          });
+        }
+      }
     }
 
     const originalItemsMap = new Map(originalPurchase.items.map(item => [item.ingredient.toString(), item]));
@@ -87,6 +167,8 @@ export async function PUT(req, { params }) {
       }
     }
 
+    const finalPaymentStatus = invoicePaidAmount >= Number(grandTotal) ? "Paid" : (invoicePaidAmount > 0 ? "Partial" : "Unpaid");
+
     // Save updated purchase
     const updatedPurchase = await Purchase.findByIdAndUpdate(
       id,
@@ -100,11 +182,12 @@ export async function PUT(req, { params }) {
           totalPrice: Number(item.totalPrice),
         })),
         grandTotal: Number(grandTotal),
-        paymentStatus,
-        paidAmount: Number(paidAmount) || 0,
+        paymentStatus: finalPaymentStatus,
+        paidAmount: invoicePaidAmount,
         paymentMethod,
         notes,
         purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+        payments: updatedPayments,
       },
       { new: true }
     );

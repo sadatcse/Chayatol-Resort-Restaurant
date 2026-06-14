@@ -31,7 +31,11 @@ import {
   MdAccountBalance,
   MdInventory,
   MdSwapHoriz,
-  MdWarehouse
+  MdWarehouse,
+  MdDeleteForever,
+  MdKitchen,
+  MdHotel,
+  MdUndo,
 } from "react-icons/md";
 
 const menuItems = () => {
@@ -138,14 +142,45 @@ const menuItems = () => {
           icon: <MdListAlt className="text-base" />,
         },
         {
-          title: "Current Stock",
-          path: "/dashboard/maintain-stocks/stock",
+          title: "Supplier Ledger",
+          path: "/dashboard/maintain-stocks/vendors/ledger",
           icon: <MdListAlt className="text-base" />,
         },
         {
           title: "Purchase Management",
           path: "/dashboard/maintain-stocks/purchases",
           icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Current Stock",
+          path: "/dashboard/maintain-stocks/stock",
+          icon: <MdWarehouse className="text-base" />,
+        },
+        // ---- New Stock Movement Modules ----
+        {
+          title: "Wastage Management",
+          path: "/dashboard/maintain-stocks/wastage",
+          icon: <MdDeleteForever className="text-base" />,
+        },
+        {
+          title: "Kitchen Issue",
+          path: "/dashboard/maintain-stocks/kitchen-issue",
+          icon: <MdKitchen className="text-base" />,
+        },
+        {
+          title: "Room Consumable Issue",
+          path: "/dashboard/maintain-stocks/room-issue",
+          icon: <MdHotel className="text-base" />,
+        },
+        {
+          title: "Return Management",
+          path: "/dashboard/maintain-stocks/returns",
+          icon: <MdUndo className="text-base" />,
+        },
+        {
+          title: "Stock Ledger",
+          path: "/dashboard/maintain-stocks/stock-ledger",
+          icon: <MdShowChart className="text-base" />,
         },
       ],
     },

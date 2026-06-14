@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Ingredient from "@/models/Ingredient";
+import mongoose from "mongoose";
 import "@/models/IngredientCategory"; // Ensure model is registered
 
 export async function GET(req) {
@@ -10,6 +11,10 @@ export async function GET(req) {
     const page = parseInt(searchParams.get("page")) || 1;
     const limit = parseInt(searchParams.get("limit")) || 10;
     const search = searchParams.get("search") || "";
+    const status = searchParams.get("status") || "all";
+    const category = searchParams.get("category") || "";
+    const unit = searchParams.get("unit") || "";
+    const lowStock = searchParams.get("lowStock") || "false";
 
     const skip = (page - 1) * limit;
 
@@ -29,7 +34,52 @@ export async function GET(req) {
           preserveNullAndEmptyArrays: true,
         },
       },
+      {
+        $lookup: {
+          from: "stocks",
+          localField: "_id",
+          foreignField: "ingredient",
+          as: "stockDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$stockDetails",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
     ];
+
+    // Status filter
+    if (status === "active") {
+      searchPipeline.push({ $match: { isActive: true } });
+    } else if (status === "inactive") {
+      searchPipeline.push({ $match: { isActive: false } });
+    }
+
+    // Category filter
+    if (category) {
+      searchPipeline.push({ $match: { category: new mongoose.Types.ObjectId(category) } });
+    }
+
+    // Unit filter
+    if (unit) {
+      searchPipeline.push({ $match: { unit: unit } });
+    }
+
+    // Low Stock filter
+    if (lowStock === "true") {
+      searchPipeline.push({
+        $match: {
+          $expr: {
+            $lt: [
+              { $ifNull: ["$stockDetails.quantityInStock", 0] },
+              "$stockAlert",
+            ],
+          },
+        },
+      });
+    }
 
     // Search filter
     if (search) {

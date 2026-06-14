@@ -37,7 +37,7 @@ export async function POST(req) {
       role: user.role,
     });
 
-    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: "24h" });
+    const token = jwt.sign({ id: user._id.toString(), role: user.role }, JWT_SECRET, { expiresIn: "24h" });
 
     const userResponse = user.toObject();
     delete userResponse.password;

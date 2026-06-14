@@ -15,7 +15,7 @@ export async function DELETE(req, { params }) {
   try {
     await dbConnect();
     const { id } = await params;
-    const userId = auth.user._id;
+    const userId = auth.user.id || auth.user._id;
 
     // Fetch the purchase invoice to delete
     const purchaseToDelete = await Purchase.findById(id);

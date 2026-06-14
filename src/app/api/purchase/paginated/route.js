@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
+import mongoose from "mongoose";
 import Purchase from "@/models/Purchase";
 import "@/models/Vendor"; // Ensure models are registered
 import "@/models/Ingredient";
@@ -14,11 +15,16 @@ export async function GET(req) {
     const search = searchParams.get("search") || "";
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
+    const vendorId = searchParams.get("vendorId");
 
     const skip = (page - 1) * limit;
 
-    // Build date filters
+    // Build filters
     const matchQuery = {};
+    if (vendorId) {
+      matchQuery.vendor = new mongoose.Types.ObjectId(vendorId);
+    }
+    
     if (fromDate || toDate) {
       matchQuery.purchaseDate = {};
       if (fromDate) matchQuery.purchaseDate.$gte = new Date(fromDate);

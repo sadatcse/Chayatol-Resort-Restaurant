@@ -8,9 +8,22 @@ const StockMovementSchema = Schema(
       ref: "Stock",
       required: true,
     },
+    ingredient: {
+      type: Schema.Types.ObjectId,
+      ref: "Ingredient",
+    },
     type: {
       type: String,
-      enum: ["manual_adjustment", "purchase", "sale", "wastage"],
+      enum: [
+        "manual_adjustment",
+        "purchase",
+        "sale",
+        "wastage",
+        "kitchen_issue",
+        "room_issue",
+        "return_kitchen",
+        "return_room",
+      ],
       default: "manual_adjustment",
     },
     beforeQuantity: {
@@ -29,6 +42,30 @@ const StockMovementSchema = Schema(
       type: String,
       trim: true,
     },
+    // Wastage specific
+    reason: {
+      type: String,
+      trim: true,
+    },
+    // Kitchen Issue specific
+    kitchenName: {
+      type: String,
+      trim: true,
+    },
+    // Room Issue specific
+    roomNumber: {
+      type: String,
+      trim: true,
+    },
+    guestName: {
+      type: String,
+      trim: true,
+    },
+    // For returns — link back to original issue movement
+    referenceId: {
+      type: Schema.Types.ObjectId,
+      ref: "StockMovement",
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -38,8 +75,14 @@ const StockMovementSchema = Schema(
   { timestamps: true }
 );
 
-const StockMovement =
-  mongoose.models.StockMovement ||
-  mongoose.model("StockMovement", StockMovementSchema);
+// Indexes for ledger queries
+StockMovementSchema.index({ stock: 1, createdAt: -1 });
+StockMovementSchema.index({ ingredient: 1, createdAt: -1 });
+StockMovementSchema.index({ type: 1 });
+
+if (mongoose.models.StockMovement) {
+  delete mongoose.models.StockMovement;
+}
+const StockMovement = mongoose.model("StockMovement", StockMovementSchema);
 
 export default StockMovement;

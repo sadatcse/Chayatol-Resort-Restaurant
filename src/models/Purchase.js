@@ -23,6 +23,27 @@ const PurchaseItemSchema = Schema({
   },
 });
 
+const PaymentHistorySchema = Schema({
+  amount: {
+    type: Number,
+    required: true,
+    min: [0, "Payment amount cannot be negative"],
+  },
+  paymentDate: {
+    type: Date,
+    default: Date.now,
+  },
+  paymentMethod: {
+    type: String,
+    enum: ["Cash", "Card", "Mobile", "Other"],
+    default: "Cash",
+  },
+  note: {
+    type: String,
+    trim: true,
+  }
+});
+
 const PurchaseSchema = Schema(
   {
     vendor: {
@@ -63,11 +84,16 @@ const PurchaseSchema = Schema(
       type: String,
       trim: true,
     },
+    payments: [PaymentHistorySchema],
   },
   { timestamps: true }
 );
 
-const Purchase =
-  mongoose.models.Purchase || mongoose.model("Purchase", PurchaseSchema);
+// Clear model cache in Next.js dev server to prevent stale schemas
+if (mongoose.models.Purchase) {
+  delete mongoose.models.Purchase;
+}
+
+const Purchase = mongoose.model("Purchase", PurchaseSchema);
 
 export default Purchase;
