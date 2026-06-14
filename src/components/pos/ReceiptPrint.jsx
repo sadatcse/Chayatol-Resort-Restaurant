@@ -3,7 +3,7 @@
 import React from "react";
 
 const ReceiptPrint = React.forwardRef(({ invoice }, ref) => {
-  if (!invoice) return null;
+  if (!invoice) return <div style={{ display: 'none' }}><div ref={ref}></div></div>;
 
   return (
     <div style={{ display: 'none' }}>

@@ -72,6 +72,11 @@ const menuItems = () => {
       icon: <MdBeachAccess className="text-lg" />,
       children: [
         {
+          title: "POS System",
+          path: "/dashboard/resort-pos",
+          icon: <MdReceiptLong className="text-base" />,
+        },
+        {
           title: "Room Bookings",
           path: "/dashboard/bookings",
           icon: <MdEventAvailable className="text-base" />,
@@ -79,6 +84,21 @@ const menuItems = () => {
         {
           title: "Room Management",
           path: "/dashboard/rooms",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Resort Invoices",
+          path: "/dashboard/resort-invoices",
+          icon: <MdReceiptLong className="text-base" />,
+        },
+        {
+          title: "Resort Services",
+          path: "/dashboard/resort-services",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Service Categories",
+          path: "/dashboard/resort-services/categories",
           icon: <MdListAlt className="text-base" />,
         },
       ],

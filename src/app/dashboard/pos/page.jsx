@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import useFood from "@/hooks/useFood";
 import useFoodCategories from "@/hooks/useFoodCategories";
+import usePaymentTypes from "@/hooks/usePaymentTypes";
 import { MdAdd, MdRemove, MdPrint, MdRestaurantMenu, MdOutlineTableRestaurant, MdPersonOutline, MdClose } from "react-icons/md";
 import ReceiptPrint from "@/components/pos/ReceiptPrint";
 import { useReactToPrint } from "react-to-print";
@@ -18,6 +19,7 @@ export default function POSPage() {
   const axiosSecure = useAxiosSecure();
   const { foods, isLoading: foodsLoading } = useFood(1, 1000);
   const { categories, isLoading: categoriesLoading } = useFoodCategories(1, 100);
+  const { paymentTypes } = usePaymentTypes(1, 100);
 
   const [activeCategory, setActiveCategory] = useState("All");
   const [cart, setCart] = useState([]);
@@ -47,6 +49,15 @@ export default function POSPage() {
   const [tableNo, setTableNo] = useState("");
   const [roomNo, setRoomNo] = useState("");
   const [waiterName, setWaiterName] = useState("");
+  
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
+  
+  useEffect(() => {
+    if (paymentTypes?.length > 0 && !selectedPaymentMethod) {
+      const hasCash = paymentTypes.find(pt => pt.name?.toLowerCase() === "cash");
+      setSelectedPaymentMethod(hasCash ? hasCash.name : paymentTypes[0].name);
+    }
+  }, [paymentTypes, selectedPaymentMethod]);
   
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -346,7 +357,7 @@ export default function POSPage() {
       serviceCharge: displayServiceChargeAmt,
       deliveryCharge: displayDeliveryAmt,
       grandTotal: displayGrandTotal,
-      paymentMethod: status === "Paid" ? "Cash" : (orderType?.toLowerCase().includes("room") ? "Room Charge" : "Cash"), // Defaulting
+      paymentMethod: status === "Paid" ? (selectedPaymentMethod || "Cash") : "Due",
       paymentStatus: status,
       invoiceType: "Restaurant"
     };
@@ -414,7 +425,7 @@ export default function POSPage() {
       {/* MIDDLE: Food Grid & Top Categories */}
       <div className="flex-1 flex flex-col gap-4 min-w-0">
         {/* Horizontal Categories like ChillyPOS */}
-        <div className="bg-white dark:bg-brand-charcoal rounded-xl shadow-sm p-3 flex gap-2 overflow-x-auto custom-scrollbar border border-gray-100 dark:border-gray-800 shrink-0">
+        <div className="bg-white dark:bg-brand-charcoal rounded-xl shadow-sm p-3 flex flex-wrap gap-2 border border-gray-100 dark:border-gray-800 shrink-0">
            <button 
              onClick={() => setActiveCategory("All")}
              className={`shrink-0 px-6 py-2 rounded-lg font-bold border-2 transition-all ${activeCategory === "All" ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-gray-200 text-gray-600 hover:border-brand-primary/50 dark:border-gray-700 dark:text-gray-300"}`}
@@ -744,6 +755,30 @@ export default function POSPage() {
 
         {/* Bottom Actions */}
         <div className="mt-auto shrink-0">
+           {/* Payment Method Selector */}
+           <div className="bg-gray-50 dark:bg-gray-800 p-3 border-t border-gray-200 dark:border-gray-700">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Payment Type</span>
+              <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+                {paymentTypes?.map(pt => (
+                  <button 
+                    key={pt._id}
+                    onClick={() => setSelectedPaymentMethod(pt.name)}
+                    className={`shrink-0 px-3 py-2 rounded-lg border-2 flex items-center gap-2 transition-all ${selectedPaymentMethod === pt.name ? "border-brand-primary bg-brand-primary/10" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-brand-primary/50"}`}
+                  >
+                    {pt.image && <img src={pt.image} alt={pt.name} className="w-6 h-6 object-contain" />}
+                    <span className={`text-sm font-bold ${selectedPaymentMethod === pt.name ? "text-brand-primary" : "text-gray-600 dark:text-gray-300"}`}>{pt.name}</span>
+                  </button>
+                ))}
+                {(!paymentTypes || paymentTypes.length === 0) && (
+                  <button 
+                    className="shrink-0 px-3 py-2 rounded-lg border-2 border-brand-primary bg-brand-primary/10 flex items-center gap-2"
+                  >
+                    <span className="text-sm font-bold text-brand-primary">Cash</span>
+                  </button>
+                )}
+              </div>
+           </div>
+
            {/* Grand Total Bar */}
            <div className="bg-brand-primary p-3 px-4 flex justify-between items-center text-white">
               <span className="font-medium text-white/80">{existingInvoice ? "Updated Total" : "Total to Pay"}</span>
