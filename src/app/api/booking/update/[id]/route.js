@@ -22,6 +22,10 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ message: "Booking not found" }, { status: 404 });
     }
 
+    if (!bookingData.checkOutDate) {
+      delete bookingData.checkOutDate;
+    }
+
     if (bookingData.isNewCustomer) {
       const newCust = await Customer.create({
         fullName: bookingData.customerName,

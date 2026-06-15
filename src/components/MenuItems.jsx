@@ -81,6 +81,11 @@ const menuItems = () => {
           icon: <MdReceiptLong className="text-base" />,
         },
         {
+          title: "Resort Invoices",
+          path: "/dashboard/resort-invoices",
+          icon: <MdReceiptLong className="text-base" />,
+        },
+        {
           title: "Room Bookings",
           path: "/dashboard/bookings",
           icon: <MdEventAvailable className="text-base" />,
@@ -89,11 +94,6 @@ const menuItems = () => {
           title: "Room Management",
           path: "/dashboard/rooms",
           icon: <MdListAlt className="text-base" />,
-        },
-        {
-          title: "Resort Invoices",
-          path: "/dashboard/resort-invoices",
-          icon: <MdReceiptLong className="text-base" />,
         },
         {
           title: "Resort Services",

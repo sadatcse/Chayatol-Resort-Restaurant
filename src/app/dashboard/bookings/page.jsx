@@ -110,7 +110,7 @@ const BookingsPage = () => {
   };
 
   const handleAddOrEditBooking = async () => {
-    if ((!formData.isNewCustomer && !formData.customer) || (formData.isNewCustomer && !formData.customerName) || !formData.room || !formData.checkInDate || !formData.checkOutDate || !formData.totalAmount) {
+    if ((!formData.isNewCustomer && !formData.customer) || (formData.isNewCustomer && !formData.customerName) || !formData.room || !formData.totalAmount) {
       Swal.fire({
         title: "Validation Error",
         text: "Please fill all required fields.",
@@ -120,7 +120,7 @@ const BookingsPage = () => {
       return;
     }
 
-    if (new Date(formData.checkOutDate) <= new Date(formData.checkInDate)) {
+    if (formData.checkOutDate && formData.checkInDate && new Date(formData.checkOutDate) <= new Date(formData.checkInDate)) {
       Swal.fire({
         title: "Validation Error",
         text: "Check-out date must be after check-in date.",
@@ -337,9 +337,21 @@ const BookingsPage = () => {
                           <td className="py-4 font-bold text-brand-secondary">
                             {booking.room?.roomNumber} ({booking.room?.roomType})
                           </td>
-                          <td className="py-4 font-bold text-xs">
-                            {new Date(booking.checkInDate).toLocaleString()} - <br />
-                            {new Date(booking.checkOutDate).toLocaleString()}
+                          <td className="py-4">
+                            <div className="flex flex-col gap-1.5 text-[11px]">
+                              <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-brand-sage opacity-80 w-[65px]">Check-In:</span>
+                                <span className="font-semibold text-brand-charcoal dark:text-brand-offwhite">
+                                  {booking.checkInDate ? new Date(booking.checkInDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : "Not Set"}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-brand-sage opacity-80 w-[65px]">Check-Out:</span>
+                                <span className="font-semibold text-brand-secondary">
+                                  {booking.checkOutDate ? new Date(booking.checkOutDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : "Not Set"}
+                                </span>
+                              </div>
+                            </div>
                           </td>
                           <td className="py-4 font-bold text-brand-primary">
                             ৳{booking.totalAmount}
@@ -467,7 +479,7 @@ const BookingsPage = () => {
 
               <div className="flex gap-4">
                 <div className="form-control w-1/2">
-                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Check-In *</span></label>
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Check-In</span></label>
                   <DatePicker
                     selected={formData.checkInDate}
                     onChange={(date) => setFormData({ ...formData, checkInDate: date })}
@@ -481,7 +493,7 @@ const BookingsPage = () => {
                 </div>
 
                 <div className="form-control w-1/2">
-                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Check-Out *</span></label>
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Check-Out</span></label>
                   <DatePicker
                     selected={formData.checkOutDate}
                     onChange={(date) => setFormData({ ...formData, checkOutDate: date })}

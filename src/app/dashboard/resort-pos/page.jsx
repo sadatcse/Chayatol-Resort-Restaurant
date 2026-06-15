@@ -3,13 +3,18 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import useResortServices from "@/hooks/useResortServices";
 import useResortServiceCategories from "@/hooks/useResortServiceCategories";
+import useFood from "@/hooks/useFood";
+import useFoodCategories from "@/hooks/useFoodCategories";
 import usePaymentTypes from "@/hooks/usePaymentTypes";
 import useBookings from "@/hooks/useBookings";
-import { MdAdd, MdRemove, MdPrint, MdOutlineTableRestaurant, MdPersonOutline, MdClose } from "react-icons/md";
+import { MdAdd, MdRemove, MdPrint, MdRestaurantMenu, MdOutlineTableRestaurant, MdPersonOutline, MdClose, MdKeyboardArrowDown } from "react-icons/md";
 import Swal from "sweetalert2";
-import useAxiosSecure from "@/hooks/useAxiosSecure";
 import CustomerModal from "@/components/CustomerModal";
 import { useSearchParams } from "next/navigation";
+import { FiX, FiPrinter } from "react-icons/fi";
+import ReceiptPrint from "@/components/pos/ReceiptPrint";
+import { useReactToPrint } from "react-to-print";
+import useAxiosSecure from "@/hooks/useAxiosSecure";
 
 export default function ResortPOSPage() {
   const searchParams = useSearchParams();
@@ -18,19 +23,23 @@ export default function ResortPOSPage() {
   const axiosSecure = useAxiosSecure();
   const { services, isLoading: servicesLoading } = useResortServices(1, 1000);
   const { categories, isLoading: categoriesLoading } = useResortServiceCategories(1, 100);
+  const { foods, isLoading: foodsLoading } = useFood(1, 1000);
+  const { categories: foodCategories, isLoading: foodCategoriesLoading } = useFoodCategories(1, 100);
   const { paymentTypes } = usePaymentTypes(1, 100);
 
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeServiceCategory, setActiveServiceCategory] = useState("All");
+  const [activeFoodCategory, setActiveFoodCategory] = useState("All");
   const [cart, setCart] = useState([]);
   const [associatedBookingId, setAssociatedBookingId] = useState(null);
   const [associatedFoodInvoiceIds, setAssociatedFoodInvoiceIds] = useState([]);
+  const [associatedResortInvoiceIds, setAssociatedResortInvoiceIds] = useState([]);
 
   const [posMode, setPosMode] = useState("Booked Room"); // "Booked Room", "Service", "Food"
   const { bookings, isLoading: bookingsLoading } = useBookings(1, 100);
 
-  // Tax & Discount States
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("PERCENT");
+  const [isDiscountOpen, setIsDiscountOpen] = useState(false);
 
   const [chargeSettings, setChargeSettings] = useState(null);
 
@@ -41,18 +50,59 @@ export default function ResortPOSPage() {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
-
-  useEffect(() => {
-    if (paymentTypes?.length > 0 && !selectedPaymentMethod) {
-      const hasCash = paymentTypes.find(pt => pt.name?.toLowerCase() === "cash");
-      setSelectedPaymentMethod(hasCash ? hasCash.name : paymentTypes[0].name);
-    }
-  }, [paymentTypes, selectedPaymentMethod]);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   const [activeTab, setActiveTab] = useState("Order Details"); // "Order Details" or "Guest Info"
+
+  const [bookingSearch, setBookingSearch] = useState("");
+
+  const [viewingInvoice, setViewingInvoice] = useState(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  const [viewingBookingInfo, setViewingBookingInfo] = useState(null);
+  const [isBookingInfoModalOpen, setIsBookingInfoModalOpen] = useState(false);
+  
+  const printRef = useRef(null);
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+  });
+
+  const openPrint = (invoice) => {
+    setViewingInvoice(invoice);
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
+  };
+
+  const handleViewPaidInvoice = async (roomNo, e) => {
+    e.stopPropagation();
+    try {
+      const { data } = await axiosSecure.get(`/resort-invoice?search=${roomNo}`);
+      if (data.success && data.invoices.length > 0) {
+        // Find the latest paid invoice for this room
+        const paidInvoice = data.invoices.find(inv => inv.roomNo === roomNo && inv.paymentStatus === 'Paid');
+        if (paidInvoice) {
+           setViewingInvoice(paidInvoice);
+           setIsViewModalOpen(true);
+        } else {
+           Swal.fire("Not Found", "No paid invoice found for this room.", "info");
+        }
+      } else {
+        Swal.fire("Not Found", "No invoice found for this room.", "info");
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire("Error", "Failed to load invoice.", "error");
+    }
+  };
+
+  const openBookingInfo = (booking, e) => {
+    e.stopPropagation();
+    setViewingBookingInfo(booking);
+    setIsBookingInfoModalOpen(true);
+  };
 
   // Data fetching for rooms
   const [rooms, setRooms] = useState([]);
@@ -123,6 +173,7 @@ export default function ResortPOSPage() {
         setCart(prev => prev.filter(item => item.type === "service"));
         setAssociatedBookingId(null);
         setAssociatedFoodInvoiceIds([]);
+        setAssociatedResortInvoiceIds([]);
         setCustomerName("");
         setCustomerPhone("");
         setCheckInDate("");
@@ -143,6 +194,7 @@ export default function ResortPOSPage() {
           setCart(prev => prev.filter(item => item.type === "service"));
           setAssociatedBookingId(null);
           setAssociatedFoodInvoiceIds([]);
+          setAssociatedResortInvoiceIds([]);
           
           let newItems = [];
           
@@ -198,6 +250,35 @@ export default function ResortPOSPage() {
             setAssociatedFoodInvoiceIds(invoiceIds);
           }
 
+          if (data.unpaidResortInvoices && data.unpaidResortInvoices.length > 0) {
+            const resortInvoiceIds = [];
+            data.unpaidResortInvoices.forEach((inv) => {
+               // We only want to merge invoices that are NOT the one we are currently editing (if we are editing)
+               if (invoiceId && inv._id.toString() === invoiceId.toString()) return;
+               
+               resortInvoiceIds.push(inv._id);
+               if (inv.items && inv.items.length > 0) {
+                 inv.items.forEach((item, idx) => {
+                   newItems.push({
+                     serviceId: `resort_inv_${inv._id}_${idx}`,
+                     type: "resort_service",
+                     itemName: item.itemName,
+                     category: "Merged Service",
+                     quantity: item.quantity,
+                     unitPrice: item.unitPrice,
+                     totalPrice: item.totalPrice,
+                     discountValue: 0,
+                     discountType: "PERCENT",
+                     vatRate: 0,
+                     scRate: 0,
+                     sdRate: 0
+                   });
+                 });
+               }
+            });
+            setAssociatedResortInvoiceIds(resortInvoiceIds);
+          }
+
           setCart(prev => [...prev, ...newItems]);
         }
       } catch (e) {
@@ -238,46 +319,55 @@ export default function ResortPOSPage() {
   };
 
   const filteredServices = useMemo(() => {
-    if (activeCategory === "All") return services;
-    return services.filter(s => s.category === activeCategory);
-  }, [services, activeCategory]);
+    if (activeServiceCategory === "All") return services;
+    return services.filter(s => s.category === activeServiceCategory);
+  }, [services, activeServiceCategory]);
 
-  const addToCart = (service) => {
+  const filteredFoods = useMemo(() => {
+    if (activeFoodCategory === "All") return foods;
+    return foods.filter(f => f.category === activeFoodCategory);
+  }, [foods, activeFoodCategory]);
+
+  const addToCart = (item, type = "service") => {
     setCart((prev) => {
-      const existing = prev.find(item => item.serviceId === service._id);
+      const uniqueId = type === "food" ? `food_${item._id}` : `service_${item._id}`;
+      const name = type === "food" ? item.foodName : item.serviceName;
+
+      const existing = prev.find(i => i.serviceId === uniqueId);
       if (existing) {
-        return prev.map(item =>
-          item.serviceId === service._id
-            ? { ...item, quantity: item.quantity + 1, totalPrice: (item.quantity + 1) * item.unitPrice }
-            : item
+        return prev.map(i =>
+          i.serviceId === uniqueId
+            ? { ...i, quantity: i.quantity + 1, totalPrice: (i.quantity + 1) * i.unitPrice }
+            : i
         );
       }
       return [...prev, {
-        serviceId: service._id,
-        itemName: service.serviceName,
-        category: service.category || "Service",
+        serviceId: uniqueId,
+        itemName: name,
+        category: item.category || (type === "food" ? "Food" : "Service"),
         quantity: 1,
-        unitPrice: service.price,
-        totalPrice: service.price,
+        unitPrice: item.price,
+        totalPrice: item.price,
         discountValue: 0,
         discountType: "PERCENT",
-        vatRate: Number(service.vat) || 0,
-        scRate: Number(service.sc) || 0,
-        sdRate: Number(service.sd) || 0
+        vatRate: Number(item.vat) || 0,
+        scRate: Number(item.sc) || 0,
+        sdRate: Number(item.sd) || 0
       }];
     });
   };
 
   const updateQuantity = (serviceId, delta) => {
     setCart((prev) => {
-      return prev.map(item => {
+      const updated = prev.map(item => {
         if (item.serviceId === serviceId) {
           const newQ = item.quantity + delta;
-          if (newQ < 1) return item;
+          if (newQ < 1) return null;
           return { ...item, quantity: newQ, totalPrice: newQ * item.unitPrice };
         }
         return item;
       });
+      return updated.filter(Boolean);
     });
   };
 
@@ -353,6 +443,12 @@ export default function ResortPOSPage() {
       Swal.fire("Error", "Cart is empty", "error");
       return;
     }
+
+    if (status === "Paid" && !selectedPaymentMethod) {
+      Swal.fire("Warning", "Please select a Payment Type before clicking Pay Now.", "warning");
+      return;
+    }
+
     const finalCustomerName = customerName.trim() || "Walk-in Guest";
 
     setLoading(true);
@@ -363,6 +459,9 @@ export default function ResortPOSPage() {
         phone: customerPhone
       },
       roomNo: roomNo || null,
+      associatedBookingId,
+      associatedFoodInvoiceIds,
+      associatedResortInvoiceIds,
       items: cart.map(c => ({
         itemName: c.itemName,
         quantity: c.quantity,
@@ -375,7 +474,7 @@ export default function ResortPOSPage() {
       sd: sdAmt,
       serviceCharge: serviceChargeAmt,
       grandTotal: displayGrandTotal,
-      paymentMethod: status === "Paid" ? (selectedPaymentMethod || "Cash") : "Due",
+      paymentMethod: status === "Paid" ? selectedPaymentMethod : "Due",
       paymentStatus: status,
     };
 
@@ -423,7 +522,7 @@ export default function ResortPOSPage() {
     }
   };
 
-  if (servicesLoading || categoriesLoading) {
+  if (servicesLoading || categoriesLoading || foodsLoading || foodCategoriesLoading) {
     return <div className="flex h-full items-center justify-center"><span className="loading loading-spinner text-brand-primary loading-lg"></span></div>;
   }
 
@@ -450,22 +549,45 @@ export default function ResortPOSPage() {
            >
              Food
            </button>
+           <button 
+             onClick={() => setPosMode("Room")}
+             className={`shrink-0 px-6 py-2 rounded-lg font-bold border-2 transition-all ${posMode === "Room" ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-gray-200 text-gray-600 hover:border-brand-primary/50 dark:border-gray-700 dark:text-gray-300"}`}
+           >
+             Room
+           </button>
         </div>
 
         <div className="flex-1 bg-white dark:bg-brand-charcoal rounded-xl shadow-sm p-4 overflow-y-auto custom-scrollbar border border-gray-100 dark:border-gray-800">
            {posMode === "Booked Room" && (
-             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-               {bookingsLoading ? (
-                 <div className="col-span-full py-10 text-center text-brand-primary"><span className="loading loading-spinner"></span> Loading bookings...</div>
-               ) : bookings.length === 0 ? (
-                 <div className="col-span-full py-10 text-center text-gray-400 font-medium">No active bookings found.</div>
-               ) : (
-                 bookings.map(booking => (
-                   <div 
-                     key={booking._id} 
-                     onClick={() => setRoomNo(booking.room?.roomNumber)}
-                     className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${roomNo === booking.room?.roomNumber ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-200 hover:border-brand-primary/50 bg-white dark:bg-gray-800 dark:border-gray-700'}`}
-                   >
+             <div className="flex flex-col gap-4">
+               <div className="shrink-0">
+                  <input 
+                    type="text" 
+                    placeholder="Search by Room No or Phone..." 
+                    value={bookingSearch}
+                    onChange={(e) => setBookingSearch(e.target.value)}
+                    className="w-full max-w-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-lg p-2.5 outline-none focus:border-brand-primary transition-colors text-sm"
+                  />
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                 {bookingsLoading ? (
+                   <div className="col-span-full py-10 text-center text-brand-primary"><span className="loading loading-spinner"></span> Loading bookings...</div>
+                 ) : bookings.length === 0 ? (
+                   <div className="col-span-full py-10 text-center text-gray-400 font-medium">No active bookings found.</div>
+                 ) : (
+                   bookings.filter(b => {
+                     if (!bookingSearch) return true;
+                     const lowerSearch = bookingSearch.toLowerCase();
+                     const roomMatch = b.room?.roomNumber?.toLowerCase().includes(lowerSearch);
+                     const phoneMatch = b.customer?.phoneNumber?.toLowerCase().includes(lowerSearch) || b.customer?.phone?.toLowerCase().includes(lowerSearch);
+                     const nameMatch = b.customer?.fullName?.toLowerCase().includes(lowerSearch) || b.customer?.name?.toLowerCase().includes(lowerSearch);
+                     return roomMatch || phoneMatch || nameMatch;
+                   }).map(booking => (
+                     <div 
+                       key={booking._id} 
+                       onClick={() => setRoomNo(booking.room?.roomNumber)}
+                       className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${roomNo === booking.room?.roomNumber ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-200 hover:border-brand-primary/50 bg-white dark:bg-gray-800 dark:border-gray-700'}`}
+                     >
                      <div className="flex justify-between items-start mb-2">
                        <h3 className={`font-bold text-lg ${roomNo === booking.room?.roomNumber ? 'text-brand-primary' : 'text-gray-800 dark:text-gray-100'}`}>
                          Room {booking.room?.roomNumber || "N/A"}
@@ -478,8 +600,26 @@ export default function ResortPOSPage() {
                        Guest: <span className="font-bold text-gray-800 dark:text-gray-200">{booking.customer?.fullName || booking.customer?.name || "Unknown"}</span>
                      </div>
                      <div className="flex justify-between items-end mt-auto">
-                       <div className="text-xs text-gray-500 font-medium">
-                         Check-in: {new Date(booking.checkInDate).toLocaleDateString()}
+                       <div className="flex flex-col">
+                         <div className="text-xs text-gray-500 font-medium">
+                           Check-in: {new Date(booking.checkInDate).toLocaleDateString()}
+                         </div>
+                         <div className="flex gap-2 mt-1">
+                           {booking.paymentStatus === 'Paid' && (
+                             <button 
+                               onClick={(e) => handleViewPaidInvoice(booking.room?.roomNumber, e)}
+                               className="text-[10px] uppercase tracking-wider font-bold text-brand-primary hover:text-brand-secondary text-left w-max bg-brand-primary/10 px-2 py-1 rounded transition-colors"
+                             >
+                               View Invoice
+                             </button>
+                           )}
+                           <button 
+                             onClick={(e) => openBookingInfo(booking, e)}
+                             className="text-[10px] uppercase tracking-wider font-bold text-gray-500 hover:text-gray-700 text-left w-max bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded transition-colors"
+                           >
+                             View Info
+                           </button>
+                         </div>
                        </div>
                        <div className="font-black text-brand-primary text-lg">
                          TK {booking.totalAmount}
@@ -488,18 +628,177 @@ export default function ResortPOSPage() {
                    </div>
                  ))
                )}
+                 {bookings.length > 0 && bookings.filter(b => {
+                     if (!bookingSearch) return true;
+                     const lowerSearch = bookingSearch.toLowerCase();
+                     const roomMatch = b.room?.roomNumber?.toLowerCase().includes(lowerSearch);
+                     const phoneMatch = b.customer?.phoneNumber?.toLowerCase().includes(lowerSearch) || b.customer?.phone?.toLowerCase().includes(lowerSearch);
+                     const nameMatch = b.customer?.fullName?.toLowerCase().includes(lowerSearch) || b.customer?.name?.toLowerCase().includes(lowerSearch);
+                     return roomMatch || phoneMatch || nameMatch;
+                 }).length === 0 && (
+                    <div className="col-span-full py-10 text-center text-gray-400 font-medium">No matches found.</div>
+                 )}
+               </div>
+             </div>
+           )}
+
+           {posMode === "Room" && (
+             <div className="flex flex-col gap-6">
+               {rooms.length === 0 ? (
+                 <div className="py-10 text-center text-gray-400 font-medium">No rooms found.</div>
+               ) : (
+                 <>
+                   {["Available", "Occupied", "Maintenance"].map((statusGroup) => {
+                     const filteredRooms = rooms.filter(r => r.status === statusGroup);
+                     if (filteredRooms.length === 0) return null;
+                     
+                     return (
+                       <div key={statusGroup} className="flex flex-col gap-3">
+                         <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 pb-2">
+                           {statusGroup} Rooms ({filteredRooms.length})
+                         </h2>
+                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                           {filteredRooms.map(room => (
+                             <div 
+                               key={room._id} 
+                               onClick={() => setRoomNo(room.roomNumber)}
+                               className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${roomNo === room.roomNumber ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-200 hover:border-brand-primary/50 bg-white dark:bg-gray-800 dark:border-gray-700'}`}
+                             >
+                               <div className="flex justify-between items-start mb-2">
+                                 <h3 className={`font-bold text-lg ${roomNo === room.roomNumber ? 'text-brand-primary' : 'text-gray-800 dark:text-gray-100'}`}>
+                                   Room {room.roomNumber}
+                                 </h3>
+                                 <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${room.status === 'Available' ? 'bg-green-100 text-green-700' : room.status === 'Occupied' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                   {room.status}
+                                 </span>
+                               </div>
+                               <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                 Type: <span className="font-bold text-gray-800 dark:text-gray-200">{room.roomType}</span>
+                               </div>
+                               <div className="flex justify-between items-end mt-auto">
+                                 <div className="text-xs text-gray-500 font-medium">
+                                   Capacity: {room.capacity}
+                                 </div>
+                                 <div className="font-black text-brand-primary text-lg">
+                                   TK {room.price}
+                                 </div>
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     );
+                   })}
+                 </>
+               )}
              </div>
            )}
 
            {posMode === "Service" && (
-             <div className="flex items-center justify-center h-full">
-               <p className="text-gray-400 font-medium">Services grid goes here...</p>
+             <div className="flex flex-col h-full gap-4">
+                <div className="bg-white dark:bg-brand-charcoal rounded-xl shadow-sm p-3 flex flex-wrap gap-2 border border-gray-100 dark:border-gray-800 shrink-0">
+                  <button 
+                    onClick={() => setActiveServiceCategory("All")}
+                    className={`shrink-0 px-6 py-2 rounded-lg font-bold border-2 transition-all ${activeServiceCategory === "All" ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-gray-200 text-gray-600 hover:border-brand-primary/50 dark:border-gray-700 dark:text-gray-300"}`}
+                  >
+                    All Services
+                  </button>
+                  {categories.map(cat => (
+                    <button 
+                      key={cat._id}
+                      onClick={() => setActiveServiceCategory(cat.categoryName)}
+                      className={`shrink-0 px-6 py-2 rounded-lg font-bold border-2 transition-all ${activeServiceCategory === cat.categoryName ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-gray-200 text-gray-600 hover:border-brand-primary/50 dark:border-gray-700 dark:text-gray-300"}`}
+                    >
+                      {cat.categoryName}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                     {filteredServices.map(service => (
+                       <div 
+                         key={service._id} 
+                         onClick={() => addToCart(service, "service")}
+                         className="rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl border border-gray-100 dark:border-gray-700 transition-all group bg-white dark:bg-gray-800 flex flex-col"
+                       >
+                         <div className="h-32 w-full bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
+                            {service.image ? (
+                               <img src={service.image} alt={service.serviceName} className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-300" />
+                            ) : (
+                               <div className="flex h-full items-center justify-center text-gray-400">
+                                  <span className="opacity-20 font-bold uppercase">No Image</span>
+                               </div>
+                            )}
+                            <div className="absolute top-2 right-2 bg-white/90 dark:bg-black/70 px-2 py-0.5 rounded text-xs font-bold text-gray-700 dark:text-gray-200 shadow-sm backdrop-blur-sm">
+                               {service.category}
+                            </div>
+                         </div>
+                         <div className="p-3 flex-1 flex flex-col justify-between">
+                           <h4 className="font-bold text-sm line-clamp-2 leading-tight mb-2 dark:text-white text-gray-800 group-hover:text-brand-primary transition-colors">{service.serviceName}</h4>
+                           <p className="text-brand-primary font-black">TK {service.price}</p>
+                         </div>
+                       </div>
+                     ))}
+                     {filteredServices.length === 0 && (
+                       <div className="col-span-full py-10 text-center text-gray-400 font-medium">No services found in this category.</div>
+                     )}
+                   </div>
+                </div>
              </div>
            )}
 
            {posMode === "Food" && (
-             <div className="flex items-center justify-center h-full">
-               <p className="text-gray-400 font-medium">Food grid goes here...</p>
+             <div className="flex flex-col h-full gap-4">
+                <div className="bg-white dark:bg-brand-charcoal rounded-xl shadow-sm p-3 flex flex-wrap gap-2 border border-gray-100 dark:border-gray-800 shrink-0">
+                  <button 
+                    onClick={() => setActiveFoodCategory("All")}
+                    className={`shrink-0 px-6 py-2 rounded-lg font-bold border-2 transition-all ${activeFoodCategory === "All" ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-gray-200 text-gray-600 hover:border-brand-primary/50 dark:border-gray-700 dark:text-gray-300"}`}
+                  >
+                    All Foods
+                  </button>
+                  {foodCategories.map(cat => (
+                    <button 
+                      key={cat._id}
+                      onClick={() => setActiveFoodCategory(cat.categoryName)}
+                      className={`shrink-0 px-6 py-2 rounded-lg font-bold border-2 transition-all ${activeFoodCategory === cat.categoryName ? "border-brand-primary bg-brand-primary/10 text-brand-primary" : "border-gray-200 text-gray-600 hover:border-brand-primary/50 dark:border-gray-700 dark:text-gray-300"}`}
+                    >
+                      {cat.categoryName}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                     {filteredFoods.map(food => (
+                       <div 
+                         key={food._id} 
+                         onClick={() => addToCart(food, "food")}
+                         className="rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl border border-gray-100 dark:border-gray-700 transition-all group bg-white dark:bg-gray-800 flex flex-col"
+                       >
+                         <div className="h-32 w-full bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
+                            {food.image ? (
+                               <img src={food.image} alt={food.foodName} className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-300" />
+                            ) : (
+                               <div className="flex h-full items-center justify-center text-gray-400">
+                                  <MdRestaurantMenu size={40} className="opacity-20" />
+                               </div>
+                            )}
+                            <div className="absolute top-2 right-2 bg-white/90 dark:bg-black/70 px-2 py-0.5 rounded text-xs font-bold text-gray-700 dark:text-gray-200 shadow-sm backdrop-blur-sm">
+                               {food.category}
+                            </div>
+                         </div>
+                         <div className="p-3 flex-1 flex flex-col justify-between">
+                           <h4 className="font-bold text-sm line-clamp-2 leading-tight mb-2 dark:text-white text-gray-800 group-hover:text-brand-primary transition-colors">{food.foodName}</h4>
+                           <p className="text-brand-primary font-black">TK {food.price}</p>
+                         </div>
+                       </div>
+                     ))}
+                     {filteredFoods.length === 0 && (
+                       <div className="col-span-full py-10 text-center text-gray-400 font-medium">No foods found in this category.</div>
+                     )}
+                   </div>
+                </div>
              </div>
            )}
         </div>
@@ -525,15 +824,17 @@ export default function ResortPOSPage() {
 
         {activeTab === "Order Details" ? (
           <div className="p-4 flex flex-col gap-4 flex-1 overflow-hidden">
-            <div className="grid grid-cols-1 gap-3 shrink-0">
-              <div>
-                <label className="text-xs text-gray-500 font-medium mb-1 block dark:text-gray-400">Bill to Room</label>
-                <select value={roomNo} onChange={(e) => setRoomNo(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 text-sm font-medium dark:bg-gray-800 dark:border-gray-700 dark:text-white outline-none focus:border-brand-primary">
-                  <option value="">Select Room (Optional)</option>
-                  {rooms.map(r => <option key={r._id} value={r.roomNumber}>{r.roomNumber}</option>)}
-                </select>
+            {roomNo && (
+              <div className="mb-3 p-3 bg-brand-primary/5 border border-brand-primary/20 rounded-lg flex justify-between items-center shrink-0">
+                <div>
+                  <div className="text-xs text-brand-primary font-bold uppercase tracking-wider">Selected Room</div>
+                  <div className="font-black text-gray-800 dark:text-gray-200 text-lg">Room {roomNo}</div>
+                </div>
+                <button onClick={() => setRoomNo("")} className="btn btn-xs btn-outline border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300">
+                  Deselect
+                </button>
               </div>
-            </div>
+            )}
 
             <div className="flex justify-between items-center pb-2 border-b border-gray-100 dark:border-gray-800 shrink-0">
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Services</span>
@@ -591,20 +892,26 @@ export default function ResortPOSPage() {
             </div>
 
             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-700 shrink-0">
-              <div className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">Advance</div>
-              <div className="mb-3">
-                <div className="flex items-center gap-4 mb-2">
-                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400">Total Discount</label>
-                </div>
-                <div className="flex gap-2 h-10">
-                  <div className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden focus-within:border-brand-primary transition-colors">
-                    <input type="text" value={discountValue} onChange={(e) => { const raw = e.target.value.replace(/\D/g, ''); setDiscountValue(raw === '' ? 0 : parseInt(raw, 10)); }} className="w-full h-full px-3 text-sm outline-none bg-transparent min-w-0" />
-                  </div>
-                  <div className="w-28 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden focus-within:border-brand-primary transition-colors">
-                    <select value={discountType} onChange={e => setDiscountType(e.target.value)} className="w-full h-full px-2 text-xs font-bold text-gray-600 dark:text-gray-300 outline-none cursor-pointer bg-transparent">
-                      <option value="PERCENT">PERCENT</option>
-                      <option value="FLAT">FLAT</option>
-                    </select>
+              <button 
+                onClick={() => setIsDiscountOpen(!isDiscountOpen)} 
+                className="w-full flex justify-between items-center text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-brand-primary transition-colors"
+              >
+                <span>Total Discount</span>
+                <MdKeyboardArrowDown className={`text-xl transition-transform duration-300 ${isDiscountOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              <div className={`grid transition-all duration-300 ease-in-out ${isDiscountOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                <div className="overflow-hidden">
+                  <div className="flex gap-2 h-10 mt-3 mb-1">
+                    <div className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden focus-within:border-brand-primary transition-colors">
+                      <input type="text" value={discountValue} onChange={(e) => { const raw = e.target.value.replace(/\D/g, ''); setDiscountValue(raw === '' ? 0 : parseInt(raw, 10)); }} className="w-full h-full px-3 text-sm outline-none bg-transparent min-w-0" placeholder="0" />
+                    </div>
+                    <div className="w-28 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden focus-within:border-brand-primary transition-colors">
+                      <select value={discountType} onChange={e => setDiscountType(e.target.value)} className="w-full h-full px-2 text-xs font-bold text-gray-600 dark:text-gray-300 outline-none cursor-pointer bg-transparent">
+                        <option value="PERCENT">PERCENT</option>
+                        <option value="FLAT">FLAT</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -695,9 +1002,9 @@ export default function ResortPOSPage() {
 
         <div className="mt-auto shrink-0">
           {/* Payment Method Selector */}
-          <div className="bg-gray-50 dark:bg-gray-800 p-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 dark:bg-gray-800 p-3 border-t border-gray-200 dark:border-gray-700 shrink-0">
             <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Payment Type</span>
-            <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+            <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2">
               {paymentTypes?.map(pt => (
                 <button
                   key={pt._id}
@@ -745,6 +1052,126 @@ export default function ResortPOSPage() {
         </div>
 
       </div>
+
+      {/* BOOKING INFO MODAL */}
+      {isBookingInfoModalOpen && viewingBookingInfo && (
+        <dialog className="modal modal-open bg-brand-charcoal/50">
+          <div className="modal-box bg-white dark:bg-brand-charcoal rounded-2xl p-0">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="font-bold text-lg text-brand-primary uppercase">Booking Info: Room {viewingBookingInfo.room?.roomNumber}</h3>
+              <button onClick={() => setIsBookingInfoModalOpen(false)} className="btn btn-sm btn-circle btn-ghost"><FiX /></button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                <div>
+                  <p className="text-gray-500 text-xs">Guest Name</p>
+                  <p className="font-bold">{viewingBookingInfo.customer?.fullName || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Phone</p>
+                  <p className="font-bold">{viewingBookingInfo.customer?.phoneNumber || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Room Type</p>
+                  <p className="font-bold">{viewingBookingInfo.room?.roomType || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Booking Status</p>
+                  <p className={`font-bold ${viewingBookingInfo.bookingStatus === 'Checked-out' ? 'text-gray-500' : 'text-brand-primary'}`}>{viewingBookingInfo.bookingStatus}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Check-in Date</p>
+                  <p className="font-bold">{viewingBookingInfo.checkInDate ? new Date(viewingBookingInfo.checkInDate).toLocaleDateString() : "Not Set"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Check-out Date</p>
+                  <p className="font-bold">{viewingBookingInfo.checkOutDate ? new Date(viewingBookingInfo.checkOutDate).toLocaleDateString() : "Not Set"}</p>
+                </div>
+              </div>
+              <div className="border-t border-gray-100 dark:border-gray-800 pt-4 text-sm flex justify-between items-center">
+                 <div>
+                   <p className="text-gray-500 text-xs">Payment Status</p>
+                   <p className={`font-bold ${viewingBookingInfo.paymentStatus === 'Paid' ? 'text-green-600' : 'text-orange-500'}`}>{viewingBookingInfo.paymentStatus}</p>
+                 </div>
+                 <div className="text-right">
+                   <p className="text-gray-500 text-xs">Total Amount</p>
+                   <p className="font-bold text-brand-primary text-xl">TK {viewingBookingInfo.totalAmount}</p>
+                 </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-800/50">
+              <button onClick={() => { setIsBookingInfoModalOpen(false); setRoomNo(viewingBookingInfo.room?.roomNumber); }} className="btn bg-brand-primary text-white border-none btn-sm px-6">Load to POS</button>
+              <button onClick={() => setIsBookingInfoModalOpen(false)} className="btn btn-ghost btn-sm px-6">Close</button>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {/* VIEW INVOICE MODAL */}
+      {isViewModalOpen && viewingInvoice && (
+        <dialog className="modal modal-open bg-brand-charcoal/50">
+          <div className="modal-box bg-white dark:bg-brand-charcoal rounded-2xl p-0">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="font-bold text-lg text-brand-primary uppercase">View Invoice: {viewingInvoice.invoiceNo}</h3>
+              <button onClick={() => setIsViewModalOpen(false)} className="btn btn-sm btn-circle btn-ghost"><FiX /></button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                <div>
+                  <p className="text-gray-500 text-xs">Customer Name</p>
+                  <p className="font-bold">{viewingInvoice.customer?.name || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Phone</p>
+                  <p className="font-bold">{viewingInvoice.customer?.phone || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Room No</p>
+                  <p className="font-bold">{viewingInvoice.roomNo || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Status</p>
+                  <p className={`font-bold ${viewingInvoice.paymentStatus === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>{viewingInvoice.paymentStatus}</p>
+                </div>
+              </div>
+
+              <h4 className="font-bold text-sm mb-2 border-b pb-2">Items</h4>
+              <ul className="space-y-1 text-sm mb-4 max-h-40 overflow-y-auto">
+                {viewingInvoice.items?.map((item, idx) => (
+                  <li key={idx} className="flex justify-between">
+                    <span>{item.itemName} x{item.quantity}</span>
+                    <span>৳{item.totalPrice?.toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="border-t pt-2 text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span>Sub Total:</span>
+                  <span>৳{viewingInvoice.subTotal?.toFixed(2)}</span>
+                </div>
+                {viewingInvoice.discount > 0 && (
+                  <div className="flex justify-between">
+                    <span>Discount:</span>
+                    <span>-৳{viewingInvoice.discount?.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-brand-primary text-base border-t mt-2 pt-2">
+                  <span>Grand Total:</span>
+                  <span>৳{viewingInvoice.grandTotal?.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-800/50">
+              <button onClick={() => openPrint(viewingInvoice)} className="btn bg-brand-sage text-white border-none btn-sm px-6">Print</button>
+              <button onClick={() => setIsViewModalOpen(false)} className="btn btn-ghost btn-sm px-6">Close</button>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {/* Hidden Print Component */}
+      <ReceiptPrint ref={printRef} invoice={viewingInvoice} />
 
       <CustomerModal
         isOpen={isCustomerModalOpen}
