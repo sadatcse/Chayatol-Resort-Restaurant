@@ -8,6 +8,12 @@ import Select from "react-select";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
+import TimelineGrid from "@/components/FrontDesk/TimelineGrid";
+import TimelineHeader from "@/components/FrontDesk/TimelineHeader";
+import AdvancedBookingModal from "@/components/FrontDesk/AdvancedBookingModal";
+import BookingDetailDrawer from "@/components/FrontDesk/BookingDetailDrawer";
+import { FiList, FiCalendar as FiCalendarIcon } from "react-icons/fi";
+
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
 import MtableLoading from "@/components/Comon/MtableLoading";
@@ -61,6 +67,64 @@ const BookingsPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
+
+  // Front Desk State
+  const [viewMode, setViewMode] = useState('timeline');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [isAdvancedModalOpen, setIsAdvancedModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
+  useEffect(() => {
+    fetchOptions();
+  }, []);
+
+  const handleSaveAdvancedBooking = async (data) => {
+    setIsSubmitting(true);
+    const payload = {
+      ...data,
+      checkInDate: data.checkInDate ? data.checkInDate.toISOString() : null,
+      checkOutDate: data.checkOutDate ? data.checkOutDate.toISOString() : null,
+      totalAmount: Number(data.totalAmount)
+    };
+    try {
+      await axiosSecure.post("/booking/post", payload);
+      await refetch();
+      setIsAdvancedModalOpen(false);
+      Swal.fire({
+        title: "Success",
+        text: "Booking successfully created.",
+        icon: "success",
+        confirmButtonColor: "#346E36",
+      });
+    } catch (error) {
+      Swal.fire({
+        title: "Action Failed",
+        text: error.response?.data?.message || "Failed to save booking.",
+        icon: "error",
+        confirmButtonColor: "#346E36",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      await axiosSecure.put(`/booking/update/${id}`, { bookingStatus: newStatus });
+      await refetch();
+      setSelectedBooking(prev => prev ? { ...prev, bookingStatus: newStatus } : null);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Status updated',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    } catch (error) {
+      Swal.fire('Error', 'Failed to update status', 'error');
+    }
+  };
 
   const fetchOptions = async () => {
     try {
@@ -239,7 +303,7 @@ const BookingsPage = () => {
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
 
       <SectionHeader
-        title="Room Bookings"
+        title="Front Desk"
         subtitle="Manage room reservations, check-ins, check-outs, and payments."
       >
         <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-80 h-12">
@@ -276,7 +340,22 @@ const BookingsPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
+        <div className="flex bg-brand-offwhite dark:bg-brand-charcoal/50 p-1 rounded-lg border border-brand-beige/50 dark:border-brand-beige/20 shadow-sm">
+          <button 
+            onClick={() => setViewMode('timeline')}
+            className={`btn btn-sm border-none uppercase tracking-widest text-[10px] font-bold ${viewMode === 'timeline' ? 'bg-white dark:bg-brand-charcoal shadow-sm text-brand-primary' : 'bg-transparent text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite shadow-none'}`}
+          >
+            <FiCalendarIcon size={14} /> Timeline
+          </button>
+          <button 
+            onClick={() => setViewMode('table')}
+            className={`btn btn-sm border-none uppercase tracking-widest text-[10px] font-bold ${viewMode === 'table' ? 'bg-white dark:bg-brand-charcoal shadow-sm text-brand-primary' : 'bg-transparent text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite shadow-none'}`}
+          >
+            <FiList size={14} /> List
+          </button>
+        </div>
+
+        {canPerformAction && viewMode === 'table' && (
           <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
             <FiPlus className="text-lg" />
             <span className="uppercase tracking-widest text-xs font-bold">New Booking</span>
@@ -284,6 +363,24 @@ const BookingsPage = () => {
         )}
       </div>
 
+      {viewMode === 'timeline' && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <TimelineHeader 
+            currentDate={currentDate} 
+            setCurrentDate={setCurrentDate} 
+            onToday={() => setCurrentDate(new Date())}
+            onAddBooking={() => setIsAdvancedModalOpen(true)} 
+          />
+          <TimelineGrid 
+            currentDate={currentDate} 
+            bookings={bookings} 
+            rooms={rooms} 
+            onBookingClick={(booking) => setSelectedBooking(booking)}
+          />
+        </motion.div>
+      )}
+
+      {viewMode === 'table' && (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -409,6 +506,27 @@ const BookingsPage = () => {
           )}
         </div>
       </motion.div>
+      )}
+
+      <AdvancedBookingModal 
+        isOpen={isAdvancedModalOpen} 
+        onClose={() => setIsAdvancedModalOpen(false)} 
+        onSave={handleSaveAdvancedBooking}
+        customers={customers}
+        rooms={rooms}
+        isSubmitting={isSubmitting}
+        onCreateNewCustomer={(phone) => {
+          setSearchPhoneInput(phone);
+          setIsCustomerModalOpen(true);
+        }}
+      />
+
+      <BookingDetailDrawer
+        isOpen={!!selectedBooking}
+        onClose={() => setSelectedBooking(null)}
+        booking={selectedBooking}
+        onStatusChange={handleStatusChange}
+      />
 
       {isModalOpen && (
         <dialog className="modal modal-open modal-bottom sm:modal-middle bg-brand-charcoal/40 backdrop-blur-sm">
