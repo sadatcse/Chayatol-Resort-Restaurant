@@ -23,7 +23,7 @@ const TimelineGrid = ({ currentDate, bookings, rooms, onBookingClick }) => {
     <div className="bg-white dark:bg-brand-charcoal rounded-b-2xl border border-t-0 border-brand-beige dark:border-brand-beige/20 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-250px)] min-h-[500px]">
       
       {/* Scrollable Container */}
-      <div className="overflow-auto flex-grow flex relative">
+      <div className="overflow-auto flex-grow flex relative custom-scrollbar pb-2">
         
         {/* Left Sidebar (Sticky) */}
         <div className="sticky left-0 z-20 bg-white dark:bg-brand-charcoal border-r border-brand-beige dark:border-brand-beige/20 w-48 shrink-0 flex flex-col shadow-[2px_0_5px_rgba(0,0,0,0.05)] dark:shadow-[2px_0_5px_rgba(0,0,0,0.2)]">

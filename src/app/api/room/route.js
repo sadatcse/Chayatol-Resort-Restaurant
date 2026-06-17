@@ -5,8 +5,11 @@ import Room from "@/models/Room";
 export async function GET(req) {
   try {
     await dbConnect();
-    // Only return Available rooms
-    const result = await Room.find({ status: "Available" }).sort({ roomNumber: 1 });
+    const { searchParams } = new URL(req.url);
+    const returnAll = searchParams.get("all") === "true";
+
+    const query = returnAll ? {} : { status: "Available" };
+    const result = await Room.find(query).sort({ roomNumber: 1 });
     return NextResponse.json(result, { status: 200 });
   } catch (err) {
     console.error("Get available rooms route error:", err);

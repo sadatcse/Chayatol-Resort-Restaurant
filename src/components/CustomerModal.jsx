@@ -276,12 +276,13 @@ const CustomerModal = ({ isOpen, onClose, customerToEdit, onSuccess, initialPhon
 
     setIsSubmitting(true);
     try {
+      let result;
       if (editId) {
-        await axiosSecure.put(`/customer/update/${editId}`, formData);
+        result = await axiosSecure.put(`/customer/update/${editId}`, formData);
       } else {
-        await axiosSecure.post("/customer/post", formData);
+        result = await axiosSecure.post("/customer/post", formData);
       }
-      if (onSuccess) await onSuccess(formData);
+      if (onSuccess) await onSuccess(result.data);
       closeModal();
       Swal.fire({
         title: "Success",

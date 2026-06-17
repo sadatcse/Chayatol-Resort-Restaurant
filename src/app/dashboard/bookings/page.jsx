@@ -19,7 +19,6 @@ import Pagination from "@/components/Comon/Pagination";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import CustomerModal from "@/components/CustomerModal";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
-import useDebounce from "@/hooks/useDebounce";
 import useBookings from "@/hooks/useBookings";
 import { AuthContext } from "@/providers/AuthProvider";
 
@@ -49,21 +48,28 @@ const BookingsPage = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTypeInput, setSearchTypeInput] = useState("phone");
+  const [activeSearchTerm, setActiveSearchTerm] = useState("");
+  const [activeSearchType, setActiveSearchType] = useState("phone");
 
   const { bookings, totalPages, totalItems, isLoading, refetch } = useBookings(
     currentPage,
     itemsPerPage,
-    debouncedSearchTerm
+    activeSearchTerm,
+    activeSearchType
   );
 
   const [customers, setCustomers] = useState([]);
   const [rooms, setRooms] = useState([]);
+  
+  const [timelineBookings, setTimelineBookings] = useState([]);
+  const [allRooms, setAllRooms] = useState([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [searchPhoneInput, setSearchPhoneInput] = useState("");
+  const [newlyCreatedCustomer, setNewlyCreatedCustomer] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
@@ -78,6 +84,25 @@ const BookingsPage = () => {
     fetchOptions();
   }, []);
 
+  const fetchTimelineData = async () => {
+    try {
+      const [bookingsRes, roomsRes] = await Promise.all([
+        axiosSecure.get("/booking/paginated?limit=all"),
+        axiosSecure.get("/room?all=true")
+      ]);
+      setTimelineBookings(bookingsRes.data.bookings || []);
+      setAllRooms(roomsRes.data || []);
+    } catch (error) {
+      console.error("Failed to fetch timeline data:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'timeline') {
+      fetchTimelineData();
+    }
+  }, [viewMode]);
+
   const handleSaveAdvancedBooking = async (data) => {
     setIsSubmitting(true);
     const payload = {
@@ -89,6 +114,7 @@ const BookingsPage = () => {
     try {
       await axiosSecure.post("/booking/post", payload);
       await refetch();
+      if (viewMode === 'timeline') fetchTimelineData();
       setIsAdvancedModalOpen(false);
       Swal.fire({
         title: "Success",
@@ -112,6 +138,7 @@ const BookingsPage = () => {
     try {
       await axiosSecure.put(`/booking/update/${id}`, { bookingStatus: newStatus });
       await refetch();
+      if (viewMode === 'timeline') fetchTimelineData();
       setSelectedBooking(prev => prev ? { ...prev, bookingStatus: newStatus } : null);
       Swal.fire({
         toast: true,
@@ -209,6 +236,7 @@ const BookingsPage = () => {
         await axiosSecure.post("/booking/post", payload);
       }
       await refetch();
+      if (viewMode === 'timeline') fetchTimelineData();
       closeModal();
       Swal.fire({
         title: "Success",
@@ -252,6 +280,7 @@ const BookingsPage = () => {
         try {
           await axiosSecure.delete(`/booking/delete/${id}`);
           await refetch();
+          if (viewMode === 'timeline') fetchTimelineData();
           Swal.fire({
             title: "Deleted!",
             text: "Booking has been deleted.",
@@ -300,25 +329,58 @@ const BookingsPage = () => {
   };
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
+    <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in overflow-x-hidden">
 
       <SectionHeader
         title="Front Desk"
         subtitle="Manage room reservations, check-ins, check-outs, and payments."
       >
-        <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-80 h-12">
-          <FiSearch className="text-brand-sage text-lg" />
-          <input
-            type="text"
-            className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none"
-            placeholder="Search status..."
-            value={searchTerm}
-            onChange={e => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
-        </label>
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end mt-4 md:mt-0">
+          <select 
+            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full shadow-sm text-sm h-12 w-full sm:w-auto"
+            value={searchTypeInput}
+            onChange={(e) => setSearchTypeInput(e.target.value)}
+          >
+            <option value="phone">Customer Phone</option>
+            <option value="name">Customer Name</option>
+            <option value="room">Room Number</option>
+          </select>
+          <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm w-full sm:w-64 h-12">
+            <FiSearch className="text-brand-sage text-lg shrink-0" />
+            <input
+              type="text"
+              className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none w-full min-w-0"
+              placeholder={`Search by ${searchTypeInput}...`}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  if (activeSearchTerm === searchInput && activeSearchType === searchTypeInput) {
+                    refetch();
+                  } else {
+                    setActiveSearchTerm(searchInput);
+                    setActiveSearchType(searchTypeInput);
+                    setCurrentPage(1);
+                  }
+                }
+              }}
+            />
+          </label>
+          <button 
+            onClick={() => {
+              if (activeSearchTerm === searchInput && activeSearchType === searchTypeInput) {
+                refetch();
+              } else {
+                setActiveSearchTerm(searchInput);
+                setActiveSearchType(searchTypeInput);
+                setCurrentPage(1);
+              }
+            }} 
+            className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none rounded-full h-12 px-6 shadow-sm w-full sm:w-auto"
+          >
+            Search
+          </button>
+        </div>
       </SectionHeader>
 
       <div className="flex flex-wrap justify-between items-center bg-white dark:bg-brand-charcoal p-4 rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 mb-6 gap-4">
@@ -373,8 +435,8 @@ const BookingsPage = () => {
           />
           <TimelineGrid 
             currentDate={currentDate} 
-            bookings={bookings} 
-            rooms={rooms} 
+            bookings={timelineBookings} 
+            rooms={allRooms} 
             onBookingClick={(booking) => setSelectedBooking(booking)}
           />
         </motion.div>
@@ -393,7 +455,7 @@ const BookingsPage = () => {
               <MtableLoading />
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               <table className="table w-full">
                 <thead className="bg-brand-primary text-white font-bold uppercase tracking-widest text-[10px] border-b border-brand-beige dark:border-brand-beige/20">
                   <tr>
@@ -515,6 +577,8 @@ const BookingsPage = () => {
         customers={customers}
         rooms={rooms}
         isSubmitting={isSubmitting}
+        newlyCreatedCustomer={newlyCreatedCustomer}
+        onClearNewCustomer={() => setNewlyCreatedCustomer(null)}
         onCreateNewCustomer={(phone) => {
           setSearchPhoneInput(phone);
           setIsCustomerModalOpen(true);
@@ -710,9 +774,20 @@ const BookingsPage = () => {
           isOpen={isCustomerModalOpen}
           initialPhoneNumber={searchPhoneInput}
           onClose={() => setIsCustomerModalOpen(false)}
-          onSuccess={async () => {
+          onSuccess={async (newCustomerData) => {
              await fetchOptions(); // refresh customers list!
              setIsCustomerModalOpen(false);
+             if (isModalOpen) {
+               setFormData(prev => ({
+                 ...prev,
+                 customer: newCustomerData._id,
+                 customerName: newCustomerData.fullName,
+                 customerPhone: newCustomerData.phoneNumber,
+                 isNewCustomer: false
+               }));
+             } else if (isAdvancedModalOpen) {
+               setNewlyCreatedCustomer(newCustomerData);
+             }
           }}
         />
       )}

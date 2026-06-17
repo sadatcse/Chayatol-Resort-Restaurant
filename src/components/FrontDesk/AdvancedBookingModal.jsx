@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiSearch, FiCheck, FiUser, FiCalendar, FiCreditCard } from 'react-icons/fi';
 import Select from 'react-select';
@@ -6,7 +6,7 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import Swal from 'sweetalert2';
 
-const AdvancedBookingModal = ({ isOpen, onClose, onSave, customers, rooms, isSubmitting, onCreateNewCustomer }) => {
+const AdvancedBookingModal = ({ isOpen, onClose, onSave, customers, rooms, isSubmitting, onCreateNewCustomer, newlyCreatedCustomer, onClearNewCustomer }) => {
   const [step, setStep] = useState(1);
   const [searchPhoneInput, setSearchPhoneInput] = useState("");
   const [formData, setFormData] = useState({
@@ -22,6 +22,18 @@ const AdvancedBookingModal = ({ isOpen, onClose, onSave, customers, rooms, isSub
     adults: 1,
     children: 0,
   });
+
+  useEffect(() => {
+    if (newlyCreatedCustomer) {
+      setFormData(prev => ({
+        ...prev,
+        customer: newlyCreatedCustomer._id,
+        customerName: newlyCreatedCustomer.fullName,
+        customerPhone: newlyCreatedCustomer.phoneNumber
+      }));
+      if (onClearNewCustomer) onClearNewCustomer();
+    }
+  }, [newlyCreatedCustomer, onClearNewCustomer]);
 
   const customerOptions = customers.map(c => ({
     value: c._id,

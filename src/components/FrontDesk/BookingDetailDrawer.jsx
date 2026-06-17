@@ -1,25 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX, FiUser, FiCalendar, FiCreditCard, FiMessageSquare, FiActivity, FiCopy } from 'react-icons/fi';
+import { FiX, FiUser, FiCalendar, FiCreditCard, FiMessageSquare, FiActivity } from 'react-icons/fi';
 import { format } from 'date-fns';
 import Swal from 'sweetalert2';
 
 const BookingDetailDrawer = ({ isOpen, onClose, booking, onStatusChange }) => {
-  const [activeTab, setActiveTab] = useState('general');
-
   if (!isOpen || !booking) return null;
 
-  const handleCopyPin = () => {
-    navigator.clipboard.writeText(booking._id.substring(0, 6).toUpperCase());
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      icon: 'success',
-      title: 'PIN Copied',
-      showConfirmButton: false,
-      timer: 1500
-    });
-  };
+
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -77,7 +65,7 @@ const BookingDetailDrawer = ({ isOpen, onClose, booking, onStatusChange }) => {
               <label tabIndex={0} className="btn btn-sm w-full bg-brand-primary text-white border-none hover:bg-brand-secondary uppercase tracking-widest text-xs font-bold shadow-sm">
                 Change Status
               </label>
-              <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 rounded-box w-full mt-1 border border-brand-beige/20">
+              <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow-lg bg-white dark:bg-brand-charcoal rounded-box w-full mt-1 border border-brand-beige/20">
                 {['Confirmed', 'Checked-in', 'Checked-out', 'Cancelled'].map(status => (
                   <li key={status}>
                     <a 
@@ -85,7 +73,7 @@ const BookingDetailDrawer = ({ isOpen, onClose, booking, onStatusChange }) => {
                         onStatusChange(booking._id, status);
                         onClose();
                       }}
-                      className={booking.bookingStatus === status ? 'active bg-brand-primary/10 text-brand-primary font-bold' : ''}
+                      className={booking.bookingStatus === status ? 'active bg-brand-primary/10 text-brand-primary font-bold' : 'text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-offwhite dark:hover:bg-white/10'}
                     >
                       Change to: {status}
                     </a>
@@ -94,31 +82,11 @@ const BookingDetailDrawer = ({ isOpen, onClose, booking, onStatusChange }) => {
               </ul>
             </div>
 
-            <div className="flex gap-4 border-b border-brand-beige/50">
-              <button 
-                onClick={() => setActiveTab('general')}
-                className={`pb-2 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'general' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-brand-sage hover:text-brand-charcoal'}`}
-              >
-                General
-              </button>
-              <button 
-                onClick={() => setActiveTab('chat')}
-                className={`pb-2 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'chat' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-brand-sage hover:text-brand-charcoal'}`}
-              >
-                Chat
-              </button>
-              <button 
-                onClick={() => setActiveTab('activity')}
-                className={`pb-2 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'activity' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-brand-sage hover:text-brand-charcoal'}`}
-              >
-                Activity
-              </button>
-            </div>
+
           </div>
 
           {/* Content */}
           <div className="p-6 overflow-y-auto flex-grow bg-white dark:bg-brand-charcoal">
-            {activeTab === 'general' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                 
                 {/* Guest Info */}
@@ -176,33 +144,8 @@ const BookingDetailDrawer = ({ isOpen, onClose, booking, onStatusChange }) => {
                    </div>
                 </div>
 
-                {/* PIN Code */}
-                <div className="flex justify-between items-center p-4 bg-brand-offwhite/50 dark:bg-brand-charcoal/30 rounded-xl border border-brand-beige/50 dark:border-brand-beige/10">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-widest font-bold text-brand-sage mb-1">PIN CODE</div>
-                    <div className="font-mono font-bold text-lg tracking-widest text-brand-charcoal">{booking._id.substring(0, 6).toUpperCase()}</div>
-                  </div>
-                  <button onClick={handleCopyPin} className="btn btn-sm btn-outline border-brand-beige text-brand-primary hover:bg-brand-primary hover:text-white hover:border-none font-bold uppercase tracking-widest text-[10px] gap-2">
-                    <FiCopy /> Copy
-                  </button>
-                </div>
 
               </motion.div>
-            )}
-
-            {activeTab === 'chat' && (
-              <div className="flex flex-col items-center justify-center h-40 text-brand-sage">
-                <FiMessageSquare size={32} className="mb-2 opacity-50" />
-                <p className="text-sm font-bold">Chat feature coming soon.</p>
-              </div>
-            )}
-
-            {activeTab === 'activity' && (
-              <div className="flex flex-col items-center justify-center h-40 text-brand-sage">
-                <FiActivity size={32} className="mb-2 opacity-50" />
-                <p className="text-sm font-bold">Activity log coming soon.</p>
-              </div>
-            )}
           </div>
         </motion.div>
       </div>
