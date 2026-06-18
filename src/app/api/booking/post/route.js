@@ -16,8 +16,35 @@ export async function POST(req) {
     await dbConnect();
     const bookingData = await req.json();
 
-    if ((!bookingData.isNewCustomer && !bookingData.customer) || (bookingData.isNewCustomer && !bookingData.customerName) || !bookingData.room || !bookingData.checkInDate || !bookingData.checkOutDate || bookingData.totalAmount === undefined) {
+    if ((!bookingData.isNewCustomer && !bookingData.customer) || (bookingData.isNewCustomer && !bookingData.customerName) || !bookingData.room || bookingData.totalAmount === undefined) {
       return NextResponse.json({ message: "Please provide all required fields." }, { status: 400 });
+    }
+
+    if (!bookingData.checkInDate) {
+      bookingData.checkInDate = new Date();
+    }
+
+    if (!bookingData.checkOutDate) {
+      delete bookingData.checkOutDate;
+    }
+
+    // Check for double bookings
+    const checkIn = new Date(bookingData.checkInDate || new Date());
+    const checkOut = bookingData.checkOutDate ? new Date(bookingData.checkOutDate) : new Date("2099-12-31");
+
+    const overlappingBooking = await Booking.findOne({
+      room: bookingData.room,
+      bookingStatus: { $in: ["Confirmed", "Checked-in"] },
+      checkInDate: { $lt: checkOut },
+      $or: [
+        { checkOutDate: { $gt: checkIn } },
+        { checkOutDate: { $exists: false } },
+        { checkOutDate: null }
+      ]
+    });
+
+    if (overlappingBooking) {
+      return NextResponse.json({ message: "Double booking prevented. This room is already booked for the selected dates." }, { status: 409 });
     }
 
     if (bookingData.isNewCustomer) {

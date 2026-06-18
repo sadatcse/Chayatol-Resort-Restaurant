@@ -8,12 +8,17 @@ import Select from "react-select";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
+import TimelineGrid from "@/components/FrontDesk/TimelineGrid";
+import TimelineHeader from "@/components/FrontDesk/TimelineHeader";
+import AdvancedBookingModal from "@/components/FrontDesk/AdvancedBookingModal";
+import BookingDetailDrawer from "@/components/FrontDesk/BookingDetailDrawer";
+import { FiList, FiCalendar as FiCalendarIcon } from "react-icons/fi";
+
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import CustomerModal from "@/components/CustomerModal";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
-import useDebounce from "@/hooks/useDebounce";
 import useBookings from "@/hooks/useBookings";
 import { AuthContext } from "@/providers/AuthProvider";
 
@@ -43,24 +48,110 @@ const BookingsPage = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTypeInput, setSearchTypeInput] = useState("phone");
+  const [activeSearchTerm, setActiveSearchTerm] = useState("");
+  const [activeSearchType, setActiveSearchType] = useState("phone");
 
   const { bookings, totalPages, totalItems, isLoading, refetch } = useBookings(
     currentPage,
     itemsPerPage,
-    debouncedSearchTerm
+    activeSearchTerm,
+    activeSearchType
   );
 
   const [customers, setCustomers] = useState([]);
   const [rooms, setRooms] = useState([]);
+  
+  const [timelineBookings, setTimelineBookings] = useState([]);
+  const [allRooms, setAllRooms] = useState([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [searchPhoneInput, setSearchPhoneInput] = useState("");
+  const [newlyCreatedCustomer, setNewlyCreatedCustomer] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
+
+  // Front Desk State
+  const [viewMode, setViewMode] = useState('timeline');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [isAdvancedModalOpen, setIsAdvancedModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
+  useEffect(() => {
+    fetchOptions();
+  }, []);
+
+  const fetchTimelineData = async () => {
+    try {
+      const [bookingsRes, roomsRes] = await Promise.all([
+        axiosSecure.get("/booking/paginated?limit=all"),
+        axiosSecure.get("/room?all=true")
+      ]);
+      setTimelineBookings(bookingsRes.data.bookings || []);
+      setAllRooms(roomsRes.data || []);
+    } catch (error) {
+      console.error("Failed to fetch timeline data:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'timeline') {
+      fetchTimelineData();
+    }
+  }, [viewMode]);
+
+  const handleSaveAdvancedBooking = async (data) => {
+    setIsSubmitting(true);
+    const payload = {
+      ...data,
+      checkInDate: data.checkInDate ? data.checkInDate.toISOString() : null,
+      checkOutDate: data.checkOutDate ? data.checkOutDate.toISOString() : null,
+      totalAmount: Number(data.totalAmount)
+    };
+    try {
+      await axiosSecure.post("/booking/post", payload);
+      await refetch();
+      if (viewMode === 'timeline') fetchTimelineData();
+      setIsAdvancedModalOpen(false);
+      Swal.fire({
+        title: "Success",
+        text: "Booking successfully created.",
+        icon: "success",
+        confirmButtonColor: "#346E36",
+      });
+    } catch (error) {
+      Swal.fire({
+        title: "Action Failed",
+        text: error.response?.data?.message || "Failed to save booking.",
+        icon: "error",
+        confirmButtonColor: "#346E36",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      await axiosSecure.put(`/booking/update/${id}`, { bookingStatus: newStatus });
+      await refetch();
+      if (viewMode === 'timeline') fetchTimelineData();
+      setSelectedBooking(prev => prev ? { ...prev, bookingStatus: newStatus } : null);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Status updated',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    } catch (error) {
+      Swal.fire('Error', 'Failed to update status', 'error');
+    }
+  };
 
   const fetchOptions = async () => {
     try {
@@ -110,7 +201,7 @@ const BookingsPage = () => {
   };
 
   const handleAddOrEditBooking = async () => {
-    if ((!formData.isNewCustomer && !formData.customer) || (formData.isNewCustomer && !formData.customerName) || !formData.room || !formData.checkInDate || !formData.checkOutDate || !formData.totalAmount) {
+    if ((!formData.isNewCustomer && !formData.customer) || (formData.isNewCustomer && !formData.customerName) || !formData.room || !formData.totalAmount) {
       Swal.fire({
         title: "Validation Error",
         text: "Please fill all required fields.",
@@ -120,7 +211,7 @@ const BookingsPage = () => {
       return;
     }
 
-    if (new Date(formData.checkOutDate) <= new Date(formData.checkInDate)) {
+    if (formData.checkOutDate && formData.checkInDate && new Date(formData.checkOutDate) <= new Date(formData.checkInDate)) {
       Swal.fire({
         title: "Validation Error",
         text: "Check-out date must be after check-in date.",
@@ -145,6 +236,7 @@ const BookingsPage = () => {
         await axiosSecure.post("/booking/post", payload);
       }
       await refetch();
+      if (viewMode === 'timeline') fetchTimelineData();
       closeModal();
       Swal.fire({
         title: "Success",
@@ -188,6 +280,7 @@ const BookingsPage = () => {
         try {
           await axiosSecure.delete(`/booking/delete/${id}`);
           await refetch();
+          if (viewMode === 'timeline') fetchTimelineData();
           Swal.fire({
             title: "Deleted!",
             text: "Booking has been deleted.",
@@ -236,25 +329,58 @@ const BookingsPage = () => {
   };
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
+    <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in overflow-x-hidden">
 
       <SectionHeader
-        title="Room Bookings"
+        title="Front Desk"
         subtitle="Manage room reservations, check-ins, check-outs, and payments."
       >
-        <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-80 h-12">
-          <FiSearch className="text-brand-sage text-lg" />
-          <input
-            type="text"
-            className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none"
-            placeholder="Search status..."
-            value={searchTerm}
-            onChange={e => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
-        </label>
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end mt-4 md:mt-0">
+          <select 
+            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full shadow-sm text-sm h-12 w-full sm:w-auto"
+            value={searchTypeInput}
+            onChange={(e) => setSearchTypeInput(e.target.value)}
+          >
+            <option value="phone">Customer Phone</option>
+            <option value="name">Customer Name</option>
+            <option value="room">Room Number</option>
+          </select>
+          <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm w-full sm:w-64 h-12">
+            <FiSearch className="text-brand-sage text-lg shrink-0" />
+            <input
+              type="text"
+              className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none w-full min-w-0"
+              placeholder={`Search by ${searchTypeInput}...`}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  if (activeSearchTerm === searchInput && activeSearchType === searchTypeInput) {
+                    refetch();
+                  } else {
+                    setActiveSearchTerm(searchInput);
+                    setActiveSearchType(searchTypeInput);
+                    setCurrentPage(1);
+                  }
+                }
+              }}
+            />
+          </label>
+          <button 
+            onClick={() => {
+              if (activeSearchTerm === searchInput && activeSearchType === searchTypeInput) {
+                refetch();
+              } else {
+                setActiveSearchTerm(searchInput);
+                setActiveSearchType(searchTypeInput);
+                setCurrentPage(1);
+              }
+            }} 
+            className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none rounded-full h-12 px-6 shadow-sm w-full sm:w-auto"
+          >
+            Search
+          </button>
+        </div>
       </SectionHeader>
 
       <div className="flex flex-wrap justify-between items-center bg-white dark:bg-brand-charcoal p-4 rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 mb-6 gap-4">
@@ -276,7 +402,22 @@ const BookingsPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
+        <div className="flex bg-brand-offwhite dark:bg-brand-charcoal/50 p-1 rounded-lg border border-brand-beige/50 dark:border-brand-beige/20 shadow-sm">
+          <button 
+            onClick={() => setViewMode('timeline')}
+            className={`btn btn-sm border-none uppercase tracking-widest text-[10px] font-bold ${viewMode === 'timeline' ? 'bg-white dark:bg-brand-charcoal shadow-sm text-brand-primary' : 'bg-transparent text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite shadow-none'}`}
+          >
+            <FiCalendarIcon size={14} /> Timeline
+          </button>
+          <button 
+            onClick={() => setViewMode('table')}
+            className={`btn btn-sm border-none uppercase tracking-widest text-[10px] font-bold ${viewMode === 'table' ? 'bg-white dark:bg-brand-charcoal shadow-sm text-brand-primary' : 'bg-transparent text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite shadow-none'}`}
+          >
+            <FiList size={14} /> List
+          </button>
+        </div>
+
+        {canPerformAction && viewMode === 'table' && (
           <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
             <FiPlus className="text-lg" />
             <span className="uppercase tracking-widest text-xs font-bold">New Booking</span>
@@ -284,6 +425,24 @@ const BookingsPage = () => {
         )}
       </div>
 
+      {viewMode === 'timeline' && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <TimelineHeader 
+            currentDate={currentDate} 
+            setCurrentDate={setCurrentDate} 
+            onToday={() => setCurrentDate(new Date())}
+            onAddBooking={() => setIsAdvancedModalOpen(true)} 
+          />
+          <TimelineGrid 
+            currentDate={currentDate} 
+            bookings={timelineBookings} 
+            rooms={allRooms} 
+            onBookingClick={(booking) => setSelectedBooking(booking)}
+          />
+        </motion.div>
+      )}
+
+      {viewMode === 'table' && (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -296,7 +455,7 @@ const BookingsPage = () => {
               <MtableLoading />
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               <table className="table w-full">
                 <thead className="bg-brand-primary text-white font-bold uppercase tracking-widest text-[10px] border-b border-brand-beige dark:border-brand-beige/20">
                   <tr>
@@ -337,9 +496,21 @@ const BookingsPage = () => {
                           <td className="py-4 font-bold text-brand-secondary">
                             {booking.room?.roomNumber} ({booking.room?.roomType})
                           </td>
-                          <td className="py-4 font-bold text-xs">
-                            {new Date(booking.checkInDate).toLocaleString()} - <br />
-                            {new Date(booking.checkOutDate).toLocaleString()}
+                          <td className="py-4">
+                            <div className="flex flex-col gap-1.5 text-[11px]">
+                              <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-brand-sage opacity-80 w-[65px]">Check-In:</span>
+                                <span className="font-semibold text-brand-charcoal dark:text-brand-offwhite">
+                                  {booking.checkInDate ? new Date(booking.checkInDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : "Not Set"}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-brand-sage opacity-80 w-[65px]">Check-Out:</span>
+                                <span className="font-semibold text-brand-secondary">
+                                  {booking.checkOutDate ? new Date(booking.checkOutDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : "Not Set"}
+                                </span>
+                              </div>
+                            </div>
                           </td>
                           <td className="py-4 font-bold text-brand-primary">
                             ৳{booking.totalAmount}
@@ -397,6 +568,29 @@ const BookingsPage = () => {
           )}
         </div>
       </motion.div>
+      )}
+
+      <AdvancedBookingModal 
+        isOpen={isAdvancedModalOpen} 
+        onClose={() => setIsAdvancedModalOpen(false)} 
+        onSave={handleSaveAdvancedBooking}
+        customers={customers}
+        rooms={rooms}
+        isSubmitting={isSubmitting}
+        newlyCreatedCustomer={newlyCreatedCustomer}
+        onClearNewCustomer={() => setNewlyCreatedCustomer(null)}
+        onCreateNewCustomer={(phone) => {
+          setSearchPhoneInput(phone);
+          setIsCustomerModalOpen(true);
+        }}
+      />
+
+      <BookingDetailDrawer
+        isOpen={!!selectedBooking}
+        onClose={() => setSelectedBooking(null)}
+        booking={selectedBooking}
+        onStatusChange={handleStatusChange}
+      />
 
       {isModalOpen && (
         <dialog className="modal modal-open modal-bottom sm:modal-middle bg-brand-charcoal/40 backdrop-blur-sm">
@@ -467,7 +661,7 @@ const BookingsPage = () => {
 
               <div className="flex gap-4">
                 <div className="form-control w-1/2">
-                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Check-In *</span></label>
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Check-In</span></label>
                   <DatePicker
                     selected={formData.checkInDate}
                     onChange={(date) => setFormData({ ...formData, checkInDate: date })}
@@ -481,7 +675,7 @@ const BookingsPage = () => {
                 </div>
 
                 <div className="form-control w-1/2">
-                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Check-Out *</span></label>
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Check-Out</span></label>
                   <DatePicker
                     selected={formData.checkOutDate}
                     onChange={(date) => setFormData({ ...formData, checkOutDate: date })}
@@ -580,9 +774,20 @@ const BookingsPage = () => {
           isOpen={isCustomerModalOpen}
           initialPhoneNumber={searchPhoneInput}
           onClose={() => setIsCustomerModalOpen(false)}
-          onSuccess={async () => {
+          onSuccess={async (newCustomerData) => {
              await fetchOptions(); // refresh customers list!
              setIsCustomerModalOpen(false);
+             if (isModalOpen) {
+               setFormData(prev => ({
+                 ...prev,
+                 customer: newCustomerData._id,
+                 customerName: newCustomerData.fullName,
+                 customerPhone: newCustomerData.phoneNumber,
+                 isNewCustomer: false
+               }));
+             } else if (isAdvancedModalOpen) {
+               setNewlyCreatedCustomer(newCustomerData);
+             }
           }}
         />
       )}

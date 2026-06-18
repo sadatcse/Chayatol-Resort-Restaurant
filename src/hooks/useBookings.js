@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useContext } from "react";
 import { AuthContext } from "../providers/AuthProvider";
 import useAxiosSecure from "./useAxiosSecure";
 
-const useBookings = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
+const useBookings = (currentPage = 1, itemsPerPage = 10, searchTerm = "", searchType = "all") => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
   const [bookings, setBookings] = useState([]);
@@ -17,7 +17,7 @@ const useBookings = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
     setIsLoading(true);
     try {
       const response = await axiosSecure.get(
-        `/booking/paginated?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}`
+        `/booking/paginated?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}&searchType=${searchType}`
       );
       setBookings(response.data.bookings || []);
       setTotalPages(response.data.totalPages || 1);
@@ -27,7 +27,7 @@ const useBookings = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, user]);
+  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, searchType, user]);
 
   useEffect(() => {
     fetchBookings();

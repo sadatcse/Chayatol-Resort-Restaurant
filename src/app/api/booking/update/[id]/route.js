@@ -22,6 +22,34 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ message: "Booking not found" }, { status: 404 });
     }
 
+    if (!bookingData.checkOutDate) {
+      delete bookingData.checkOutDate;
+    }
+
+    // Check for double bookings (exclude current booking)
+    const checkIn = new Date(bookingData.checkInDate || oldBooking.checkInDate || new Date());
+    const checkOut = bookingData.checkOutDate || oldBooking.checkOutDate ? new Date(bookingData.checkOutDate || oldBooking.checkOutDate) : new Date("2099-12-31");
+    const targetRoom = bookingData.room || oldBooking.room;
+
+    // Only check if we are actually modifying dates, room, or confirming a booking
+    if (bookingData.checkInDate || bookingData.checkOutDate || bookingData.room || bookingData.bookingStatus) {
+      const overlappingBooking = await Booking.findOne({
+        _id: { $ne: id },
+        room: targetRoom,
+        bookingStatus: { $in: ["Confirmed", "Checked-in"] },
+        checkInDate: { $lt: checkOut },
+        $or: [
+          { checkOutDate: { $gt: checkIn } },
+          { checkOutDate: { $exists: false } },
+          { checkOutDate: null }
+        ]
+      });
+
+      if (overlappingBooking && bookingData.bookingStatus !== "Cancelled" && bookingData.bookingStatus !== "Checked-out") {
+        return NextResponse.json({ message: "Double booking prevented. This room is already booked for the selected dates." }, { status: 409 });
+      }
+    }
+
     if (bookingData.isNewCustomer) {
       const newCust = await Customer.create({
         fullName: bookingData.customerName,
