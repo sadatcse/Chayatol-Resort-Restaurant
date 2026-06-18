@@ -96,6 +96,11 @@ const menuItems = () => {
           icon: <MdListAlt className="text-base" />,
         },
         {
+          title: "Daily Check-outs & Status",
+          path: "/dashboard/rooms/checkouts",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
           title: "Resort Services",
           path: "/dashboard/resort-services",
           icon: <MdListAlt className="text-base" />,

@@ -6,7 +6,7 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import Swal from 'sweetalert2';
 
-const AdvancedBookingModal = ({ isOpen, onClose, onSave, customers, rooms, isSubmitting, onCreateNewCustomer, newlyCreatedCustomer, onClearNewCustomer }) => {
+const AdvancedBookingModal = ({ isOpen, onClose, onSave, customers, rooms, isSubmitting, onCreateNewCustomer, newlyCreatedCustomer, onClearNewCustomer, onDatesChange }) => {
   const [step, setStep] = useState(1);
   const [searchPhoneInput, setSearchPhoneInput] = useState("");
   const [formData, setFormData] = useState({
@@ -66,6 +66,7 @@ const AdvancedBookingModal = ({ isOpen, onClose, onSave, customers, rooms, isSub
          Swal.fire('Required', 'Please select Check-in and Check-out dates.', 'warning');
          return;
       }
+      if (onDatesChange) onDatesChange(formData.checkInDate, formData.checkOutDate);
       setStep(2);
     } else if (step === 2) {
       if (!formData.room) {

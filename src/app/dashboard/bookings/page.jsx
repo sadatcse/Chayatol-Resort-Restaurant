@@ -153,6 +153,38 @@ const BookingsPage = () => {
     }
   };
 
+  const handleBookingMove = async (bookingId, newRoomId) => {
+    try {
+      await axiosSecure.put(`/booking/update/${bookingId}`, { room: newRoomId });
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Room reassigned successfully',
+        showConfirmButton: false,
+        timer: 1500
+      });
+      fetchTimelineData();
+      refetch();
+    } catch (error) {
+      if (error.response?.status === 409) {
+        Swal.fire('Conflict', 'This room is already booked for these dates.', 'warning');
+      } else {
+        Swal.fire('Error', 'Failed to move booking.', 'error');
+      }
+    }
+  };
+
+  const handleBookingAction = (action, booking) => {
+    if (action === 'check-in') {
+      handleStatusChange(booking._id, 'Checked-in');
+    } else if (action === 'check-out') {
+      handleStatusChange(booking._id, 'Checked-out');
+    } else if (action === 'edit') {
+      setSelectedBooking(booking);
+    }
+  };
+
   const fetchOptions = async () => {
     try {
       const [custRes, roomRes] = await Promise.all([
@@ -438,6 +470,8 @@ const BookingsPage = () => {
             bookings={timelineBookings} 
             rooms={allRooms} 
             onBookingClick={(booking) => setSelectedBooking(booking)}
+            onBookingMove={handleBookingMove}
+            onBookingAction={handleBookingAction}
           />
         </motion.div>
       )}

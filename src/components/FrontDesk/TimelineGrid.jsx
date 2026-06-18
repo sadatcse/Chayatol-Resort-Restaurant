@@ -1,9 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { getDaysInMonth, startOfMonth, endOfMonth, isBefore, isAfter, differenceInCalendarDays, format, addDays, isToday } from 'date-fns';
 import { motion } from 'framer-motion';
 import BookingBlock from './BookingBlock';
+import BookingContextMenu from './BookingContextMenu';
 
-const TimelineGrid = ({ currentDate, bookings, rooms, onBookingClick }) => {
+const TimelineGrid = ({ currentDate, bookings, rooms, onBookingClick, onBookingMove, onBookingAction }) => {
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, booking: null });
+
   const daysInMonth = getDaysInMonth(currentDate);
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -18,6 +21,35 @@ const TimelineGrid = ({ currentDate, bookings, rooms, onBookingClick }) => {
       return acc;
     }, {});
   }, [rooms]);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e, roomId) => {
+    e.preventDefault();
+    const bookingId = e.dataTransfer.getData('bookingId');
+    if (bookingId && onBookingMove) {
+      onBookingMove(bookingId, roomId);
+    }
+  };
+
+  const handleContextMenu = (e, booking) => {
+    e.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      booking
+    });
+  };
+
+  const handleContextAction = (action, booking) => {
+    setContextMenu({ ...contextMenu, visible: false });
+    if (onBookingAction) {
+      onBookingAction(action, booking);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-brand-charcoal rounded-b-2xl border border-t-0 border-brand-beige dark:border-brand-beige/20 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-250px)] min-h-[500px]">
@@ -117,7 +149,12 @@ const TimelineGrid = ({ currentDate, bookings, rooms, onBookingClick }) => {
                   }).filter(Boolean);
 
                   return (
-                    <div key={room._id} className="h-12 border-b border-brand-beige/50 dark:border-brand-beige/10 relative hover:bg-brand-offwhite/50 dark:hover:bg-brand-offwhite/5 transition-colors">
+                    <div 
+                      key={room._id} 
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, room._id)}
+                      className="h-12 border-b border-brand-beige/50 dark:border-brand-beige/10 relative hover:bg-brand-offwhite/50 dark:hover:bg-brand-offwhite/5 transition-colors"
+                    >
                       {blocks.map((block, idx) => (
                         <BookingBlock 
                           key={block.booking._id || idx} 
@@ -125,6 +162,7 @@ const TimelineGrid = ({ currentDate, bookings, rooms, onBookingClick }) => {
                           colStart={block.colStart} 
                           colSpan={block.colSpan}
                           onClick={onBookingClick}
+                          onContextMenu={handleContextMenu}
                         />
                       ))}
                     </div>
@@ -135,6 +173,16 @@ const TimelineGrid = ({ currentDate, bookings, rooms, onBookingClick }) => {
           </div>
         </div>
       </div>
+      
+      {contextMenu.visible && (
+        <BookingContextMenu 
+          x={contextMenu.x} 
+          y={contextMenu.y} 
+          booking={contextMenu.booking} 
+          onClose={() => setContextMenu({ ...contextMenu, visible: false })} 
+          onAction={handleContextAction} 
+        />
+      )}
     </div>
   );
 };

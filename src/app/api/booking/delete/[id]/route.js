@@ -20,8 +20,13 @@ export async function DELETE(req, { params }) {
       return NextResponse.json({ message: "Booking not found" }, { status: 404 });
     }
 
-    // Optionally make the room available again if the booking is deleted
-    await Room.findByIdAndUpdate(booking.room, { status: "Available" });
+    // If the booking was already checked in or checked out, the room might need cleaning.
+    // If it was just confirmed/pending, it can go back to available safely.
+    if (booking.bookingStatus === "Checked-in" || booking.bookingStatus === "Checked-out") {
+        await Room.findByIdAndUpdate(booking.room, { status: "Maintenance" });
+    } else {
+        await Room.findByIdAndUpdate(booking.room, { status: "Available" });
+    }
 
     const result = await Booking.findByIdAndDelete(id);
     

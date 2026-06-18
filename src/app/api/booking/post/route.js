@@ -44,7 +44,7 @@ export async function POST(req) {
     });
 
     if (overlappingBooking) {
-      return NextResponse.json({ message: "Double booking prevented. This room is already booked for the selected dates." }, { status: 409 });
+      return NextResponse.json({ message: "Room already booked at this date." }, { status: 409 });
     }
 
     if (bookingData.isNewCustomer) {
@@ -61,8 +61,7 @@ export async function POST(req) {
 
     const result = await Booking.create(bookingData);
 
-    // Update the room status to Occupied
-    await Room.findByIdAndUpdate(bookingData.room, { status: "Occupied" });
+    // Removed automatic room status update to "Occupied" since availability depends on dates, not current physical status.
 
     await logTransaction({
       req,

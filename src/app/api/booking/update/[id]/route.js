@@ -46,7 +46,7 @@ export async function PUT(req, { params }) {
       });
 
       if (overlappingBooking && bookingData.bookingStatus !== "Cancelled" && bookingData.bookingStatus !== "Checked-out") {
-        return NextResponse.json({ message: "Double booking prevented. This room is already booked for the selected dates." }, { status: 409 });
+        return NextResponse.json({ message: "Room already booked at this date." }, { status: 409 });
       }
     }
 
@@ -65,8 +65,14 @@ export async function PUT(req, { params }) {
     const result = await Booking.findByIdAndUpdate(id, bookingData, { new: true });
 
     // Handle room status updates if needed
-    if (bookingData.bookingStatus === "Checked-out" || bookingData.bookingStatus === "Cancelled") {
-      await Room.findByIdAndUpdate(result.room, { status: "Available" });
+    if (bookingData.bookingStatus === "Checked-out") {
+      await Room.findByIdAndUpdate(result.room, { status: "Maintenance" });
+    } else if (bookingData.bookingStatus === "Cancelled") {
+      // If cancelled, it doesn't need cleaning. But shouldn't automatically be Available if someone is currently in it.
+      // We will just let the manual update flow handle it, or maybe set to Available if it was just confirmed.
+      if (oldBooking.bookingStatus !== "Checked-in") {
+          await Room.findByIdAndUpdate(result.room, { status: "Available" });
+      }
     } else if (bookingData.bookingStatus === "Checked-in") {
       await Room.findByIdAndUpdate(result.room, { status: "Occupied" });
     }
