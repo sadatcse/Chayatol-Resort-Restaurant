@@ -71,6 +71,10 @@ const StockMovementSchema = Schema(
       ref: "User",
       required: true,
     },
+    batchId: {
+      type: String,
+      trim: true,
+    },
   },
   { timestamps: true }
 );

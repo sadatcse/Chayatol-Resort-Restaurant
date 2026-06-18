@@ -9,7 +9,8 @@ const usePurchases = (
   itemsPerPage = 10,
   searchTerm = "",
   fromDate = null,
-  toDate = null
+  toDate = null,
+  status = ""
 ) => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
@@ -33,6 +34,7 @@ const usePurchases = (
       if (searchTerm) params.append("search", searchTerm);
       if (fromDate) params.append("fromDate", fromDate.toISOString().split("T")[0]);
       if (toDate) params.append("toDate", toDate.toISOString().split("T")[0]);
+      if (status) params.append("status", status);
 
       const response = await axiosSecure.get(`/purchase/paginated?${params.toString()}`);
       setPurchases(response.data.data || []);
@@ -47,7 +49,7 @@ const usePurchases = (
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, fromDate, toDate, user]);
+  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, fromDate, toDate, status, user]);
 
   useEffect(() => {
     fetchPurchases();

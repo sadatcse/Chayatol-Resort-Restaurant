@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useContext, useCallback } from "react";
-import { FiX, FiSearch } from "react-icons/fi";
+import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
+import { FiX, FiSearch, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { MdUndo, MdKeyboardReturn } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { useReactToPrint } from "react-to-print";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -15,8 +16,9 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useReturns from "@/hooks/useReturns";
 import { AuthContext } from "@/providers/AuthProvider";
-
-const KITCHENS = ["Main Kitchen", "Bakery", "Butchery", "Pastry Kitchen", "Cold Kitchen", "Other"];
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 const TYPE_STYLES = {
   return_kitchen: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400",
@@ -34,6 +36,152 @@ const ReturnsPage = () => {
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportReturns, setExportReturns] = useState([]);
+  const [expandedBatches, setExpandedBatches] = useState({});
+  const printRef = useRef(null);
+
+  const toggleBatch = (batchId) => {
+    setExpandedBatches((prev) => ({ ...prev, [batchId]: !prev[batchId] }));
+  };
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: "Return_Management_Report",
+  });
+
+  const fetchAllReturnsForExport = async () => {
+    try {
+      const params = new URLSearchParams({ page: 1, limit: 99999 });
+      if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
+      if (fromDate) params.append("from", fromDate.toISOString());
+      if (toDate) params.append("to", toDate.toISOString());
+
+      const response = await axiosSecure.get(`/stock-ops/return?${params.toString()}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error("Failed to fetch all returns for export:", error);
+      return [];
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllReturnsForExport();
+      const flatData = [];
+      data.forEach(batch => {
+        if (batch.items && batch.items.length > 0) {
+          batch.items.forEach(item => {
+            flatData.push({
+              createdAt: batch.createdAt,
+              type: batch.type,
+              kitchenName: batch.kitchenName,
+              roomNumber: batch.roomNumber,
+              createdBy: batch.createdBy,
+              ingredient: item.ingredient,
+              adjustment: item.adjustment,
+              note: item.note
+            });
+          });
+        }
+      });
+
+      const formatted = flatData.map(r => ({
+        "Return Date": r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A",
+        "Ingredient": r.ingredient?.name || "N/A",
+        "SKU": r.ingredient?.sku || "N/A",
+        "Category": r.ingredient?.category?.categoryName || "N/A",
+        "Quantity Returned": r.adjustment,
+        "Unit": r.ingredient?.unit || "N/A",
+        "Type": r.type === "return_kitchen" ? "Kitchen Return" : "Room Return",
+        "Location": r.type === "return_kitchen" ? (r.kitchenName || "—") : `Room ${r.roomNumber || "—"}`,
+        "Notes": r.note || "",
+        "Recorded By": r.createdBy?.name || "System"
+      }));
+      exportToExcel(formatted, "Return_Management_Report");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllReturnsForExport();
+      const flatData = [];
+      data.forEach(batch => {
+        if (batch.items && batch.items.length > 0) {
+          batch.items.forEach(item => {
+            flatData.push({
+              createdAt: batch.createdAt,
+              type: batch.type,
+              kitchenName: batch.kitchenName,
+              roomNumber: batch.roomNumber,
+              createdBy: batch.createdBy,
+              ingredient: item.ingredient,
+              adjustment: item.adjustment,
+              note: item.note
+            });
+          });
+        }
+      });
+
+      const formatted = flatData.map(r => ({
+        "Return Date": r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A",
+        "Ingredient": r.ingredient?.name || "N/A",
+        "SKU": r.ingredient?.sku || "N/A",
+        "Category": r.ingredient?.category?.categoryName || "N/A",
+        "Quantity Returned": r.adjustment,
+        "Unit": r.ingredient?.unit || "N/A",
+        "Type": r.type === "return_kitchen" ? "Kitchen Return" : "Room Return",
+        "Location": r.type === "return_kitchen" ? (r.kitchenName || "—") : `Room ${r.roomNumber || "—"}`,
+        "Notes": r.note || "",
+        "Recorded By": r.createdBy?.name || "System"
+      }));
+      exportToCsv(formatted, "Return_Management_Report");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePrintReport = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllReturnsForExport();
+      const flatData = [];
+      data.forEach(batch => {
+        if (batch.items && batch.items.length > 0) {
+          batch.items.forEach(item => {
+            flatData.push({
+              _id: item._id,
+              createdAt: batch.createdAt,
+              type: batch.type,
+              kitchenName: batch.kitchenName,
+              roomNumber: batch.roomNumber,
+              createdBy: batch.createdBy,
+              ingredient: item.ingredient,
+              adjustment: item.adjustment,
+              note: item.note
+            });
+          });
+        }
+      });
+
+      setExportReturns(flatData);
+      setTimeout(() => {
+        handlePrint();
+        setIsExporting(false);
+      }, 300);
+    } catch (err) {
+      console.error(err);
+      setIsExporting(false);
+    }
+  };
 
   const { records, totalPages, totalItems, isLoading, refetch } = useReturns(
     currentPage, itemsPerPage, debouncedSearchTerm, fromDate, toDate
@@ -44,6 +192,7 @@ const ReturnsPage = () => {
   const [ingredients, setIngredients] = useState([]);
   const [categories, setCategories] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [kitchens, setKitchens] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [customKitchen, setCustomKitchen] = useState("");
   const [formData, setFormData] = useState({
@@ -53,22 +202,36 @@ const ReturnsPage = () => {
 
   const fetchPrerequisites = useCallback(async () => {
     try {
-      const [ingRes, catRes, roomRes] = await Promise.all([
+      const [ingRes, catRes, roomRes, kitchenRes] = await Promise.all([
         axiosSecure.get("/ingredient"),
         axiosSecure.get("/ingredient-category"),
         axiosSecure.get("/room"),
+        axiosSecure.get("/kitchen"),
       ]);
       setIngredients(ingRes.data || []);
       setCategories(catRes.data || []);
       const roomData = Array.isArray(roomRes.data) ? roomRes.data : roomRes.data?.data || [];
       setRooms(roomData);
+      const kitchenList = kitchenRes.data || [];
+      setKitchens(kitchenList);
+      if (kitchenList.length === 1) {
+        setFormData((p) => ({ ...p, kitchenName: kitchenList[0].name }));
+      }
     } catch (err) { console.error("Failed to fetch prerequisites:", err); }
   }, [axiosSecure]);
 
   useEffect(() => { fetchPrerequisites(); }, [fetchPrerequisites]);
 
   const openModal = () => {
-    setFormData({ ingredientId: "", quantity: "", returnType: "return_kitchen", kitchenName: "", roomNumber: "", note: "", date: new Date() });
+    setFormData({
+      ingredientId: "",
+      quantity: "",
+      returnType: "return_kitchen",
+      kitchenName: kitchens.length === 1 ? kitchens[0].name : "",
+      roomNumber: "",
+      note: "",
+      date: new Date()
+    });
     setSelectedCategory(""); setCustomKitchen("");
     setIsModalOpen(true);
   };
@@ -131,12 +294,20 @@ const ReturnsPage = () => {
           </select>
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
-        {canPerformAction && (
-          <button onClick={openModal} className="btn bg-emerald-600 text-white hover:bg-emerald-700 border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
-            <MdUndo className="text-lg" />
-            <span className="uppercase tracking-widest text-xs font-bold">Record Return</span>
-          </button>
-        )}
+        <div className="flex flex-wrap gap-3 items-center">
+          <ExportButtons
+            onExportExcel={handleExportExcel}
+            onExportCsv={handleExportCsv}
+            onPrint={handlePrintReport}
+            isLoading={isExporting}
+          />
+          {canPerformAction && (
+            <button onClick={openModal} className="btn bg-emerald-600 text-white hover:bg-emerald-700 border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+              <MdUndo className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">Record Return</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
@@ -148,12 +319,12 @@ const ReturnsPage = () => {
             <table className="table w-full">
               <thead className="bg-emerald-600 text-white font-bold uppercase tracking-widest text-[10px]">
                 <tr>
-                  <th className="pl-8 py-5">Date</th>
-                  <th className="py-5">Ingredient</th>
-                  <th className="py-5">Category</th>
-                  <th className="py-5">Qty Returned</th>
+                  <th className="pl-8 py-5 w-12"></th>
+                  <th className="py-5">Date</th>
                   <th className="py-5">Type</th>
                   <th className="py-5">Location</th>
+                  <th className="py-5">Items Summary</th>
+                  <th className="py-5 text-right">Total Qty Returned</th>
                   <th className="pr-8 py-5">Recorded By</th>
                 </tr>
               </thead>
@@ -162,24 +333,77 @@ const ReturnsPage = () => {
                   {records.length === 0 ? (
                     <tr><td colSpan="7" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">No return records found.</td></tr>
                   ) : (
-                    records.map((r) => (
-                      <motion.tr key={r._id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="hover:bg-emerald-50/20 dark:hover:bg-emerald-950/10 transition-colors border-b border-brand-beige dark:border-brand-beige/10 last:border-none bg-white dark:bg-brand-charcoal text-sm">
-                        <td className="pl-8 py-4 font-mono text-xs">{new Date(r.createdAt).toLocaleDateString("en-GB")}</td>
-                        <td className="py-4 font-bold uppercase tracking-wide">{r.ingredient?.name} <span className="text-brand-sage font-normal normal-case text-xs ml-1">({r.ingredient?.unit})</span></td>
-                        <td className="py-4 text-brand-sage font-semibold text-xs">{r.ingredient?.category?.categoryName || "—"}</td>
-                        <td className="py-4 font-mono font-black text-emerald-600 dark:text-emerald-400 text-base">+{r.adjustment}</td>
-                        <td className="py-4">
-                          <span className={`badge border-none font-bold text-[9px] px-3 py-2.5 uppercase tracking-wider ${TYPE_STYLES[r.type]}`}>
-                            {TYPE_LABELS[r.type]}
-                          </span>
-                        </td>
-                        <td className="py-4 text-brand-charcoal dark:text-brand-offwhite/70 text-xs font-semibold">
-                          {r.type === "return_kitchen" ? (r.kitchenName || "—") : `Room ${r.roomNumber || "—"}`}
-                        </td>
-                        <td className="pr-8 py-4 font-semibold text-brand-primary dark:text-brand-sage text-xs">{r.createdBy?.name || "System"}</td>
-                      </motion.tr>
-                    ))
+                    records.map((r) => {
+                      const totalQty = r.items?.reduce((sum, item) => sum + Math.abs(item.adjustment), 0) || 0;
+                      const hasMultiple = r.items?.length > 1;
+                      const firstItem = r.items?.[0];
+                      const firstIngredientName = firstItem?.ingredient?.name || "N/A";
+                      const isExpanded = !!expandedBatches[r._id];
+
+                      return (
+                        <React.Fragment key={r._id}>
+                          <motion.tr layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="hover:bg-emerald-50/20 dark:hover:bg-emerald-950/10 transition-colors border-b border-brand-beige dark:border-brand-beige/10 last:border-none bg-white dark:bg-brand-charcoal text-sm cursor-pointer"
+                            onClick={() => toggleBatch(r._id)}>
+                            <td className="pl-8 py-4 text-center">
+                              <button className="btn btn-ghost btn-xs p-0 min-h-0 h-auto text-brand-sage hover:bg-transparent">
+                                {isExpanded ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+                              </button>
+                            </td>
+                            <td className="py-4 font-mono text-xs">{new Date(r.createdAt).toLocaleDateString("en-GB")}</td>
+                            <td className="py-4">
+                              <span className={`badge border-none font-bold text-[9px] px-3 py-2.5 uppercase tracking-wider ${TYPE_STYLES[r.type]}`}>
+                                {TYPE_LABELS[r.type]}
+                              </span>
+                            </td>
+                            <td className="py-4 text-brand-charcoal dark:text-brand-offwhite/70 text-xs font-semibold">
+                              {r.type === "return_kitchen" ? (r.kitchenName || "—") : `Room ${r.roomNumber || "—"}`}
+                            </td>
+                            <td className="py-4 font-bold uppercase tracking-wide">
+                              {firstIngredientName}
+                              {hasMultiple && (
+                                <span className="ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded-full lowercase">
+                                  + {r.items.length - 1} more items
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-base pr-8">+{totalQty}</td>
+                            <td className="pr-8 py-4 font-semibold text-brand-primary dark:text-brand-sage text-xs">{r.createdBy?.name || "System"}</td>
+                          </motion.tr>
+                          {isExpanded && (
+                            <tr className="bg-emerald-50/10 dark:bg-emerald-950/5">
+                              <td colSpan="7" className="pl-12 pr-8 py-3">
+                                <div className="border border-brand-beige dark:border-brand-beige/20 rounded-xl overflow-hidden shadow-inner bg-white dark:bg-brand-charcoal/50 p-4">
+                                  <h4 className="text-xs font-bold text-brand-sage uppercase tracking-wider mb-3">Batch Return Details</h4>
+                                  <table className="table table-compact w-full text-xs">
+                                    <thead className="bg-emerald-50 dark:bg-emerald-950/20 text-brand-sage uppercase tracking-wider text-[9px]">
+                                      <tr>
+                                        <th className="pl-4 py-2">Ingredient</th>
+                                        <th className="py-2">Category</th>
+                                        <th className="py-2 text-right">Quantity Returned</th>
+                                        <th className="py-2 text-right">Current Stock</th>
+                                        <th className="pr-4 py-2">Notes</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {r.items?.map((item) => (
+                                        <tr key={item._id} className="border-b border-brand-beige/10 last:border-none">
+                                          <td className="pl-4 py-2.5 font-bold uppercase">{item.ingredient?.name} <span className="text-brand-sage font-normal normal-case text-[10px] ml-1">({item.ingredient?.unit})</span></td>
+                                          <td className="py-2.5 font-semibold text-brand-sage">{item.ingredient?.category?.categoryName || "—"}</td>
+                                          <td className="py-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">+{Math.abs(item.adjustment)}</td>
+                                          <td className="py-2.5 text-right font-mono text-brand-sage">{item.stock?.quantityInStock} {item.ingredient?.unit}</td>
+                                          <td className="pr-4 py-2.5 text-brand-sage italic">{item.note || "—"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
                   )}
                 </AnimatePresence>
               </tbody>
@@ -227,10 +451,21 @@ const ReturnsPage = () => {
                   <>
                     <div className="form-control w-full">
                       <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Kitchen Name *</span></label>
-                      <select value={formData.kitchenName} onChange={(e) => setFormData((p) => ({ ...p, kitchenName: e.target.value }))}
-                        className="select select-bordered border-brand-primary focus:outline-none rounded-xl text-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite">
-                        <option value="" disabled>Select Kitchen</option>
-                        {KITCHENS.map((k) => <option key={k} value={k}>{k}</option>)}
+                      <select 
+                        value={formData.kitchenName} 
+                        onChange={(e) => setFormData((p) => ({ ...p, kitchenName: e.target.value }))}
+                        className="select select-bordered border-brand-primary focus:outline-none rounded-xl text-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite"
+                        disabled={kitchens.length === 1}
+                      >
+                        {kitchens.length === 0 ? (
+                          <option value="" disabled>No kitchens configured</option>
+                        ) : (
+                          <>
+                            <option value="" disabled>Select Kitchen</option>
+                            {kitchens.map((k) => <option key={k._id} value={k.name}>{k.name}</option>)}
+                            <option value="Other">Other</option>
+                          </>
+                        )}
                       </select>
                     </div>
                     {formData.kitchenName === "Other" && (
@@ -291,6 +526,46 @@ const ReturnsPage = () => {
           </dialog>
         )}
       </AnimatePresence>
+      {/* Hidden print container */}
+      <div style={{ display: "none" }}>
+        <PrintReportTemplate
+          ref={printRef}
+          title="Return Management Report"
+          subtitle="All returned ingredients list"
+          dateRange={
+            fromDate && toDate
+              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+              : "All Time"
+          }
+        >
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Ingredient</th>
+                <th>Category</th>
+                <th style={{ textAlign: "right" }}>Quantity Returned</th>
+                <th>Type</th>
+                <th>Location</th>
+                <th>Recorded By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exportReturns.map((r) => (
+                <tr key={r._id}>
+                  <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A"}</td>
+                  <td style={{ fontWeight: "bold" }}>{r.ingredient?.name} ({r.ingredient?.unit})</td>
+                  <td>{r.ingredient?.category?.categoryName || "—"}</td>
+                  <td style={{ textAlign: "right", color: "#059669", fontWeight: "bold" }}>+{r.adjustment}</td>
+                  <td>{TYPE_LABELS[r.type]}</td>
+                  <td>{r.type === "return_kitchen" ? (r.kitchenName || "—") : `Room ${r.roomNumber || "—"}`}</td>
+                  <td>{r.createdBy?.name || "System"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </PrintReportTemplate>
+      </div>
     </div>
   );
 };

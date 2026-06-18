@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useContext, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useContext, useMemo, useCallback, useRef } from "react";
 import { FiEdit, FiSearch, FiSliders, FiBell, FiEye, FiX, FiCheckCircle, FiXCircle, FiGrid } from "react-icons/fi";
+import { MdEditNote } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
+import { useReactToPrint } from "react-to-print";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -13,6 +15,9 @@ import useDebounce from "@/hooks/useDebounce";
 import useStocks from "@/hooks/useStocks";
 import useIngredientCategories from "@/hooks/useIngredientCategories";
 import { AuthContext } from "@/providers/AuthProvider";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 // ---------------- STOCK DETAILS MODAL ----------------
 const StockDetailsModal = ({ stock, onClose, axiosSecure }) => {
@@ -313,6 +318,187 @@ const UpdateStockAdjustmentModal = ({ stock, onClose, onSuccess, axiosSecure }) 
   );
 };
 
+// ---------------- BULK STOCK ADJUSTMENT MODAL ----------------
+const BulkStockAdjustmentModal = ({ isOpen, onClose, onSuccess, ingredients, categories, axiosSecure }) => {
+  const [items, setItems] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedIngredientId, setSelectedIngredientId] = useState("");
+  const [physicalQuantity, setPhysicalQuantity] = useState("");
+  const [note, setNote] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const filteredIngredients = ingredients.filter(
+    (i) => i.isActive && (!selectedCategory || (i.category?._id || i.category) === selectedCategory)
+  );
+
+  const selectedIngredient = ingredients.find((i) => i._id === selectedIngredientId);
+
+  const handleAddItem = () => {
+    if (!selectedIngredientId) {
+      return Swal.fire({ title: "Validation Error", text: "Please select an ingredient.", icon: "warning", confirmButtonColor: "#346E36" });
+    }
+    if (physicalQuantity === "" || isNaN(physicalQuantity) || Number(physicalQuantity) < 0) {
+      return Swal.fire({ title: "Validation Error", text: "Quantity must be a positive number.", icon: "warning", confirmButtonColor: "#346E36" });
+    }
+    if (items.some(item => item.stockId === selectedIngredientId)) {
+      return Swal.fire({ title: "Validation Error", text: "This item is already added to the batch list.", icon: "warning", confirmButtonColor: "#346E36" });
+    }
+
+    setItems([
+      ...items,
+      {
+        stockId: selectedIngredient._id,
+        name: selectedIngredient.name,
+        unit: selectedIngredient.unit,
+        newQuantity: Number(physicalQuantity),
+        note: note.trim() || "Manual adjustment count check."
+      }
+    ]);
+
+    setSelectedIngredientId("");
+    setPhysicalQuantity("");
+    setNote("");
+  };
+
+  const handleRemoveItem = (index) => {
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (items.length === 0) {
+      return Swal.fire({ title: "Validation Error", text: "Please add at least one item to the adjustment sheet.", icon: "warning", confirmButtonColor: "#346E36" });
+    }
+
+    setIsSubmitting(true);
+    try {
+      await axiosSecure.put(`/stock/adjust`, { items });
+      Swal.fire({ title: "Success!", text: "All stock adjustments successfully logged.", icon: "success", confirmButtonColor: "#346E36" });
+      onSuccess();
+      onClose();
+    } catch (error) {
+      Swal.fire({ title: "Error!", text: error.response?.data?.message || "Could not apply manual stock adjustments.", icon: "error", confirmButtonColor: "#346E36" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
+      <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-2xl rounded-2xl shadow-2xl border border-brand-beige/20 dark:border-brand-beige/20 animate-scale-in">
+        <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+          <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">Bulk Stock Adjustment</h3>
+          <button onClick={onClose} className="btn btn-sm btn-circle btn-ghost text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-beige dark:hover:bg-brand-offwhite/10">
+            <FiX size={20} />
+          </button>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="bg-brand-offwhite/50 dark:bg-brand-charcoal/30 p-4 rounded-xl border border-brand-beige dark:border-brand-beige/10 space-y-4">
+            <h4 className="text-xs font-bold text-brand-sage uppercase tracking-wider">Add Item to Adjust</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="form-control">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Filter by Category</span></label>
+                <select value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setSelectedIngredientId(""); }}
+                  className="select select-bordered border-brand-primary focus:outline-none rounded-xl text-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite">
+                  <option value="">All Categories</option>
+                  {categories.filter((c) => c.isActive).map((c) => <option key={c._id} value={c._id}>{c.categoryName}</option>)}
+                </select>
+              </div>
+              <div className="form-control">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Ingredient *</span></label>
+                <select value={selectedIngredientId} onChange={(e) => setSelectedIngredientId(e.target.value)}
+                  className="select select-bordered border-brand-primary focus:outline-none rounded-xl text-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite">
+                  <option value="" disabled>Select Ingredient</option>
+                  {filteredIngredients.map((i) => <option key={i._id} value={i._id}>{i.name} ({i.unit})</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="form-control sm:col-span-1">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Actual Count *</span></label>
+                <input
+                  type="number"
+                  step="any"
+                  value={physicalQuantity}
+                  onChange={(e) => setPhysicalQuantity(e.target.value)}
+                  className="input input-bordered border-brand-primary focus:outline-none w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite font-mono"
+                  placeholder={selectedIngredient ? `in ${selectedIngredient.unit}` : "Qty"}
+                />
+              </div>
+              <div className="form-control sm:col-span-2">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Adjustment Note</span></label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="input input-bordered border-brand-primary focus:outline-none w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
+                  placeholder="e.g. Audit check"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button type="button" onClick={handleAddItem} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full px-6 shadow-sm">
+                Add to List
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-brand-sage uppercase tracking-wider">Adjustment Sheet ({items.length} items)</h4>
+            <div className="border border-brand-beige dark:border-brand-beige/10 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+              <table className="table table-compact w-full text-xs">
+                <thead className="bg-brand-offwhite dark:bg-brand-charcoal/80 text-brand-sage uppercase tracking-wider text-[9px]">
+                  <tr>
+                    <th className="pl-4">Item Name</th>
+                    <th className="text-right">New Quantity</th>
+                    <th>Note</th>
+                    <th className="w-16">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="text-center py-8 text-brand-sage opacity-75">No items added to the list. Use the form above to add items.</td>
+                    </tr>
+                  ) : (
+                    items.map((item, idx) => (
+                      <tr key={idx} className="border-b border-brand-beige dark:border-brand-beige/5 last:border-none">
+                        <td className="pl-4 font-bold">{item.name}</td>
+                        <td className="text-right font-mono font-bold">{item.newQuantity} {item.unit}</td>
+                        <td>{item.note}</td>
+                        <td>
+                          <button type="button" onClick={() => handleRemoveItem(idx)} className="btn btn-ghost btn-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20">
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+          <button type="button" onClick={onClose} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
+          <button onClick={handleSubmit} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md" disabled={isSubmitting || items.length === 0}>
+            {isSubmitting ? (
+              <>
+                <span className="loading loading-spinner loading-sm"></span>
+                Saving Batch...
+              </>
+            ) : `Adjust ${items.length} Item${items.length === 1 ? "" : "s"}`}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+};
+
 // ---------------- MAIN COMPONENT ----------------
 const StocksPage = () => {
   const axiosSecure = useAxiosSecure();
@@ -326,6 +512,97 @@ const StocksPage = () => {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStocks, setExportStocks] = useState([]);
+  const printRef = useRef(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: "Current_Stock_Levels",
+  });
+
+  const fetchAllStocksForExport = async () => {
+    try {
+      const params = new URLSearchParams({
+        page: 1,
+        limit: 99999,
+      });
+      if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
+      if (selectedCategory) params.append("category", selectedCategory);
+      if (showLowStockOnly) params.append("lowStock", "true");
+
+      const response = await axiosSecure.get(`/stock/paginated?${params.toString()}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error("Failed to fetch all stock for export:", error);
+      return [];
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllStocksForExport();
+      const formatted = data.map(item => {
+        const isLow = item.quantityInStock < (item.ingredient?.stockAlert || 0);
+        const status = item.quantityInStock <= 0 ? "Out of Stock" : (isLow ? "Low Stock" : "In Stock");
+        return {
+          "Ingredient Name": item.ingredient?.name || "N/A",
+          "Category": item.ingredient?.category?.categoryName || "N/A",
+          "Purchase Unit": item.unit || "N/A",
+          "SKU": item.ingredient?.sku || "N/A",
+          "Alert Level": item.ingredient?.stockAlert || 0,
+          "Current Quantity": item.quantityInStock,
+          "Status": status
+        };
+      });
+      exportToExcel(formatted, "Current_Stock_Levels");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllStocksForExport();
+      const formatted = data.map(item => {
+        const isLow = item.quantityInStock < (item.ingredient?.stockAlert || 0);
+        const status = item.quantityInStock <= 0 ? "Out of Stock" : (isLow ? "Low Stock" : "In Stock");
+        return {
+          "Ingredient Name": item.ingredient?.name || "N/A",
+          "Category": item.ingredient?.category?.categoryName || "N/A",
+          "Purchase Unit": item.unit || "N/A",
+          "SKU": item.ingredient?.sku || "N/A",
+          "Alert Level": item.ingredient?.stockAlert || 0,
+          "Current Quantity": item.quantityInStock,
+          "Status": status
+        };
+      });
+      exportToCsv(formatted, "Current_Stock_Levels");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePrintReport = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllStocksForExport();
+      setExportStocks(data);
+      setTimeout(() => {
+        handlePrint();
+        setIsExporting(false);
+      }, 300);
+    } catch (err) {
+      console.error(err);
+      setIsExporting(false);
+    }
+  };
 
   const { stocks, totalPages, totalItems, totalCount, lowStockCount, outOfStockCount, isLoading, refetch } = useStocks(
     currentPage,
@@ -339,6 +616,25 @@ const StocksPage = () => {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
+  const [isBulkAdjustOpen, setIsBulkAdjustOpen] = useState(false);
+  const [ingredients, setIngredients] = useState([]);
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    const fetchPrerequisites = async () => {
+      try {
+        const [ingRes, catRes] = await Promise.all([
+          axiosSecure.get("/ingredient"),
+          axiosSecure.get("/ingredient-category"),
+        ]);
+        setIngredients(ingRes.data || []);
+        setCategories(catRes.data || []);
+      } catch (err) {
+        console.error("Failed to fetch prerequisites for bulk stock adjust:", err);
+      }
+    };
+    fetchPrerequisites();
+  }, [axiosSecure]);
 
   const handleOpenDetails = (stock) => {
     setSelectedStock(stock);
@@ -443,20 +739,37 @@ const StocksPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        <button
-          onClick={() => {
-            setShowLowStockOnly(!showLowStockOnly);
-            setCurrentPage(1);
-          }}
-          className={`btn btn-sm rounded-full gap-2 px-6 h-10 border-none shadow-sm transition-all ${
-            showLowStockOnly 
-              ? "bg-red-500 text-white hover:bg-red-600" 
-              : "bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20 hover:bg-brand-primary/20 text-brand-primary dark:text-brand-sage"
-          }`}
-        >
-          <FiSliders className="text-sm" />
-          <span className="uppercase tracking-widest text-[10px] font-bold">Low Stock Warning Only</span>
-        </button>
+        <div className="flex flex-wrap gap-3 items-center">
+          <ExportButtons
+            onExportExcel={handleExportExcel}
+            onExportCsv={handleExportCsv}
+            onPrint={handlePrintReport}
+            isLoading={isExporting}
+          />
+          {canPerformAction && (
+            <button
+              onClick={() => setIsBulkAdjustOpen(true)}
+              className="btn btn-sm rounded-full gap-2 px-6 h-10 border-none shadow-sm bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+            >
+              <MdEditNote className="text-lg" />
+              <span className="uppercase tracking-widest text-[10px] font-bold">Bulk Adjust</span>
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setShowLowStockOnly(!showLowStockOnly);
+              setCurrentPage(1);
+            }}
+            className={`btn btn-sm rounded-full gap-2 px-6 h-10 border-none shadow-sm transition-all cursor-pointer ${
+              showLowStockOnly 
+                ? "bg-red-500 text-white hover:bg-red-600" 
+                : "bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20 hover:bg-brand-primary/20 text-brand-primary dark:text-brand-sage"
+            }`}
+          >
+            <FiSliders className="text-sm" />
+            <span className="uppercase tracking-widest text-[10px] font-bold">Low Stock Warning Only</span>
+          </button>
+        </div>
       </div>
 
       {/* Table Section */}
@@ -585,7 +898,57 @@ const StocksPage = () => {
         {isAdjustmentOpen && (
           <UpdateStockAdjustmentModal stock={selectedStock} onClose={() => setIsAdjustmentOpen(false)} onSuccess={refetch} axiosSecure={axiosSecure} />
         )}
+        {isBulkAdjustOpen && (
+          <BulkStockAdjustmentModal isOpen={isBulkAdjustOpen} onClose={() => setIsBulkAdjustOpen(false)} onSuccess={refetch} ingredients={ingredients} categories={categories} axiosSecure={axiosSecure} />
+        )}
       </AnimatePresence>
+      {/* Hidden print container */}
+      <div style={{ display: "none" }}>
+        <PrintReportTemplate
+          ref={printRef}
+          title="Current Stock Levels Report"
+          subtitle={
+            selectedCategory
+              ? `Category: ${activeCategories.find((c) => c._id === selectedCategory)?.categoryName || ""} ${showLowStockOnly ? " | Low Stock Only" : ""}`
+              : `All Categories ${showLowStockOnly ? " | Low Stock Only" : ""}`
+          }
+          dateRange=""
+        >
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>Ingredient Name</th>
+                <th>Category</th>
+                <th>SKU</th>
+                <th>Purchase Unit</th>
+                <th style={{ textAlign: "center" }}>Alert Level</th>
+                <th style={{ textAlign: "right" }}>Current Quantity</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exportStocks.map((item) => {
+                const isLow = item.quantityInStock < (item.ingredient?.stockAlert || 0);
+                const status = item.quantityInStock <= 0 ? "Out of Stock" : (isLow ? "Low Stock" : "In Stock");
+                return (
+                  <tr key={item._id}>
+                    <td style={{ fontWeight: "bold" }}>{item.ingredient?.name}</td>
+                    <td>{item.ingredient?.category?.categoryName || "N/A"}</td>
+                    <td>{item.ingredient?.sku}</td>
+                    <td>{item.unit}</td>
+                    <td style={{ textAlign: "center" }}>{item.ingredient?.stockAlert || 0}</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{item.quantityInStock}</td>
+                    <td style={{ color: item.quantityInStock <= 0 ? "red" : (isLow ? "orange" : "green") }}>
+                      {status}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </PrintReportTemplate>
+      </div>
+
     </div>
   );
 };

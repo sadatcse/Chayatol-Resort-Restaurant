@@ -1,17 +1,21 @@
 "use client";
 
-import React, { useState, useEffect, useContext, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FiArrowLeft, FiDollarSign, FiFileText, FiCheckCircle, FiXCircle, FiAlertCircle, FiX, FiInfo, FiCalendar } from "react-icons/fi";
 import Swal from "sweetalert2";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { useReactToPrint } from "react-to-print";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 const VendorLedgerPage = () => {
   const router = useRouter();
@@ -90,6 +94,118 @@ const VendorLedgerPage = () => {
   const [activeTab, setActiveTab] = useState("invoices");
   const [paymentTransactions, setPaymentTransactions] = useState([]);
   const [isPaymentsLoading, setIsPaymentsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportInvoices, setExportInvoices] = useState([]);
+  const printRef = useRef(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Supplier_Ledger_${vendor?.vendorName || "Report"}`,
+  });
+
+  const fetchAllInvoicesForExport = async () => {
+    try {
+      const fromParam = fromDate ? `&fromDate=${fromDate.toISOString()}` : "";
+      const toParam = toDate ? `&toDate=${toDate.toISOString()}` : "";
+      const { data } = await axiosSecure.get(
+        `/purchase/paginated?page=1&limit=99999&vendorId=${vendorId}${fromParam}${toParam}`
+      );
+      return data.data || [];
+    } catch (error) {
+      console.error("Failed to fetch all invoices for export:", error);
+      return [];
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      if (activeTab === "invoices") {
+        const data = await fetchAllInvoicesForExport();
+        const formatted = data.map(item => ({
+          "Invoice Number": item.invoiceNumber,
+          "Purchase Date": item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString("en-GB") : "N/A",
+          "Grand Total (BDT)": item.grandTotal,
+          "Paid Amount (BDT)": item.paidAmount,
+          "Balance Due (BDT)": item.grandTotal - item.paidAmount,
+          "Payment Status": item.paymentStatus,
+          "Payment Method": item.paymentMethod,
+          "Notes": item.notes || ""
+        }));
+        exportToExcel(formatted, `${vendor?.vendorName || "Supplier"}_Ledger_Invoices`);
+      } else {
+        const formatted = paymentTransactions.map(p => ({
+          "Payment Date & Time": new Date(p.paymentDate).toLocaleString("en-GB"),
+          "Invoice Reference": p.invoiceNumber || "N/A",
+          "Invoice Date": p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString("en-GB") : "N/A",
+          "Amount Paid (BDT)": p.amount,
+          "Payment Method": p.paymentMethod,
+          "Transaction Note": p.note || ""
+        }));
+        exportToExcel(formatted, `${vendor?.vendorName || "Supplier"}_Payment_History`);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      if (activeTab === "invoices") {
+        const data = await fetchAllInvoicesForExport();
+        const formatted = data.map(item => ({
+          "Invoice Number": item.invoiceNumber,
+          "Purchase Date": item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString("en-GB") : "N/A",
+          "Grand Total (BDT)": item.grandTotal,
+          "Paid Amount (BDT)": item.paidAmount,
+          "Balance Due (BDT)": item.grandTotal - item.paidAmount,
+          "Payment Status": item.paymentStatus,
+          "Payment Method": item.paymentMethod,
+          "Notes": item.notes || ""
+        }));
+        exportToCsv(formatted, `${vendor?.vendorName || "Supplier"}_Ledger_Invoices`);
+      } else {
+        const formatted = paymentTransactions.map(p => ({
+          "Payment Date & Time": new Date(p.paymentDate).toLocaleString("en-GB"),
+          "Invoice Reference": p.invoiceNumber || "N/A",
+          "Invoice Date": p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString("en-GB") : "N/A",
+          "Amount Paid (BDT)": p.amount,
+          "Payment Method": p.paymentMethod,
+          "Transaction Note": p.note || ""
+        }));
+        exportToCsv(formatted, `${vendor?.vendorName || "Supplier"}_Payment_History`);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePrintReport = async () => {
+    setIsExporting(true);
+    try {
+      if (activeTab === "invoices") {
+        const data = await fetchAllInvoicesForExport();
+        setExportInvoices(data);
+        setTimeout(() => {
+          handlePrint();
+          setIsExporting(false);
+        }, 300);
+      } else {
+        setTimeout(() => {
+          handlePrint();
+          setIsExporting(false);
+        }, 100);
+      }
+    } catch (err) {
+      console.error(err);
+      setIsExporting(false);
+    }
+  };
 
   // Compute total statistics dynamically from invoices and payment logs reactively
   const stats = useMemo(() => {
@@ -703,11 +819,19 @@ const VendorLedgerPage = () => {
             </button>
           )}
 
-          <span className="ml-auto text-[10px] font-bold text-brand-sage uppercase tracking-widest">
-            {activeTab === "invoices"
-              ? `${totalItems} invoice${totalItems !== 1 ? "s" : ""} found`
-              : `${paymentTransactions.length} transaction${paymentTransactions.length !== 1 ? "s" : ""} found`}
-          </span>
+          <div className="ml-auto flex items-center gap-4">
+            <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest hidden sm:inline">
+              {activeTab === "invoices"
+                ? `${totalItems} invoice${totalItems !== 1 ? "s" : ""} found`
+                : `${paymentTransactions.length} transaction${paymentTransactions.length !== 1 ? "s" : ""} found`}
+            </span>
+            <ExportButtons
+              onExportExcel={handleExportExcel}
+              onExportCsv={handleExportCsv}
+              onPrint={handlePrintReport}
+              isLoading={isExporting}
+            />
+          </div>
         </div>
       )}
 
@@ -1073,6 +1197,72 @@ const VendorLedgerPage = () => {
           </div>
         </dialog>
       )}
+
+      {/* Hidden print container */}
+      <div style={{ display: "none" }}>
+        <PrintReportTemplate
+          ref={printRef}
+          title={activeTab === "invoices" ? `Supplier Ledger: ${vendor?.vendorName || ""}` : `Supplier Payment History: ${vendor?.vendorName || ""}`}
+          subtitle={`Supplier Profile ID: ${vendor?.vendorID || ""} | Phone: ${vendor?.primaryPhone || ""}`}
+          dateRange={
+            fromDate && toDate
+              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+              : "All Time"
+          }
+        >
+          {activeTab === "invoices" ? (
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Invoice Number</th>
+                  <th>Purchase Date</th>
+                  <th style={{ textAlign: "right" }}>Invoice Total</th>
+                  <th style={{ textAlign: "right" }}>Amount Paid</th>
+                  <th style={{ textAlign: "right" }}>Balance Due</th>
+                  <th style={{ textAlign: "center" }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exportInvoices.map((inv) => (
+                  <tr key={inv._id}>
+                    <td>{inv.invoiceNumber}</td>
+                    <td>{inv.purchaseDate ? new Date(inv.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
+                    <td style={{ textAlign: "right" }}>{inv.grandTotal.toFixed(2)} BDT</td>
+                    <td style={{ textAlign: "right" }}>{inv.paidAmount.toFixed(2)} BDT</td>
+                    <td style={{ textAlign: "right" }}>{(inv.grandTotal - inv.paidAmount).toFixed(2)} BDT</td>
+                    <td style={{ textAlign: "center" }}>{inv.paymentStatus}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Payment Date & Time</th>
+                  <th>Invoice Reference</th>
+                  <th>Invoice Date</th>
+                  <th style={{ textAlign: "right" }}>Amount Paid</th>
+                  <th>Payment Method</th>
+                  <th>Transaction / Payment Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentTransactions.map((p, idx) => (
+                  <tr key={p._id || idx}>
+                    <td>{new Date(p.paymentDate).toLocaleString("en-GB")}</td>
+                    <td>{p.invoiceNumber || "N/A"}</td>
+                    <td>{p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
+                    <td style={{ textAlign: "right" }}>{p.amount.toFixed(2)} BDT</td>
+                    <td>{p.paymentMethod}</td>
+                    <td>{p.note || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </PrintReportTemplate>
+      </div>
 
     </div>
   );

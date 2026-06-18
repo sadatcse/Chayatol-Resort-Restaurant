@@ -1,16 +1,20 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useContext } from "react";
+import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { FiSearch, FiBook } from "react-icons/fi";
 import { MdInventory2, MdTrendingDown, MdTrendingUp, MdSwapHoriz } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { useReactToPrint } from "react-to-print";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 const TYPE_META = {
   purchase:        { label: "Purchase",        color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400", dir: "in" },
@@ -37,6 +41,99 @@ const StockLedgerPage = () => {
 
   const [ledger, setLedger] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const printRef = useRef(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Stock_Ledger_${selectedIngredient?.name || "Report"}`,
+  });
+
+  const handleExportExcel = () => {
+    if (!ledger) return;
+    setIsExporting(true);
+    try {
+      const formatted = ledger.movements.map((row, idx) => {
+        const meta = TYPE_META[row.type] || { label: row.type };
+        return {
+          "Sl": idx + 1,
+          "Date": new Date(row.date).toLocaleDateString("en-GB"),
+          "Time": new Date(row.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          "Transaction Type": meta.label,
+          "Qty In": row.qtyIn > 0 ? row.qtyIn : 0,
+          "Qty Out": row.qtyOut > 0 ? row.qtyOut : 0,
+          "Balance": row.balance,
+          "Details": `${row.reason ? `${row.reason} · ` : ""}${row.kitchenName ? `${row.kitchenName} · ` : ""}${row.roomNumber ? `Room ${row.roomNumber} · ` : ""}${row.note || ""}`,
+          "Recorded By": row.createdBy?.name || "System"
+        };
+      });
+      // Add summary row at the end
+      formatted.push({
+        "Sl": "",
+        "Date": "CLOSING BALANCE",
+        "Time": "",
+        "Transaction Type": "",
+        "Qty In": stats.totalIn,
+        "Qty Out": stats.totalOut,
+        "Balance": ledger.currentStock,
+        "Details": `Unit: ${ledger.ingredient.unit}`,
+        "Recorded By": ""
+      });
+      exportToExcel(formatted, `Stock_Ledger_${ledger.ingredient.name}`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCsv = () => {
+    if (!ledger) return;
+    setIsExporting(true);
+    try {
+      const formatted = ledger.movements.map((row, idx) => {
+        const meta = TYPE_META[row.type] || { label: row.type };
+        return {
+          "Sl": idx + 1,
+          "Date": new Date(row.date).toLocaleDateString("en-GB"),
+          "Time": new Date(row.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          "Transaction Type": meta.label,
+          "Qty In": row.qtyIn > 0 ? row.qtyIn : 0,
+          "Qty Out": row.qtyOut > 0 ? row.qtyOut : 0,
+          "Balance": row.balance,
+          "Details": `${row.reason ? `${row.reason} · ` : ""}${row.kitchenName ? `${row.kitchenName} · ` : ""}${row.roomNumber ? `Room ${row.roomNumber} · ` : ""}${row.note || ""}`,
+          "Recorded By": row.createdBy?.name || "System"
+        };
+      });
+      formatted.push({
+        "Sl": "",
+        "Date": "CLOSING BALANCE",
+        "Time": "",
+        "Transaction Type": "",
+        "Qty In": stats.totalIn,
+        "Qty Out": stats.totalOut,
+        "Balance": ledger.currentStock,
+        "Details": `Unit: ${ledger.ingredient.unit}`,
+        "Recorded By": ""
+      });
+      exportToCsv(formatted, `Stock_Ledger_${ledger.ingredient.name}`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePrintReport = () => {
+    setIsExporting(true);
+    try {
+      handlePrint();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Fetch dropdown data
   useEffect(() => {
@@ -248,9 +345,17 @@ const StockLedgerPage = () => {
 
             {/* Ledger Table */}
             <div className="bg-white dark:bg-brand-charcoal rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 overflow-hidden">
-              <div className="flex items-center gap-3 p-5 border-b border-brand-beige dark:border-brand-beige/20">
-                <MdSwapHoriz className="text-brand-primary text-xl" />
-                <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Transaction History — {ledger.movements.length} entries</span>
+              <div className="flex flex-wrap justify-between items-center p-5 border-b border-brand-beige dark:border-brand-beige/20 gap-4">
+                <div className="flex items-center gap-3">
+                  <MdSwapHoriz className="text-brand-primary text-xl" />
+                  <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Transaction History — {ledger.movements.length} entries</span>
+                </div>
+                <ExportButtons
+                  onExportExcel={handleExportExcel}
+                  onExportCsv={handleExportCsv}
+                  onPrint={handlePrintReport}
+                  isLoading={isExporting}
+                />
               </div>
 
               {ledger.movements.length === 0 ? (
@@ -324,6 +429,78 @@ const StockLedgerPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Hidden print container */}
+      <div style={{ display: "none" }}>
+        <PrintReportTemplate
+          ref={printRef}
+          title={`Stock Ledger - ${selectedIngredient?.name}`}
+          subtitle={`Stock movements history for ${selectedIngredient?.name} (SKU: ${selectedIngredient?.sku})`}
+          dateRange={
+            fromDate && toDate
+              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+              : "All Time"
+          }
+        >
+          <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
+            <strong>Ingredient Name:</strong> {ledger?.ingredient?.name} &nbsp;|&nbsp; 
+            <strong>Category:</strong> {ledger?.ingredient?.category?.categoryName} &nbsp;|&nbsp; 
+            <strong>SKU:</strong> {ledger?.ingredient?.sku} &nbsp;|&nbsp; 
+            <strong>Unit:</strong> {ledger?.ingredient?.unit} &nbsp;|&nbsp; 
+            <strong>Current Stock:</strong> {ledger?.currentStock}
+          </div>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Date & Time</th>
+                <th>Transaction Type</th>
+                <th style={{ textAlign: "right" }}>Qty In</th>
+                <th style={{ textAlign: "right" }}>Qty Out</th>
+                <th style={{ textAlign: "right" }}>Balance</th>
+                <th>Details</th>
+                <th>By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger?.movements?.map((row, idx) => {
+                const meta = TYPE_META[row.type] || { label: row.type };
+                return (
+                  <tr key={row._id}>
+                    <td>{idx + 1}</td>
+                    <td>
+                      {new Date(row.date).toLocaleDateString("en-GB")} {new Date(row.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                    <td>{meta.label}</td>
+                    <td style={{ textAlign: "right", color: "green", fontWeight: "bold" }}>
+                      {row.qtyIn > 0 ? `+${row.qtyIn}` : "—"}
+                    </td>
+                    <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>
+                      {row.qtyOut > 0 ? `−${row.qtyOut}` : "—"}
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{row.balance}</td>
+                    <td>
+                      {row.reason && <span>{row.reason} · </span>}
+                      {row.kitchenName && <span>{row.kitchenName} · </span>}
+                      {row.roomNumber && <span>Room {row.roomNumber} · </span>}
+                      {row.note || ""}
+                    </td>
+                    <td>{row.createdBy?.name || "System"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ fontWeight: "bold" }}>
+                <td colSpan="3">CLOSING BALANCE</td>
+                <td style={{ textAlign: "right" }}>+{stats?.totalIn?.toFixed(2)}</td>
+                <td style={{ textAlign: "right" }}>−{stats?.totalOut?.toFixed(2)}</td>
+                <td style={{ textAlign: "right" }}>{ledger?.currentStock}</td>
+                <td colSpan="2">{ledger?.ingredient?.unit}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </PrintReportTemplate>
+      </div>
     </div>
   );
 };

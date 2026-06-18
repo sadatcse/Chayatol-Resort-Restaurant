@@ -16,6 +16,7 @@ export async function GET(req) {
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
     const vendorId = searchParams.get("vendorId");
+    const status = searchParams.get("status");
 
     const skip = (page - 1) * limit;
 
@@ -23,6 +24,10 @@ export async function GET(req) {
     const matchQuery = {};
     if (vendorId) {
       matchQuery.vendor = new mongoose.Types.ObjectId(vendorId);
+    }
+    
+    if (status) {
+      matchQuery.paymentStatus = status;
     }
     
     if (fromDate || toDate) {
@@ -156,6 +161,13 @@ export async function GET(req) {
 
     const total = result.count[0] ? result.count[0].total : 0;
 
+    const [totalCount, paidCount, partialCount, unpaidCount] = await Promise.all([
+      Purchase.countDocuments({}),
+      Purchase.countDocuments({ paymentStatus: "Paid" }),
+      Purchase.countDocuments({ paymentStatus: "Partial" }),
+      Purchase.countDocuments({ paymentStatus: "Unpaid" }),
+    ]);
+
     return NextResponse.json(
       {
         data: purchases,
@@ -165,6 +177,10 @@ export async function GET(req) {
           currentPage: page,
           limit,
         },
+        totalCount,
+        paidCount,
+        partialCount,
+        unpaidCount,
       },
       { status: 200 }
     );

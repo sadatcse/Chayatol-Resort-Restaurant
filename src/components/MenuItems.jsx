@@ -36,6 +36,14 @@ import {
   MdKitchen,
   MdHotel,
   MdUndo,
+  MdDashboard,
+  MdAddCircle,
+  MdCheckCircle,
+  MdAssignmentReturn,
+  MdHistory,
+  MdCategory,
+  MdPlace,
+  MdSearch,
 } from "react-icons/md";
 
 const menuItems = () => {
@@ -205,6 +213,64 @@ const menuItems = () => {
       ],
     },
 
+    // ================= LOST & FOUND MANAGEMENT =================
+    {
+      title: "Lost & Found",
+      icon: <MdSearch className="text-lg" />,
+      children: [
+        {
+          title: "Dashboard",
+          path: "/dashboard/lost-found/dashboard",
+          icon: <MdDashboard className="text-base" />,
+        },
+        {
+          title: "New Item Entry",
+          path: "/dashboard/lost-found/new-item",
+          icon: <MdAddCircle className="text-base" />,
+        },
+        {
+          title: "Active Items",
+          path: "/dashboard/lost-found/active-items",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Claims Verification",
+          path: "/dashboard/lost-found/claims",
+          icon: <MdCheckCircle className="text-base" />,
+        },
+        {
+          title: "Return Management",
+          path: "/dashboard/lost-found/returns",
+          icon: <MdAssignmentReturn className="text-base" />,
+        },
+        {
+          title: "Return Notes",
+          path: "/dashboard/lost-found/return-notes",
+          icon: <MdHistory className="text-base" />,
+        },
+        {
+          title: "Reports",
+          path: "/dashboard/lost-found/reports",
+          icon: <MdAssessment className="text-base" />,
+        },
+        {
+          title: "Categories",
+          path: "/dashboard/lost-found/categories",
+          icon: <MdCategory className="text-base" />,
+        },
+        {
+          title: "Locations",
+          path: "/dashboard/lost-found/locations",
+          icon: <MdPlace className="text-base" />,
+        },
+        {
+          title: "Settings",
+          path: "/dashboard/lost-found/settings",
+          icon: <MdSettings className="text-base" />,
+        },
+      ],
+    },
+
     // ================= SETTINGS =================
     {
       title: "Setting",
@@ -236,6 +302,11 @@ const menuItems = () => {
           title: "Expense Category",
           path: "/dashboard/setting/expensecategory",
           icon: <MdPayments className="text-base" />,
+        },
+        {
+          title: "Kitchen Settings",
+          path: "/dashboard/setting/kitchen",
+          icon: <MdKitchen className="text-base" />,
         },
 
         {

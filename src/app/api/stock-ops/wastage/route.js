@@ -83,33 +83,53 @@ export async function GET(req) {
       });
     }
 
-    const countPipeline = [...pipeline, { $count: "total" }];
+    const countPipeline = [
+      ...pipeline,
+      {
+        $group: {
+          _id: { $ifNull: ["$batchId", { $toString: "$_id" }] }
+        }
+      },
+      { $count: "total" }
+    ];
+
     const dataPipeline = [
       ...pipeline,
       { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit },
       {
-        $project: {
-          _id: 1,
-          type: 1,
-          adjustment: 1,
-          beforeQuantity: 1,
-          afterQuantity: 1,
-          reason: 1,
-          note: 1,
-          createdAt: 1,
-          ingredient: {
-            _id: "$ingredientDetails._id",
-            name: "$ingredientDetails.name",
-            unit: "$ingredientDetails.unit",
-            sku: "$ingredientDetails.sku",
-            category: "$categoryDetails",
+        $group: {
+          _id: { $ifNull: ["$batchId", { $toString: "$_id" }] },
+          batchId: { $first: { $ifNull: ["$batchId", { $toString: "$_id" }] } },
+          createdAt: { $first: "$createdAt" },
+          reason: { $first: "$reason" },
+          createdBy: {
+            $first: {
+              _id: "$userDetails._id",
+              name: "$userDetails.name"
+            }
           },
-          stock: { _id: "$stockDetails._id", quantityInStock: "$stockDetails.quantityInStock" },
-          createdBy: { _id: "$userDetails._id", name: "$userDetails.name" },
-        },
+          items: {
+            $push: {
+              _id: "$_id",
+              adjustment: "$adjustment",
+              beforeQuantity: "$beforeQuantity",
+              afterQuantity: "$afterQuantity",
+              note: "$note",
+              ingredient: {
+                _id: "$ingredientDetails._id",
+                name: "$ingredientDetails.name",
+                unit: "$ingredientDetails.unit",
+                sku: "$ingredientDetails.sku",
+                category: "$categoryDetails",
+              },
+              stock: { _id: "$stockDetails._id", quantityInStock: "$stockDetails.quantityInStock" },
+            }
+          }
+        }
       },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit }
     ];
 
     const [countResult, data] = await Promise.all([
@@ -142,59 +162,89 @@ export async function POST(req) {
 
   try {
     await dbConnect();
-    const { ingredientId, quantity, reason, note, date } = await req.json();
+    const body = await req.json();
     const userId = (auth.user.id || auth.user._id)?.toString();
 
-    if (!ingredientId) {
-      return NextResponse.json({ message: "Ingredient is required." }, { status: 400 });
-    }
-    if (!quantity || Number(quantity) <= 0) {
-      return NextResponse.json({ message: "Quantity must be greater than zero." }, { status: 400 });
-    }
-    if (!reason) {
-      return NextResponse.json({ message: "Reason is required." }, { status: 400 });
+    const isBulk = Array.isArray(body.items);
+    const date = body.date ? new Date(body.date) : new Date();
+    const items = isBulk ? body.items : [body];
+
+    if (items.length === 0) {
+      return NextResponse.json({ message: "At least one item is required." }, { status: 400 });
     }
 
-    const qty = Number(quantity);
+    // 1. Validation Phase
+    const validatedItems = [];
+    for (const item of items) {
+      const { ingredientId, quantity, reason, note } = item;
 
-    // Find stock record
-    const stockItem = await Stock.findOne({ ingredient: new mongoose.Types.ObjectId(ingredientId) });
-    if (!stockItem) {
-      return NextResponse.json({ message: "No stock record found for this ingredient." }, { status: 404 });
+      if (!ingredientId) {
+        return NextResponse.json({ message: "Ingredient is required for all items." }, { status: 400 });
+      }
+      if (!quantity || Number(quantity) <= 0) {
+        return NextResponse.json({ message: "Quantity must be greater than zero for all items." }, { status: 400 });
+      }
+      if (!reason) {
+        return NextResponse.json({ message: "Reason is required for all items." }, { status: 400 });
+      }
+
+      const qty = Number(quantity);
+      const stockItem = await Stock.findOne({ ingredient: new mongoose.Types.ObjectId(ingredientId) });
+      if (!stockItem) {
+        return NextResponse.json({ message: `No stock record found for ingredient ID: ${ingredientId}` }, { status: 404 });
+      }
+      if (stockItem.quantityInStock < qty) {
+        return NextResponse.json({
+          message: `Insufficient stock for ingredient: ${stockItem.unit || "item"}. Available: ${stockItem.quantityInStock}, requested: ${qty}`,
+        }, { status: 400 });
+      }
+
+      validatedItems.push({
+        stockItem,
+        ingredientId,
+        qty,
+        reason,
+        note: note || "",
+      });
     }
-    if (stockItem.quantityInStock < qty) {
-      return NextResponse.json({
-        message: `Insufficient stock. Available: ${stockItem.quantityInStock} ${stockItem.unit}`,
-      }, { status: 400 });
+
+    // 2. Execution Phase
+    const movements = [];
+    const batchId = new mongoose.Types.ObjectId().toString(); // Generate unique batch ID
+    for (const validated of validatedItems) {
+      const { stockItem, ingredientId, qty, reason, note } = validated;
+
+      const beforeQuantity = stockItem.quantityInStock;
+      const afterQuantity = beforeQuantity - qty;
+
+      stockItem.quantityInStock = afterQuantity;
+      await stockItem.save();
+
+      const movement = await StockMovement.create({
+        stock: stockItem._id,
+        ingredient: new mongoose.Types.ObjectId(ingredientId),
+        type: "wastage",
+        beforeQuantity,
+        afterQuantity,
+        adjustment: -qty,
+        reason,
+        note,
+        createdBy: userId,
+        createdAt: date,
+        batchId,
+      });
+
+      await logTransaction({
+        req,
+        resStatus: 201,
+        user: auth.user,
+        details: `Recorded wastage: ${qty} units of ingredient ${ingredientId} — Reason: ${reason}`,
+      });
+
+      movements.push(movement);
     }
 
-    const beforeQuantity = stockItem.quantityInStock;
-    const afterQuantity = beforeQuantity - qty;
-
-    stockItem.quantityInStock = afterQuantity;
-    await stockItem.save();
-
-    const movement = await StockMovement.create({
-      stock: stockItem._id,
-      ingredient: new mongoose.Types.ObjectId(ingredientId),
-      type: "wastage",
-      beforeQuantity,
-      afterQuantity,
-      adjustment: -qty,
-      reason,
-      note: note || "",
-      createdBy: userId,
-      createdAt: date ? new Date(date) : new Date(),
-    });
-
-    await logTransaction({
-      req,
-      resStatus: 201,
-      user: auth.user,
-      details: `Recorded wastage: ${qty} units of ingredient ${ingredientId} — Reason: ${reason}`,
-    });
-
-    return NextResponse.json(movement, { status: 201 });
+    return NextResponse.json(isBulk ? { success: true, count: movements.length, movements } : movements[0], { status: 201 });
   } catch (err) {
     console.error("POST wastage error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useContext, useMemo, useCallback } from "react";
-import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCheckCircle, FiXCircle, FiGrid, FiEye, FiFileText } from "react-icons/fi";
+import React, { useState, useEffect, useContext, useMemo, useCallback, useRef } from "react";
+import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCheckCircle, FiXCircle, FiGrid, FiEye, FiFileText, FiPrinter } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { useReactToPrint } from "react-to-print";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -14,6 +15,9 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import usePurchases from "@/hooks/usePurchases";
 import { AuthContext } from "@/providers/AuthProvider";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 const INITIAL_FORM_DATA = {
   vendor: "",
@@ -35,6 +39,103 @@ const PurchasesPage = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportPurchases, setExportPurchases] = useState([]);
+  const printListRef = useRef(null);
+  const printDetailRef = useRef(null);
+
+  const handlePrintList = useReactToPrint({
+    contentRef: printListRef,
+    documentTitle: "Purchase_Invoices_Report",
+  });
+
+  const handlePrintDetail = useReactToPrint({
+    contentRef: printDetailRef,
+    documentTitle: viewingPurchase => viewingPurchase ? `Purchase_Invoice_${viewingPurchase.invoiceNumber}` : "Purchase_Invoice_Details",
+  });
+
+  const fetchAllPurchasesForExport = async () => {
+    try {
+      const params = new URLSearchParams({
+        page: 1,
+        limit: 99999,
+      });
+      if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
+      if (fromDate) params.append("fromDate", fromDate.toISOString().split("T")[0]);
+      if (toDate) params.append("toDate", toDate.toISOString().split("T")[0]);
+      if (selectedStatus) params.append("status", selectedStatus);
+
+      const response = await axiosSecure.get(`/purchase/paginated?${params.toString()}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error("Failed to fetch all purchases for export:", error);
+      return [];
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllPurchasesForExport();
+      const formatted = data.map(item => ({
+        "Invoice Code": item.invoiceNumber,
+        "Supplier Name": item.vendor?.vendorName || "Unknown Supplier",
+        "Purchase Date": item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString("en-GB") : "N/A",
+        "Items Count": item.items?.length || 0,
+        "Grand Total (BDT)": item.grandTotal,
+        "Amount Paid (BDT)": item.paidAmount,
+        "Balance Due (BDT)": item.grandTotal - item.paidAmount,
+        "Payment Status": item.paymentStatus,
+        "Payment Method": item.paymentMethod,
+        "Notes": item.notes || ""
+      }));
+      exportToExcel(formatted, "Purchase_Invoices");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllPurchasesForExport();
+      const formatted = data.map(item => ({
+        "Invoice Code": item.invoiceNumber,
+        "Supplier Name": item.vendor?.vendorName || "Unknown Supplier",
+        "Purchase Date": item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString("en-GB") : "N/A",
+        "Items Count": item.items?.length || 0,
+        "Grand Total (BDT)": item.grandTotal,
+        "Amount Paid (BDT)": item.paidAmount,
+        "Balance Due (BDT)": item.grandTotal - item.paidAmount,
+        "Payment Status": item.paymentStatus,
+        "Payment Method": item.paymentMethod,
+        "Notes": item.notes || ""
+      }));
+      exportToCsv(formatted, "Purchase_Invoices");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePrintListReport = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllPurchasesForExport();
+      setExportPurchases(data);
+      setTimeout(() => {
+        handlePrintList();
+        setIsExporting(false);
+      }, 300);
+    } catch (err) {
+      console.error(err);
+      setIsExporting(false);
+    }
+  };
 
   // Generate list of the last 12 months dynamically
   const monthOptions = useMemo(() => {
@@ -118,7 +219,8 @@ const PurchasesPage = () => {
     itemsPerPage,
     debouncedSearchTerm,
     fromDate,
-    toDate
+    toDate,
+    selectedStatus
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -403,7 +505,7 @@ const PurchasesPage = () => {
         subtitle="Manage ingredient supply bills, track payment statuses, and review stock adjustments."
       >
         <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-2 flex-nowrap w-full sm:w-auto">
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             {/* Monthly Selector */}
             <select
               value={selectedMonth}
@@ -446,6 +548,21 @@ const PurchasesPage = () => {
               isClearable
               wrapperClassName="!w-auto inline-block shrink-0"
             />
+
+            {/* Status Selector */}
+            <select
+              value={selectedStatus}
+              onChange={(e) => {
+                setSelectedStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
+            >
+              <option value="">All Statuses</option>
+              <option value="Paid">Paid</option>
+              <option value="Partial">Partial</option>
+              <option value="Unpaid">Unpaid</option>
+            </select>
           </div>
 
           {/* Search Box */}
@@ -510,12 +627,20 @@ const PurchasesPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
-          <button onClick={openCreateModal} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
-            <FiPlus className="text-lg" />
-            <span className="uppercase tracking-widest text-xs font-bold">New Purchase</span>
-          </button>
-        )}
+        <div className="flex flex-wrap gap-3 items-center">
+          <ExportButtons
+            onExportExcel={handleExportExcel}
+            onExportCsv={handleExportCsv}
+            onPrint={handlePrintListReport}
+            isLoading={isExporting}
+          />
+          {canPerformAction && (
+            <button onClick={openCreateModal} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
+              <FiPlus className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">New Purchase</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table Section */}
@@ -970,8 +1095,14 @@ const PurchasesPage = () => {
               </div>
             </div>
 
-            <div className="flex justify-end p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
-              <button onClick={closeModal} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Close</button>
+            <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <button
+                onClick={() => handlePrintDetail()}
+                className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-6 flex items-center gap-2 cursor-pointer"
+              >
+                <FiPrinter /> Print Invoice
+              </button>
+              <button onClick={closeModal} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6 cursor-pointer">Close</button>
             </div>
           </div>
           <form method="dialog" className="modal-backdrop">
@@ -979,6 +1110,120 @@ const PurchasesPage = () => {
           </form>
         </dialog>
       )}
+      {/* Hidden print container for a single invoice details */}
+      <div style={{ display: "none" }}>
+        {viewingPurchase && (
+          <PrintReportTemplate
+            ref={printDetailRef}
+            title={`Purchase Invoice: ${viewingPurchase.invoiceNumber}`}
+            subtitle={`Supplier: ${viewingPurchase.vendor?.vendorName || "Unknown"} | Date: ${viewingPurchase.purchaseDate ? new Date(viewingPurchase.purchaseDate).toLocaleDateString("en-GB") : ""}`}
+            dateRange=""
+          >
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", fontSize: "11px", marginBottom: "20px" }}>
+                <div>
+                  <h4 style={{ fontWeight: "bold", borderBottom: "1px solid #000", paddingBottom: "3px" }}>Supplier Details</h4>
+                  <p><strong>Name:</strong> {viewingPurchase.vendor?.vendorName}</p>
+                  <p><strong>ID:</strong> {viewingPurchase.vendor?.vendorID}</p>
+                  <p><strong>Phone:</strong> {viewingPurchase.vendor?.primaryPhone}</p>
+                  <p><strong>Address:</strong> {viewingPurchase.vendor?.address}</p>
+                </div>
+                <div>
+                  <h4 style={{ fontWeight: "bold", borderBottom: "1px solid #000", paddingBottom: "3px" }}>Invoice Details</h4>
+                  <p><strong>Invoice Code:</strong> {viewingPurchase.invoiceNumber}</p>
+                  <p><strong>Bill Date:</strong> {viewingPurchase.purchaseDate ? new Date(viewingPurchase.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</p>
+                  <p><strong>Payment Status:</strong> {viewingPurchase.paymentStatus}</p>
+                  <p><strong>Payment Method:</strong> {viewingPurchase.paymentMethod}</p>
+                </div>
+              </div>
+            </div>
+
+            <table className="print-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left" }}>Ingredient Name</th>
+                  <th style={{ textAlign: "left" }}>Category</th>
+                  <th style={{ textAlign: "center" }}>Quantity</th>
+                  <th style={{ textAlign: "right" }}>Unit Price</th>
+                  <th style={{ textAlign: "right" }}>Total Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {viewingPurchase.items?.map((item) => (
+                  <tr key={item._id}>
+                    <td>{item.ingredient?.name} ({item.ingredient?.unit})</td>
+                    <td>{item.ingredient?.category?.categoryName || "N/A"}</td>
+                    <td style={{ textAlign: "center" }}>{item.quantity}</td>
+                    <td style={{ textAlign: "right" }}>{(item.unitPrice || 0).toFixed(2)} BDT</td>
+                    <td style={{ textAlign: "right" }}>{(item.totalPrice || 0).toFixed(2)} BDT</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ marginTop: "20px", display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ width: "250px", fontSize: "11px", border: "1px solid #d1d5db", padding: "10px", borderRadius: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                  <span>Grand Total:</span>
+                  <span style={{ fontWeight: "bold" }}>{(viewingPurchase.grandTotal || 0).toFixed(2)} BDT</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                  <span>Amount Paid:</span>
+                  <span>{(viewingPurchase.paidAmount || 0).toFixed(2)} BDT</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", borderTop: "1px solid #e5e7eb", paddingTop: "5px", color: "red" }}>
+                  <span>Balance Due:</span>
+                  <span>{((viewingPurchase.grandTotal || 0) - (viewingPurchase.paidAmount || 0)).toFixed(2)} BDT</span>
+                </div>
+              </div>
+            </div>
+          </PrintReportTemplate>
+        )}
+      </div>
+
+      {/* Hidden print container for purchases list */}
+      <div style={{ display: "none" }}>
+        <PrintReportTemplate
+          ref={printListRef}
+          title="Purchase Invoices & Dues"
+          subtitle="All recorded supplier purchases and payment statuses"
+          dateRange={
+            fromDate && toDate
+              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+              : "All Time"
+          }
+        >
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Supplier Name</th>
+                <th style={{ textAlign: "center" }}>Items</th>
+                <th style={{ textAlign: "right" }}>Grand Total</th>
+                <th style={{ textAlign: "right" }}>Amount Paid</th>
+                <th style={{ textAlign: "right" }}>Balance Due</th>
+                <th>Status</th>
+                <th>Bill Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exportPurchases.map((purchase) => (
+                <tr key={purchase._id}>
+                  <td>{purchase.invoiceNumber}</td>
+                  <td>{purchase.vendor?.vendorName || "Unknown"}</td>
+                  <td style={{ textAlign: "center" }}>{purchase.items?.length || 0}</td>
+                  <td style={{ textAlign: "right" }}>{(purchase.grandTotal || 0).toFixed(2)} BDT</td>
+                  <td style={{ textAlign: "right" }}>{(purchase.paidAmount || 0).toFixed(2)} BDT</td>
+                  <td style={{ textAlign: "right" }}>{((purchase.grandTotal || 0) - (purchase.paidAmount || 0)).toFixed(2)} BDT</td>
+                  <td>{purchase.paymentStatus}</td>
+                  <td>{purchase.purchaseDate ? new Date(purchase.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </PrintReportTemplate>
+      </div>
+
     </div>
   );
 };
