@@ -28,6 +28,25 @@ export async function POST(req) {
       delete bookingData.checkOutDate;
     }
 
+    // Check for double bookings
+    const checkIn = new Date(bookingData.checkInDate || new Date());
+    const checkOut = bookingData.checkOutDate ? new Date(bookingData.checkOutDate) : new Date("2099-12-31");
+
+    const overlappingBooking = await Booking.findOne({
+      room: bookingData.room,
+      bookingStatus: { $in: ["Confirmed", "Checked-in"] },
+      checkInDate: { $lt: checkOut },
+      $or: [
+        { checkOutDate: { $gt: checkIn } },
+        { checkOutDate: { $exists: false } },
+        { checkOutDate: null }
+      ]
+    });
+
+    if (overlappingBooking) {
+      return NextResponse.json({ message: "Double booking prevented. This room is already booked for the selected dates." }, { status: 409 });
+    }
+
     if (bookingData.isNewCustomer) {
       const newCust = await Customer.create({
         fullName: bookingData.customerName,
