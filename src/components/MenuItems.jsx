@@ -84,22 +84,37 @@ const menuItems = () => {
       icon: <MdBeachAccess className="text-lg" />,
       children: [
         {
-          title: "POS System",
-          path: "/dashboard/resort-pos",
-          icon: <MdReceiptLong className="text-base" />,
+          title: "Front Desk",
+          path: "/dashboard/front-desk",
+          icon: <MdBeachAccess className="text-base" />,
         },
         {
-          title: "Resort Invoices",
-          path: "/dashboard/resort-invoices",
-          icon: <MdReceiptLong className="text-base" />,
+          title: "Reservations",
+          path: "/dashboard/reservations",
+          icon: <MdAssignment className="text-base" />,
         },
         {
-          title: "Room Bookings",
-          path: "/dashboard/bookings",
-          icon: <MdEventAvailable className="text-base" />,
+          title: "Walk-in Check-in",
+          path: "/dashboard/check-in",
+          icon: <MdAddCircle className="text-base" />,
         },
         {
-          title: "Room Management",
+          title: "Guest Stay & Folio",
+          path: "/dashboard/stays",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Reservation Payments",
+          path: "/dashboard/payments",
+          icon: <MdPayments className="text-base" />,
+        },
+        {
+          title: "Room Type",
+          path: "/dashboard/room-types",
+          icon: <MdCategory className="text-base" />,
+        },
+        {
+          title: "Rooms & Rate Plans",
           path: "/dashboard/rooms",
           icon: <MdListAlt className="text-base" />,
         },

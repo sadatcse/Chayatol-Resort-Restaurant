@@ -1,0 +1,102 @@
+import { NextResponse } from "next/server";
+import dbConnect from "@/lib/db";
+import Stay from "@/models/Stay";
+import Food from "@/models/Food";
+import FoodOrder from "@/models/FoodOrder";
+import FolioEntry from "@/models/FolioEntry";
+import { verifyToken } from "@/lib/auth";
+import { logTransaction } from "@/lib/logger";
+
+export async function POST(req, { params }) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
+  try {
+    await dbConnect();
+    const { id } = await params;
+    const body = await req.json();
+    const { items, isChargeable } = body; // Array of { foodItem: id, quantity: number }
+
+    if (!items || items.length === 0) {
+      return NextResponse.json({ message: "Please provide food items." }, { status: 400 });
+    }
+
+    const stay = await Stay.findById(id);
+    if (!stay) {
+      return NextResponse.json({ message: "Guest stay record not found." }, { status: 404 });
+    }
+
+    const orderItems = [];
+    let orderSubtotal = 0;
+    let orderVat = 0;
+    let orderSc = 0;
+    let orderSd = 0;
+
+    for (const item of items) {
+      const food = await Food.findById(item.foodItem);
+      if (!food) {
+        return NextResponse.json({ message: `Food item with ID ${item.foodItem} not found.` }, { status: 400 });
+      }
+
+      const quantity = Number(item.quantity || 1);
+      const price = food.price;
+      const sub = price * quantity;
+
+      // Calculate taxes based on food item settings
+      const itemVat = (sub * (food.vat || 0)) / 100;
+      const itemSc = (sub * (food.sc || 0)) / 100;
+      const itemSd = (sub * (food.sd || 0)) / 100;
+
+      orderItems.push({
+        foodItem: food._id,
+        quantity,
+        unitPrice: price,
+        vat: food.vat || 0,
+        sc: food.sc || 0,
+        sd: food.sd || 0
+      });
+
+      orderSubtotal += sub;
+      orderVat += itemVat;
+      orderSc += itemSc;
+      orderSd += itemSd;
+    }
+
+    const totalCost = orderSubtotal + orderVat + orderSc + orderSd;
+
+    // Create Food Order
+    const foodOrder = await FoodOrder.create({
+      stayId: id,
+      items: orderItems,
+      isChargeable: isChargeable !== undefined ? isChargeable : true,
+      orderStatus: "Served"
+    });
+
+    // Create Folio Entry if chargeable
+    if (isChargeable !== false) {
+      const description = `Food Order - ${orderItems.length} item(s) (Subtotal: ৳${orderSubtotal.toFixed(2)}, VAT: ৳${orderVat.toFixed(2)}, SC: ৳${orderSc.toFixed(2)}, SD: ৳${orderSd.toFixed(2)})`;
+      await FolioEntry.create({
+        stayId: id,
+        type: "Food Charge",
+        description,
+        debit: totalCost,
+        credit: 0,
+        referenceId: foodOrder._id
+      });
+    }
+
+    await logTransaction({
+      req,
+      resStatus: 201,
+      user: auth.user,
+      details: `Placed food order of ৳${totalCost.toFixed(2)} for stay: ${stay.stayNo}`,
+    });
+
+    return NextResponse.json(foodOrder, { status: 201 });
+  } catch (err) {
+    console.error("POST Food Order error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

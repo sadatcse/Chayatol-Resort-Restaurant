@@ -4,42 +4,42 @@ import { useState, useCallback, useEffect, useContext } from "react";
 import { AuthContext } from "../providers/AuthProvider";
 import useAxiosSecure from "./useAxiosSecure";
 
-const useRooms = (currentPage = 1, itemsPerPage = 10, searchTerm = "", status = "", inclusion = "") => {
+const useStays = (currentPage = 1, itemsPerPage = 10, searchTerm = "", status = "") => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
-  const [rooms, setRooms] = useState([]);
+  const [stays, setStays] = useState([]);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchRooms = useCallback(async () => {
-    if (!user) return; // Wait for user to be loaded
+  const fetchStays = useCallback(async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
       const response = await axiosSecure.get(
-        `/room/paginated?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}&status=${status}&inclusion=${inclusion}`
+        `/stays?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}&status=${status}`
       );
-      setRooms(response.data.rooms || []);
+      setStays(response.data.data || []);
       setTotalPages(response.data.totalPages || 1);
-      setTotalItems(response.data.totalItems || 0);
+      setTotalItems(response.data.total || 0);
     } catch (error) {
-      console.error("Error fetching rooms:", error);
+      console.error("Error fetching stays:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, user, status, inclusion]);
+  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, status, user]);
 
   useEffect(() => {
-    fetchRooms();
-  }, [fetchRooms]);
+    fetchStays();
+  }, [fetchStays]);
 
   return {
-    rooms,
+    stays,
     totalPages,
     totalItems,
     isLoading,
-    refetch: fetchRooms,
+    refetch: fetchStays,
   };
 };
 
-export default useRooms;
+export default useStays;

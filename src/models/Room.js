@@ -19,6 +19,16 @@ const RoomSchema = Schema(
       required: [true, "Please provide the room price"],
       min: [0, "Price must be a positive number"],
     },
+    priceWithBreakfast: {
+      type: Number,
+      default: 0,
+      min: [0, "Price must be a positive number"],
+    },
+    priceWithAllDayFood: {
+      type: Number,
+      default: 0,
+      min: [0, "Price must be a positive number"],
+    },
     capacity: {
       type: Number,
       required: [true, "Please provide the room capacity"],
@@ -26,7 +36,7 @@ const RoomSchema = Schema(
     },
     status: {
       type: String,
-      enum: ["Available", "Occupied", "Maintenance"],
+      enum: ["Available", "Reserved", "Occupied", "Cleaning", "Maintenance", "Out Of Service"],
       default: "Available",
     },
     // ---- New fields added for future mechanism ----

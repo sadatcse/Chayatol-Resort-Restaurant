@@ -4,42 +4,42 @@ import { useState, useCallback, useEffect, useContext } from "react";
 import { AuthContext } from "../providers/AuthProvider";
 import useAxiosSecure from "./useAxiosSecure";
 
-const useRooms = (currentPage = 1, itemsPerPage = 10, searchTerm = "", status = "", inclusion = "") => {
+const useRoomTypes = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
-  const [rooms, setRooms] = useState([]);
+  const [roomTypes, setRoomTypes] = useState([]);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchRooms = useCallback(async () => {
+  const fetchRoomTypes = useCallback(async () => {
     if (!user) return; // Wait for user to be loaded
     setIsLoading(true);
     try {
       const response = await axiosSecure.get(
-        `/room/paginated?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}&status=${status}&inclusion=${inclusion}`
+        `/room-type?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}`
       );
-      setRooms(response.data.rooms || []);
+      setRoomTypes(response.data.data || []);
       setTotalPages(response.data.totalPages || 1);
-      setTotalItems(response.data.totalItems || 0);
+      setTotalItems(response.data.total || 0);
     } catch (error) {
-      console.error("Error fetching rooms:", error);
+      console.error("Error fetching room types:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, user, status, inclusion]);
+  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, user]);
 
   useEffect(() => {
-    fetchRooms();
-  }, [fetchRooms]);
+    fetchRoomTypes();
+  }, [fetchRoomTypes]);
 
   return {
-    rooms,
+    roomTypes,
     totalPages,
     totalItems,
     isLoading,
-    refetch: fetchRooms,
+    refetch: fetchRoomTypes,
   };
 };
 
-export default useRooms;
+export default useRoomTypes;
