@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { FiEye, FiX, FiSearch, FiPlus, FiArrowRight, FiBriefcase, FiDollarSign, FiClock, FiFileText } from "react-icons/fi";
 import { MdRestaurant } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { useReactToPrint } from "react-to-print";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -13,10 +17,15 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useStays from "@/hooks/useStays";
 import { AuthContext } from "@/providers/AuthProvider";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 const StaysPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const searchParams = useSearchParams();
+  const stayId = searchParams.get("stayId");
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -24,22 +33,131 @@ const StaysPage = () => {
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [statusFilter, setStatusFilter] = useState("In House"); // Default to showing currently in house guests
 
+  // Generate list of the last 12 months dynamically
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const date = new Date();
+    date.setDate(1); // Set to day 1 to avoid rollover bugs when subtracting months
+    for (let i = 0; i < 12; i++) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const label = date.toLocaleDateString("default", { month: "long", year: "numeric" });
+      options.push({ label, year, month });
+      date.setMonth(date.getMonth() - 1);
+    }
+    return options;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth()}`;
+  });
+
+  const [fromDate, setFromDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  });
+
+  const [toDate, setToDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  });
+
+  // Sync selectedMonth dropdown with fromDate/toDate changes
+  useEffect(() => {
+    if (fromDate === null && toDate === null) {
+      if (selectedMonth !== "all") setSelectedMonth("all");
+      return;
+    }
+
+    if (fromDate && toDate) {
+      const startYear = fromDate.getFullYear();
+      const startMonth = fromDate.getMonth();
+      const startDay = fromDate.getDate();
+
+      const endYear = toDate.getFullYear();
+      const endMonth = toDate.getMonth();
+      const lastDayOfStartMonth = new Date(startYear, startMonth + 1, 0).getDate();
+      const endDay = toDate.getDate();
+
+      if (startYear === endYear && startMonth === endMonth && startDay === 1 && endDay === lastDayOfStartMonth) {
+        const value = `${startYear}-${startMonth}`;
+        if (selectedMonth !== value) setSelectedMonth(value);
+        return;
+      }
+    }
+
+    if (selectedMonth !== "custom") {
+      setSelectedMonth("custom");
+    }
+  }, [fromDate, toDate, selectedMonth]);
+
+  const handleMonthChange = (e) => {
+    const val = e.target.value;
+    setSelectedMonth(val);
+    setCurrentPage(1);
+    setSelectedStay(null);
+
+    if (val === "all") {
+      setFromDate(null);
+      setToDate(null);
+    } else if (val !== "custom") {
+      const [year, month] = val.split("-").map(Number);
+      const start = new Date(year, month, 1, 0, 0, 0, 0);
+      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      setFromDate(start);
+      setToDate(end);
+    }
+  };
+
   const { stays, totalPages, totalItems, isLoading, refetch } = useStays(
     currentPage,
     itemsPerPage,
     debouncedSearchTerm,
-    statusFilter
+    statusFilter,
+    fromDate,
+    toDate
   );
 
   // Loaded metadata for postings
   const [foodMenu, setFoodMenu] = useState([]);
   const [services, setServices] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
+  const [foodCategories, setFoodCategories] = useState([]);
+  const [serviceCategories, setServiceCategories] = useState([]);
+
+  // Selected categories in modals
+  const [selectedFoodCategory, setSelectedFoodCategory] = useState("");
+  const [selectedServiceCategory, setSelectedServiceCategory] = useState("");
 
   // Selected guest stay detail
   const [selectedStay, setSelectedStay] = useState(null);
   const [folioEntries, setFolioEntries] = useState([]);
   const [isFolioLoading, setIsFolioLoading] = useState(false);
+
+  // Export states
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStays, setExportStays] = useState([]);
+  const printRef = useRef(null);
+  const folioPrintRef = useRef(null);
+  
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const customerPrintRef = useRef(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: "Stay_and_Folio_Report",
+  });
+
+  const handleFolioPrint = useReactToPrint({
+    contentRef: folioPrintRef,
+    documentTitle: `Folio_Ledger_${selectedStay?.stayNo || "Report"}`,
+  });
+
+  const handleCustomerPrint = useReactToPrint({
+    contentRef: customerPrintRef,
+    documentTitle: `Customer_Profile_${selectedStay?.customer?.fullName || "Report"}`,
+  });
 
   // Posting modals state
   const [isFoodModalOpen, setIsFoodModalOpen] = useState(false);
@@ -63,14 +181,18 @@ const StaysPage = () => {
   useEffect(() => {
     const fetchPostingData = async () => {
       try {
-        const [foodRes, serviceRes, payRes] = await Promise.all([
-          axiosSecure.get("/food?all=true"),
+        const [foodRes, serviceRes, payRes, foodCatRes, serviceCatRes] = await Promise.all([
+          axiosSecure.get("/food/get?limit=10000"),
           axiosSecure.get("/resort-service/get"),
-          axiosSecure.get("/paymenttype")
+          axiosSecure.get("/paymenttype"),
+          axiosSecure.get("/category"),
+          axiosSecure.get("/resort-service-category/get")
         ]);
-        setFoodMenu(foodRes.data || []);
+        setFoodMenu(foodRes.data?.data || foodRes.data || []);
         setServices(serviceRes.data?.data || serviceRes.data || []);
         setPaymentTypes(payRes.data || []);
+        setFoodCategories(foodCatRes.data || []);
+        setServiceCategories(serviceCatRes.data || []);
       } catch (err) {
         console.error("Error loading posting dropdown details:", err);
       }
@@ -97,12 +219,157 @@ const StaysPage = () => {
     await fetchFolio(stay._id);
   };
 
+  useEffect(() => {
+    if (stayId) {
+      const loadStayFromUrl = async () => {
+        try {
+          const { data } = await axiosSecure.get(`/stays/${stayId}`);
+          if (data) {
+            setSelectedMonth("all");
+            setFromDate(null);
+            setToDate(null);
+            setStatusFilter(""); // Clear status filter to show in table
+            setSearchTerm(data.stayNo); // Search for this stay specifically
+            setSelectedStay(data);
+            fetchFolio(stayId);
+            window.history.replaceState(null, "", "/dashboard/stays");
+          }
+        } catch (err) {
+          console.error("Failed to load stay from query param:", err);
+        }
+      };
+      loadStayFromUrl();
+    }
+  }, [stayId, axiosSecure]);
+
   // Folio calculations
   const totalDebit = folioEntries.reduce((acc, entry) => acc + (entry.debit || 0), 0);
   const totalCredit = folioEntries.reduce((acc, entry) => acc + (entry.credit || 0), 0);
   const outstandingDue = totalDebit - totalCredit;
 
-  // Add Direct Ledger Postings
+  // Add Direct Ledger Postings & Export Operations
+  const fetchAllStaysForExport = async () => {
+    try {
+      let url = `/stays?page=1&limit=99999&search=${debouncedSearchTerm}&status=${statusFilter}`;
+      if (fromDate) url += `&from=${fromDate.toISOString()}`;
+      if (toDate) url += `&to=${toDate.toISOString()}`;
+      const response = await axiosSecure.get(url);
+      return response.data.data || [];
+    } catch (error) {
+      console.error("Failed to fetch stays for export:", error);
+      return [];
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllStaysForExport();
+      const formatted = data.map((r, idx) => ({
+        "Sl": idx + 1,
+        "Stay No": r.stayNo,
+        "Customer Name": r.customer?.fullName || "N/A",
+        "Phone": r.customer?.phoneNumber || "N/A",
+        "Email": r.customer?.email || "N/A",
+        "Rooms": r.rooms?.map(rm => rm.room?.roomNumber).join(", ") || "N/A",
+        "Check-In Date": r.checkInDate ? new Date(r.checkInDate).toLocaleDateString("en-GB") : "N/A",
+        "Expected Check-Out": r.expectedCheckOutDate ? new Date(r.expectedCheckOutDate).toLocaleDateString("en-GB") : "N/A",
+        "Actual Check-Out": r.actualCheckOutDate ? new Date(r.actualCheckOutDate).toLocaleDateString("en-GB") : "N/A",
+        "Status": r.status,
+      }));
+      exportToExcel(formatted, "Stay_and_Folio_Report");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllStaysForExport();
+      const formatted = data.map((r, idx) => ({
+        "Sl": idx + 1,
+        "Stay No": r.stayNo,
+        "Customer Name": r.customer?.fullName || "N/A",
+        "Phone": r.customer?.phoneNumber || "N/A",
+        "Email": r.customer?.email || "N/A",
+        "Rooms": r.rooms?.map(rm => rm.room?.roomNumber).join(", ") || "N/A",
+        "Check-In Date": r.checkInDate ? new Date(r.checkInDate).toLocaleDateString("en-GB") : "N/A",
+        "Expected Check-Out": r.expectedCheckOutDate ? new Date(r.expectedCheckOutDate).toLocaleDateString("en-GB") : "N/A",
+        "Actual Check-Out": r.actualCheckOutDate ? new Date(r.actualCheckOutDate).toLocaleDateString("en-GB") : "N/A",
+        "Status": r.status,
+      }));
+      exportToCsv(formatted, "Stay_and_Folio_Report");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePrintReport = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllStaysForExport();
+      setExportStays(data);
+      setTimeout(() => {
+        handlePrint();
+        setIsExporting(false);
+      }, 300);
+    } catch (err) {
+      console.error(err);
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportFolioExcel = () => {
+    if (!selectedStay || folioEntries.length === 0) return;
+    const formatted = folioEntries.map((row, idx) => ({
+      "Sl": idx + 1,
+      "Date": new Date(row.date).toLocaleDateString("en-GB"),
+      "Description": row.description,
+      "Type": row.type,
+      "Debit (Charges)": row.debit > 0 ? row.debit : 0,
+      "Credit (Payments/Discounts)": row.credit > 0 ? row.credit : 0,
+    }));
+    formatted.push({
+      "Sl": "",
+      "Date": "TOTALS",
+      "Description": `Outstanding Due: ৳${outstandingDue.toFixed(2)}`,
+      "Type": "",
+      "Debit (Charges)": totalDebit,
+      "Credit (Payments/Discounts)": totalCredit,
+    });
+    exportToExcel(formatted, `Folio_Ledger_${selectedStay.stayNo}`);
+  };
+
+  const handleExportFolioCsv = () => {
+    if (!selectedStay || folioEntries.length === 0) return;
+    const formatted = folioEntries.map((row, idx) => ({
+      "Sl": idx + 1,
+      "Date": new Date(row.date).toLocaleDateString("en-GB"),
+      "Description": row.description,
+      "Type": row.type,
+      "Debit (Charges)": row.debit > 0 ? row.debit : 0,
+      "Credit (Payments/Discounts)": row.credit > 0 ? row.credit : 0,
+    }));
+    formatted.push({
+      "Sl": "",
+      "Date": "TOTALS",
+      "Description": `Outstanding Due: ৳${outstandingDue.toFixed(2)}`,
+      "Type": "",
+      "Debit (Charges)": totalDebit,
+      "Credit (Payments/Discounts)": totalCredit,
+    });
+    exportToCsv(formatted, `Folio_Ledger_${selectedStay.stayNo}`);
+  };
+
+  const handlePrintFolioReport = () => {
+    handleFolioPrint();
+  };
+
   const handlePostFoodOrder = async () => {
     if (!foodFormData.foodItem || !foodFormData.quantity) {
       Swal.fire("Error", "Please select food item and quantity.", "warning");
@@ -116,6 +383,7 @@ const StaysPage = () => {
       await fetchFolio(selectedStay._id);
       setIsFoodModalOpen(false);
       setFoodFormData({ foodItem: "", quantity: 1, isChargeable: true });
+      setSelectedFoodCategory("");
       Swal.fire("Food Posted", "Food charge added to guest folio ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post food charge", "error");
@@ -135,6 +403,7 @@ const StaysPage = () => {
       await fetchFolio(selectedStay._id);
       setIsServiceModalOpen(false);
       setServiceFormData({ serviceId: "", isChargeable: true });
+      setSelectedServiceCategory("");
       Swal.fire("Service Posted", "Service charge added to guest folio ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post service charge", "error");
@@ -147,9 +416,10 @@ const StaysPage = () => {
       return;
     }
     try {
+      const notesPart = paymentFormData.notes ? ` (${paymentFormData.notes})` : "";
       await axiosSecure.post(`/stays/${selectedStay._id}/folio`, {
         type: "Payment",
-        description: `Direct Payment (${paymentFormData.paymentType}) - Ref: ${paymentFormData.transactionRef || "N/A"}`,
+        description: `Direct Payment (${paymentFormData.paymentType}) - Ref: ${paymentFormData.transactionRef || "N/A"}${notesPart}`,
         debit: 0,
         credit: Number(paymentFormData.amount)
       });
@@ -198,11 +468,22 @@ const StaysPage = () => {
       await axiosSecure.post(`/stays/${selectedStay._id}/checkout`, {
         payments: checkPaymentList
       });
-      setIsCheckoutModalOpen(false);
-      setSelectedStay(null);
-      setCheckoutPayment({ paymentType: "", amount: "", transactionRef: "" });
-      refetch();
-      Swal.fire("Checked Out", "Guest stay checkout finalized. Room status changed to cleaning.", "success");
+      
+      // Fetch latest folio entries to reflect checkout settlement payment on the final printed bill
+      await fetchFolio(selectedStay._id);
+
+      Swal.fire({
+        title: "Checked Out",
+        text: "Guest stay checkout finalized. Room status changed to cleaning. The final bill will now print.",
+        icon: "success",
+        confirmButtonText: "OK"
+      }).then(() => {
+        handleFolioPrint();
+        setIsCheckoutModalOpen(false);
+        setSelectedStay(null);
+        setCheckoutPayment({ paymentType: "", amount: "", transactionRef: "" });
+        refetch();
+      });
     } catch (err) {
       Swal.fire("Failed Checkout", err.response?.data?.message || "Failed to checkout guest.", "error");
     }
@@ -236,37 +517,65 @@ const StaysPage = () => {
         title="Stay & Folio Management"
         subtitle="Track active in-house guests, update folios with food & service charges, extend stays, and settle checkout balances."
       >
-        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-              setSelectedStay(null);
-            }}
-            className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite rounded-full px-5 h-12 outline-none focus:outline-none"
-          >
-            <option value="In House">In House</option>
-            <option value="Checked Out">Checked Out</option>
-            <option value="Extended">Extended</option>
-            <option value="Cancelled">Cancelled</option>
-            <option value="">All Statuses</option>
-          </select>
+        <div className="flex flex-col xl:flex-row gap-3 w-full xl:w-auto items-center">
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            {/* Monthly Selector */}
+            <select
+              value={selectedMonth}
+              onChange={handleMonthChange}
+              className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-44 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
+            >
+              <option value="all">All Months</option>
+              {monthOptions.map((opt) => (
+                <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
+                  {opt.label}
+                </option>
+              ))}
+              <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
+            </select>
 
-          <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-80 h-12">
-            <FiSearch className="text-brand-sage text-lg" />
-            <input
-              type="text"
-              className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none"
-              placeholder="Search Stay No/Room/Customer..."
-              value={searchTerm}
-              onChange={e => {
-                setSearchTerm(e.target.value);
+            <DatePicker selected={fromDate} onChange={(d) => { setFromDate(d); setCurrentPage(1); setSelectedStay(null); }}
+              dateFormat="dd/MM/yyyy" placeholderText="From Date" isClearable 
+              wrapperClassName="!w-auto inline-block shrink-0"
+              className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0" />
+            <DatePicker selected={toDate} onChange={(d) => { setToDate(d); setCurrentPage(1); setSelectedStay(null); }}
+              dateFormat="dd/MM/yyyy" placeholderText="To Date" isClearable 
+              wrapperClassName="!w-auto inline-block shrink-0"
+              className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0" />
+          </div>
+
+          <div className="flex items-center gap-2 w-full xl:w-auto">
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
                 setCurrentPage(1);
                 setSelectedStay(null);
               }}
-            />
-          </label>
+              className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite rounded-full px-5 h-12 outline-none focus:outline-none w-full sm:w-40 shrink-0"
+            >
+              <option value="In House">In House</option>
+              <option value="Checked Out">Checked Out</option>
+              <option value="Extended">Extended</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value="">All Statuses</option>
+            </select>
+
+            <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full sm:w-64 h-12">
+              <FiSearch className="text-brand-sage text-lg shrink-0" />
+              <input
+                type="text"
+                className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none text-sm"
+                placeholder="Search Stay/Room/Guest..."
+                value={searchTerm}
+                onChange={e => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                  setSelectedStay(null);
+                }}
+              />
+            </label>
+          </div>
         </div>
       </SectionHeader>
 
@@ -279,6 +588,17 @@ const StaysPage = () => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white dark:bg-brand-charcoal rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 overflow-hidden"
           >
+            <div className="flex flex-wrap justify-between items-center p-5 border-b border-brand-beige dark:border-brand-beige/20 gap-4 bg-brand-offwhite/10 dark:bg-brand-charcoal/30">
+              <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">
+                Stays Directory ({totalItems} records)
+              </span>
+              <ExportButtons
+                onExportExcel={handleExportExcel}
+                onExportCsv={handleExportCsv}
+                onPrint={handlePrintReport}
+                isLoading={isExporting}
+              />
+            </div>
             {isLoading ? (
               <div className="p-6">
                 <MtableLoading />
@@ -372,16 +692,32 @@ const StaysPage = () => {
                   <h3 className="font-bold text-base uppercase tracking-wider text-brand-black dark:text-brand-offwhite">Folio Ledger</h3>
                   <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest font-mono">Guest Stay: {selectedStay.stayNo}</span>
                 </div>
-                <button onClick={() => setSelectedStay(null)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:bg-brand-beige">
-                  <FiX size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <ExportButtons
+                    onExportExcel={handleExportFolioExcel}
+                    onExportCsv={handleExportFolioCsv}
+                    onPrint={handleFolioPrint}
+                    isLoading={false}
+                  />
+                  <button onClick={() => setSelectedStay(null)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:bg-brand-beige">
+                    <FiX size={20} />
+                  </button>
+                </div>
               </div>
 
               {/* Guest metadata short-block */}
               <div className="grid grid-cols-2 gap-4 text-xs bg-brand-offwhite dark:bg-brand-charcoal/45 p-4 rounded-xl">
                 <div>
                   <span className="text-brand-sage">Customer:</span>
-                  <div className="font-bold">{selectedStay.customer?.fullName}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-bold text-sm">{selectedStay.customer?.fullName}</span>
+                    <button 
+                      onClick={() => setIsCustomerModalOpen(true)}
+                      className="btn btn-xs btn-outline border-brand-primary text-brand-primary rounded-full px-3 hover:bg-brand-primary hover:text-white transition-all duration-200 cursor-pointer font-bold text-[10px]"
+                    >
+                      View Profile
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <span className="text-brand-sage">Assigned Room(s):</span>
@@ -476,6 +812,22 @@ const StaysPage = () => {
             </div>
             <div className="p-6 space-y-4">
               <div className="form-control">
+                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Select Food Category</span></label>
+                <select
+                  value={selectedFoodCategory}
+                  onChange={(e) => {
+                    setSelectedFoodCategory(e.target.value);
+                    setFoodFormData({ ...foodFormData, foodItem: "" });
+                  }}
+                  className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full select-xs h-9"
+                >
+                  <option value="">All Categories</option>
+                  {foodCategories.filter(cat => cat.isActive !== false).map(cat => (
+                    <option key={cat._id} value={cat.categoryName}>{cat.categoryName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-control">
                 <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Select Food Item</span></label>
                 <select
                   value={foodFormData.foodItem}
@@ -483,9 +835,12 @@ const StaysPage = () => {
                   className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full select-xs h-9"
                 >
                   <option value="">Select Item</option>
-                  {foodMenu.map(item => (
-                    <option key={item._id} value={item._id}>{item.foodName} (৳{item.price})</option>
-                  ))}
+                  {foodMenu
+                    .filter(item => !selectedFoodCategory || item.category === selectedFoodCategory)
+                    .map(item => (
+                      <option key={item._id} value={item._id}>{item.foodName} (৳{item.price})</option>
+                    ))
+                  }
                 </select>
               </div>
               <div className="form-control">
@@ -499,14 +854,14 @@ const StaysPage = () => {
                 />
               </div>
               <div className="pt-4 flex justify-end gap-3">
-                <button onClick={() => setIsFoodModalOpen(false)} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
+                <button onClick={() => { setIsFoodModalOpen(false); setSelectedFoodCategory(""); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
                 <button onClick={handlePostFoodOrder} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6">Post Charge</button>
               </div>
             </div>
           </div>
         </dialog>
       )}
-
+ 
       {/* Post Resort Service Modal */}
       {isServiceModalOpen && (
         <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
@@ -516,6 +871,22 @@ const StaysPage = () => {
             </div>
             <div className="p-6 space-y-4">
               <div className="form-control">
+                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Select Service Category</span></label>
+                <select
+                  value={selectedServiceCategory}
+                  onChange={(e) => {
+                    setSelectedServiceCategory(e.target.value);
+                    setServiceFormData({ ...serviceFormData, serviceId: "" });
+                  }}
+                  className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full select-xs h-9"
+                >
+                  <option value="">All Categories</option>
+                  {serviceCategories.filter(cat => cat.status === "Active").map(cat => (
+                    <option key={cat._id} value={cat.categoryName}>{cat.categoryName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-control">
                 <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Select Resort Service</span></label>
                 <select
                   value={serviceFormData.serviceId}
@@ -523,20 +894,23 @@ const StaysPage = () => {
                   className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full select-xs h-9"
                 >
                   <option value="">Select Service</option>
-                  {services.map(s => (
-                    <option key={s._id} value={s._id}>{s.serviceName} (৳{s.price})</option>
-                  ))}
+                  {services
+                    .filter(s => !selectedServiceCategory || s.category === selectedServiceCategory)
+                    .map(s => (
+                      <option key={s._id} value={s._id}>{s.serviceName} (৳{s.price})</option>
+                    ))
+                  }
                 </select>
               </div>
               <div className="pt-4 flex justify-end gap-3">
-                <button onClick={() => setIsServiceModalOpen(false)} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
+                <button onClick={() => { setIsServiceModalOpen(false); setSelectedServiceCategory(""); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
                 <button onClick={handlePostService} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6">Post Charge</button>
               </div>
             </div>
           </div>
         </dialog>
       )}
-
+ 
       {/* Post Payment Modal */}
       {isPaymentModalOpen && (
         <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
@@ -576,6 +950,16 @@ const StaysPage = () => {
                   onChange={(e) => setPaymentFormData({ ...paymentFormData, transactionRef: e.target.value })}
                   className="input input-bordered border-brand-primary w-full h-9"
                   placeholder="e.g. BKash trxID, Card Ref"
+                />
+              </div>
+              <div className="form-control">
+                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Notes / Remarks</span></label>
+                <input
+                  type="text"
+                  value={paymentFormData.notes}
+                  onChange={(e) => setPaymentFormData({ ...paymentFormData, notes: e.target.value })}
+                  className="input input-bordered border-brand-primary w-full h-9"
+                  placeholder="e.g. advance settlement, extra guest fee, etc."
                 />
               </div>
               <div className="pt-4 flex justify-end gap-3">
@@ -769,6 +1153,345 @@ const StaysPage = () => {
           </div>
         </dialog>
       )}
+
+      {/* Customer Details Modal */}
+      {isCustomerModalOpen && selectedStay && selectedStay.customer && (
+        <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
+          <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-2xl rounded-2xl border animate-scale-in">
+            <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">
+                Customer Profile Details
+              </h3>
+              <button onClick={() => setIsCustomerModalOpen(false)} className="btn btn-sm btn-circle btn-ghost text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-beige dark:hover:bg-brand-offwhite/10">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+              <div className="flex flex-col md:flex-row gap-6">
+                {/* Profile Photo / Avatar */}
+                <div className="flex flex-col items-center gap-3 w-full md:w-1/4">
+                  {selectedStay.customer.customerPhoto ? (
+                    <img 
+                      src={selectedStay.customer.customerPhoto} 
+                      alt={selectedStay.customer.fullName} 
+                      className="w-32 h-32 rounded-full object-cover border-4 border-brand-primary/20 shadow-md"
+                    />
+                  ) : (
+                    <div className="w-32 h-32 rounded-full bg-brand-primary/10 flex items-center justify-center font-black text-4xl text-brand-primary border-4 border-brand-primary/10 shadow-inner">
+                      {selectedStay.customer.fullName?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-xs font-bold text-brand-sage uppercase tracking-wider">Guest Photo</span>
+                </div>
+
+                {/* Primary Info Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full md:w-3/4 text-sm">
+                  <div>
+                    <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Full Name</span>
+                    <span className="font-extrabold text-brand-charcoal dark:text-brand-offwhite">{selectedStay.customer.fullName}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Phone Number</span>
+                    <span className="font-bold">{selectedStay.customer.phoneNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Email Address</span>
+                    <span className="font-bold">{selectedStay.customer.emailAddress || "N/A"}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Nationality</span>
+                    <span className="font-bold">{selectedStay.customer.nationality || "Bangladeshi"}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Gender / Marital Status</span>
+                    <span className="font-bold">{selectedStay.customer.gender} / {selectedStay.customer.maritalStatus}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Date of Birth</span>
+                    <span className="font-bold">
+                      {selectedStay.customer.dateOfBirth ? new Date(selectedStay.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ID & Job Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-brand-beige/30">
+                <div>
+                  <h4 className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-3">Identification</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-xs text-brand-sage block">ID Type & Number</span>
+                      <span className="font-bold">{selectedStay.customer.identificationType || "N/A"} - {selectedStay.customer.identificationNumber || "N/A"}</span>
+                    </div>
+                    {selectedStay.customer.uploadIdCopy && (
+                      <div className="mt-2">
+                        <span className="text-xs text-brand-sage block mb-1">ID Copy Document</span>
+                        <a 
+                          href={selectedStay.customer.uploadIdCopy} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1"
+                        >
+                          <FiFileText /> View ID Copy Attachment
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-3">Occupation & Company</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-xs text-brand-sage block">Occupation</span>
+                      <span className="font-bold">{selectedStay.customer.occupation || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-brand-sage block">Company Name</span>
+                      <span className="font-bold">{selectedStay.customer.companyName || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Address details */}
+              <div className="pt-4 border-t border-brand-beige/30 text-sm">
+                <h4 className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-3">Residential Address</h4>
+                <div className="p-4 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige/25 rounded-xl">
+                  {selectedStay.customer.address ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-xs text-brand-sage block">Street Address</span>
+                        <span className="font-bold">
+                          {selectedStay.customer.address.line1}
+                          {selectedStay.customer.address.line2 ? `, ${selectedStay.customer.address.line2}` : ""}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-brand-sage block">City, Division & Country</span>
+                        <span className="font-bold">
+                          {selectedStay.customer.address.city || "—"}, {selectedStay.customer.address.division || "—"}, {selectedStay.customer.address.country || "Bangladesh"}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-brand-sage italic">No address provided.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Emergency Contact */}
+              <div className="pt-4 border-t border-brand-beige/30 text-sm">
+                <h4 className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-3">Emergency Contact Details</h4>
+                {selectedStay.customer.emergencyContact ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige/25 rounded-xl">
+                    <div>
+                      <span className="text-xs text-brand-sage block">Contact Name</span>
+                      <span className="font-bold">{selectedStay.customer.emergencyContact.name || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-brand-sage block">Relation</span>
+                      <span className="font-bold">{selectedStay.customer.emergencyContact.relation || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-brand-sage block">Phone Number</span>
+                      <span className="font-bold">{selectedStay.customer.emergencyContact.phoneNumber || "N/A"}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-brand-sage italic">No emergency contact provided.</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <button onClick={() => setIsCustomerModalOpen(false)} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">
+                Close
+              </button>
+              <button 
+                onClick={handleCustomerPrint} 
+                className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md"
+              >
+                Print Profile
+              </button>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {/* Hidden print container for Customer Profile Details */}
+      {selectedStay && selectedStay.customer && (
+        <div style={{ display: "none" }}>
+          <PrintReportTemplate
+            ref={customerPrintRef}
+            title="Guest Information Profile Report"
+            subtitle={`Customer Profile details for guest: ${selectedStay.customer.fullName}`}
+            dateRange=""
+          >
+            <div style={{ display: "flex", gap: "30px", marginBottom: "30px", borderBottom: "1px solid #ccc", paddingBottom: "20px" }}>
+              <div style={{ width: "120px" }}>
+                {selectedStay.customer.customerPhoto ? (
+                  <img src={selectedStay.customer.customerPhoto} alt="Photo" style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "4px" }} />
+                ) : (
+                  <div style={{ width: "120px", height: "120px", border: "1px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "40px", backgroundColor: "#f3f4f6", color: "#6b7280" }}>
+                    {selectedStay.customer.fullName?.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 30px", width: "100%", fontSize: "12px" }}>
+                <div><strong>Full Name:</strong> {selectedStay.customer.fullName}</div>
+                <div><strong>Phone Number:</strong> {selectedStay.customer.phoneNumber}</div>
+                <div><strong>Email Address:</strong> {selectedStay.customer.emailAddress || "N/A"}</div>
+                <div><strong>Nationality:</strong> {selectedStay.customer.nationality || "Bangladeshi"}</div>
+                <div><strong>Gender / Marital Status:</strong> {selectedStay.customer.gender} / {selectedStay.customer.maritalStatus}</div>
+                <div><strong>Date of Birth:</strong> {selectedStay.customer.dateOfBirth ? new Date(selectedStay.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}</div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "30px", fontSize: "12px" }}>
+              <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px" }}>
+                <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>IDENTIFICATION</h4>
+                <p style={{ margin: "5px 0" }}><strong>ID Type:</strong> {selectedStay.customer.identificationType || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>ID Number:</strong> {selectedStay.customer.identificationNumber || "N/A"}</p>
+              </div>
+
+              <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px" }}>
+                <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>OCCUPATION INFO</h4>
+                <p style={{ margin: "5px 0" }}><strong>Occupation:</strong> {selectedStay.customer.occupation || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>Company Name:</strong> {selectedStay.customer.companyName || "N/A"}</p>
+              </div>
+            </div>
+
+            <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px", marginBottom: "30px", fontSize: "12px" }}>
+              <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>RESIDENTIAL ADDRESS</h4>
+              {selectedStay.customer.address ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                  <p style={{ margin: "0" }}><strong>Street:</strong> {selectedStay.customer.address.line1} {selectedStay.customer.address.line2 || ""}</p>
+                  <p style={{ margin: "0" }}><strong>City/Division/Country:</strong> {selectedStay.customer.address.city || "—"}, {selectedStay.customer.address.division || "—"}, {selectedStay.customer.address.country || "Bangladesh"}</p>
+                </div>
+              ) : (
+                <p style={{ margin: "0", fontStyle: "italic" }}>No address provided.</p>
+              )}
+            </div>
+
+            <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px", marginBottom: "30px", fontSize: "12px" }}>
+              <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>EMERGENCY CONTACT</h4>
+              {selectedStay.customer.emergencyContact ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
+                  <p style={{ margin: "0" }}><strong>Name:</strong> {selectedStay.customer.emergencyContact.name || "N/A"}</p>
+                  <p style={{ margin: "0" }}><strong>Relation:</strong> {selectedStay.customer.emergencyContact.relation || "N/A"}</p>
+                  <p style={{ margin: "0" }}><strong>Phone:</strong> {selectedStay.customer.emergencyContact.phoneNumber || "N/A"}</p>
+                </div>
+              ) : (
+                <p style={{ margin: "0", fontStyle: "italic" }}>No emergency contact details provided.</p>
+              )}
+            </div>
+          </PrintReportTemplate>
+        </div>
+      )}
+
+      {/* Hidden print container for Stay directory list */}
+      <div style={{ display: "none" }}>
+        <PrintReportTemplate
+          ref={printRef}
+          title="Guest Stays Directory Report"
+          subtitle="Resort Guest Stay Records & Statuses"
+          dateRange={
+            fromDate && toDate
+              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+              : "All Time"
+          }
+        >
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Stay No</th>
+                <th>Customer</th>
+                <th>Contact</th>
+                <th>Rooms</th>
+                <th>Check-In Date</th>
+                <th>Expected Check-Out</th>
+                <th>Actual Check-Out</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exportStays.map((row, idx) => (
+                <tr key={row._id}>
+                  <td>{idx + 1}</td>
+                  <td style={{ fontWeight: "bold" }}>{row.stayNo}</td>
+                  <td>{row.customer?.fullName}</td>
+                  <td>{row.customer?.phoneNumber || "N/A"}</td>
+                  <td>{row.rooms?.map(rm => rm.room?.roomNumber).join(", ")}</td>
+                  <td>{row.checkInDate ? new Date(row.checkInDate).toLocaleDateString("en-GB") : "—"}</td>
+                  <td>{row.expectedCheckOutDate ? new Date(row.expectedCheckOutDate).toLocaleDateString("en-GB") : "—"}</td>
+                  <td>{row.actualCheckOutDate ? new Date(row.actualCheckOutDate).toLocaleDateString("en-GB") : "—"}</td>
+                  <td style={{ fontWeight: "bold" }}>{row.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </PrintReportTemplate>
+      </div>
+
+      {/* Hidden print container for Guest Folio Ledger */}
+      <div style={{ display: "none" }}>
+        <PrintReportTemplate
+          ref={folioPrintRef}
+          title={`Guest Folio Ledger - ${selectedStay?.stayNo}`}
+          subtitle={`Folio account details for guest ${selectedStay?.customer?.fullName || "Guest"}`}
+          dateRange={`Check-in: ${selectedStay ? new Date(selectedStay.checkInDate).toLocaleDateString("en-GB") : ""} to Expected Check-out: ${selectedStay ? new Date(selectedStay.expectedCheckOutDate).toLocaleDateString("en-GB") : ""}`}
+        >
+          <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
+            <strong>Customer Name:</strong> {selectedStay?.customer?.fullName} &nbsp;|&nbsp; 
+            <strong>Email:</strong> {selectedStay?.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
+            <strong>Phone:</strong> {selectedStay?.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
+            <strong>Assigned Rooms:</strong> {selectedStay?.rooms?.map(r => r.room?.roomNumber).join(", ")}
+          </div>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th style={{ textAlign: "right" }}>Debit (Charges)</th>
+                <th style={{ textAlign: "right" }}>Credit (Credits)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {folioEntries.map((row) => (
+                <tr key={row._id}>
+                  <td>{new Date(row.date).toLocaleDateString("en-GB")}</td>
+                  <td>{row.type}</td>
+                  <td style={{ fontWeight: "bold" }}>{row.description}</td>
+                  <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>
+                    {row.debit > 0 ? `৳${row.debit.toFixed(2)}` : "—"}
+                  </td>
+                  <td style={{ textAlign: "right", color: "green", fontWeight: "bold" }}>
+                    {row.credit > 0 ? `৳${row.credit.toFixed(2)}` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ fontWeight: "bold" }}>
+                <td colSpan="3">TOTALS</td>
+                <td style={{ textAlign: "right", color: "red" }}>৳{totalDebit.toFixed(2)}</td>
+                <td style={{ textAlign: "right", color: "green" }}>৳{totalCredit.toFixed(2)}</td>
+              </tr>
+              <tr style={{ fontWeight: "bold", fontSize: "12px" }}>
+                <td colSpan="3" style={{ borderTop: "2px solid black" }}>OUTSTANDING DUE BALANCE:</td>
+                <td colSpan="2" style={{ textAlign: "right", color: outstandingDue > 0 ? "red" : "green", borderTop: "2px solid black" }}>
+                  ৳{outstandingDue.toFixed(2)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </PrintReportTemplate>
+      </div>
     </div>
   );
 };

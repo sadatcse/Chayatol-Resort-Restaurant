@@ -15,12 +15,24 @@ export async function GET(req) {
     const limit = parseInt(searchParams.get("limit")) || 10;
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
+    const from = searchParams.get("from") || "";
+    const to = searchParams.get("to") || "";
 
     const skip = (page - 1) * limit;
 
     let query = {};
     if (status) {
       query.status = status;
+    }
+
+    if (from || to) {
+      query.checkInDate = {};
+      if (from) {
+        query.checkInDate.$gte = new Date(from);
+      }
+      if (to) {
+        query.checkInDate.$lte = new Date(to);
+      }
     }
 
     if (search) {

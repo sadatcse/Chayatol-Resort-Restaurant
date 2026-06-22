@@ -8,15 +8,25 @@ export async function GET(req) {
   try {
     await dbConnect();
     const { searchParams } = new URL(req.url);
-    const monthParam = searchParams.get("month"); // Format: YYYY-MM, e.g., 2026-06
+    
+    let startDate, endDate;
+    const startParam = searchParams.get("startDate");
+    const endParam = searchParams.get("endDate");
 
-    if (!monthParam) {
-      return NextResponse.json({ message: "Month parameter (YYYY-MM) is required." }, { status: 400 });
+    if (startParam && endParam) {
+      startDate = new Date(startParam);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(endParam);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      const monthParam = searchParams.get("month"); // Format: YYYY-MM, e.g., 2026-06
+      if (!monthParam) {
+        return NextResponse.json({ message: "Month parameter (YYYY-MM) or startDate/endDate parameters are required." }, { status: 400 });
+      }
+      const [year, month] = monthParam.split("-").map(Number);
+      startDate = new Date(year, month - 1, 1);
+      endDate = new Date(year, month, 0, 23, 59, 59, 999); // last day of month
     }
-
-    const [year, month] = monthParam.split("-").map(Number);
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59, 999); // last day of month
 
     // Fetch all rooms sorted by roomNumber
     const rooms = await Room.find({}).sort({ roomNumber: 1 });

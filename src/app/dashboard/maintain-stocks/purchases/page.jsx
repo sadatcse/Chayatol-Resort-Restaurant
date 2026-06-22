@@ -141,6 +141,7 @@ const PurchasesPage = () => {
   const monthOptions = useMemo(() => {
     const options = [];
     const date = new Date();
+    date.setDate(1); // Set to day 1 to avoid rollover bugs when subtracting months
     // Go back 12 months
     for (let i = 0; i < 12; i++) {
       const year = date.getFullYear();

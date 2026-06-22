@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useContext, useRef, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCreditCard, FiCheck, FiPrinter, FiXCircle } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +19,8 @@ import CustomerModal from "@/components/CustomerModal";
 const ReservationsPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const searchParams = useSearchParams();
+  const reservationId = searchParams.get("reservationId");
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -244,6 +247,23 @@ const ReservationsPage = () => {
     }
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (reservationId) {
+      const loadReservationFromUrl = async () => {
+        try {
+          const { data } = await axiosSecure.get(`/reservations/${reservationId}`);
+          if (data) {
+            openFormModal(data);
+            window.history.replaceState(null, "", "/dashboard/reservations");
+          }
+        } catch (err) {
+          console.error("Failed to load reservation from query param:", err);
+        }
+      };
+      loadReservationFromUrl();
+    }
+  }, [reservationId, axiosSecure]);
 
   const closeFormModal = () => {
     setIsModalOpen(false);
