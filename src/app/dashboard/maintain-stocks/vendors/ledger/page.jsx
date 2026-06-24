@@ -6,7 +6,7 @@ import { FiArrowLeft, FiDollarSign, FiFileText, FiCheckCircle, FiXCircle, FiAler
 import Swal from "sweetalert2";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -95,12 +95,15 @@ const VendorLedgerPage = () => {
   const [paymentTransactions, setPaymentTransactions] = useState([]);
   const [isPaymentsLoading, setIsPaymentsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportInvoices, setExportInvoices] = useState([]);
-  const printRef = useRef(null);
-
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
+  // Standardize Print hook integration
+  const {
+    printData,
+    setPrintData,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
     documentTitle: `Supplier_Ledger_${vendor?.vendorName || "Report"}`,
+    onAfterPrint: () => setIsExporting(false)
   });
 
   const fetchAllInvoicesForExport = async () => {
@@ -190,16 +193,9 @@ const VendorLedgerPage = () => {
     try {
       if (activeTab === "invoices") {
         const data = await fetchAllInvoicesForExport();
-        setExportInvoices(data);
-        setTimeout(() => {
-          handlePrint();
-          setIsExporting(false);
-        }, 300);
+        setPrintData(data);
       } else {
-        setTimeout(() => {
-          handlePrint();
-          setIsExporting(false);
-        }, 100);
+        setPrintData(paymentTransactions);
       }
     } catch (err) {
       console.error(err);
@@ -1200,68 +1196,70 @@ const VendorLedgerPage = () => {
 
       {/* Hidden print container */}
       <div style={{ display: "none" }}>
-        <PrintReportTemplate
-          ref={printRef}
-          title={activeTab === "invoices" ? `Supplier Ledger: ${vendor?.vendorName || ""}` : `Supplier Payment History: ${vendor?.vendorName || ""}`}
-          subtitle={`Supplier Profile ID: ${vendor?.vendorID || ""} | Phone: ${vendor?.primaryPhone || ""}`}
-          dateRange={
-            fromDate && toDate
-              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
-              : "All Time"
-          }
-        >
-          {activeTab === "invoices" ? (
-            <table className="print-table">
-              <thead>
-                <tr>
-                  <th>Invoice Number</th>
-                  <th>Purchase Date</th>
-                  <th style={{ textAlign: "right" }}>Invoice Total</th>
-                  <th style={{ textAlign: "right" }}>Amount Paid</th>
-                  <th style={{ textAlign: "right" }}>Balance Due</th>
-                  <th style={{ textAlign: "center" }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exportInvoices.map((inv) => (
-                  <tr key={inv._id}>
-                    <td>{inv.invoiceNumber}</td>
-                    <td>{inv.purchaseDate ? new Date(inv.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
-                    <td style={{ textAlign: "right" }}>{inv.grandTotal.toFixed(2)} BDT</td>
-                    <td style={{ textAlign: "right" }}>{inv.paidAmount.toFixed(2)} BDT</td>
-                    <td style={{ textAlign: "right" }}>{(inv.grandTotal - inv.paidAmount).toFixed(2)} BDT</td>
-                    <td style={{ textAlign: "center" }}>{inv.paymentStatus}</td>
+        {printData && (
+          <PrintReportTemplate
+            ref={printRef}
+            title={activeTab === "invoices" ? `Supplier Ledger: ${vendor?.vendorName || ""}` : `Supplier Payment History: ${vendor?.vendorName || ""}`}
+            subtitle={`Supplier Profile ID: ${vendor?.vendorID || ""} | Phone: ${vendor?.primaryPhone || ""}`}
+            dateRange={
+              fromDate && toDate
+                ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+                : "All Time"
+            }
+          >
+            {activeTab === "invoices" ? (
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>Invoice Number</th>
+                    <th>Purchase Date</th>
+                    <th style={{ textAlign: "right" }}>Invoice Total</th>
+                    <th style={{ textAlign: "right" }}>Amount Paid</th>
+                    <th style={{ textAlign: "right" }}>Balance Due</th>
+                    <th style={{ textAlign: "center" }}>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <table className="print-table">
-              <thead>
-                <tr>
-                  <th>Payment Date & Time</th>
-                  <th>Invoice Reference</th>
-                  <th>Invoice Date</th>
-                  <th style={{ textAlign: "right" }}>Amount Paid</th>
-                  <th>Payment Method</th>
-                  <th>Transaction / Payment Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentTransactions.map((p, idx) => (
-                  <tr key={p._id || idx}>
-                    <td>{new Date(p.paymentDate).toLocaleString("en-GB")}</td>
-                    <td>{p.invoiceNumber || "N/A"}</td>
-                    <td>{p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
-                    <td style={{ textAlign: "right" }}>{p.amount.toFixed(2)} BDT</td>
-                    <td>{p.paymentMethod}</td>
-                    <td>{p.note || "—"}</td>
+                </thead>
+                <tbody>
+                  {printData.map((inv) => (
+                    <tr key={inv._id}>
+                      <td>{inv.invoiceNumber}</td>
+                      <td>{inv.purchaseDate ? new Date(inv.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
+                      <td style={{ textAlign: "right" }}>{inv.grandTotal.toFixed(2)} BDT</td>
+                      <td style={{ textAlign: "right" }}>{inv.paidAmount.toFixed(2)} BDT</td>
+                      <td style={{ textAlign: "right" }}>{(inv.grandTotal - inv.paidAmount).toFixed(2)} BDT</td>
+                      <td style={{ textAlign: "center" }}>{inv.paymentStatus}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>Payment Date & Time</th>
+                    <th>Invoice Reference</th>
+                    <th>Invoice Date</th>
+                    <th style={{ textAlign: "right" }}>Amount Paid</th>
+                    <th>Payment Method</th>
+                    <th>Transaction / Payment Note</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </PrintReportTemplate>
+                </thead>
+                <tbody>
+                  {printData.map((p, idx) => (
+                    <tr key={p._id || idx}>
+                      <td>{new Date(p.paymentDate).toLocaleString("en-GB")}</td>
+                      <td>{p.invoiceNumber || "N/A"}</td>
+                      <td>{p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
+                      <td style={{ textAlign: "right" }}>{p.amount.toFixed(2)} BDT</td>
+                      <td>{p.paymentMethod}</td>
+                      <td>{p.note || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </PrintReportTemplate>
+        )}
       </div>
 
     </div>

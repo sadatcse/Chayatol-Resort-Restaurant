@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 import { FiSearch, FiSliders, FiPrinter, FiInfo, FiFileText } from "react-icons/fi";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 
 export default function ReportsPage() {
   const axiosSecure = useAxiosSecure();
@@ -20,12 +21,13 @@ export default function ReportsPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
-  const printRef = useRef(null);
-
-  // Print Handler
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Lost_Found_${reportType}_Report`,
+  const {
+    printData: printRes,
+    setPrintData: setPrintRes,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
+    documentTitle: `Lost_Found_${reportType}_Report`
   });
 
   // Query: Fetch categories for filters
@@ -95,7 +97,7 @@ export default function ReportsPage() {
         <SectionHeader title="Lost & Found Reports" subtitle="Generate, print, and export lost & found audits" />
         <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
-            onClick={handlePrint}
+            onClick={() => setPrintRes(reportData)}
             disabled={reportData.length === 0}
             className="btn btn-sm btn-outline border-brand-beige text-brand-charcoal dark:text-brand-offwhite rounded-xl flex items-center gap-1.5 h-10 px-4 cursor-pointer"
           >
@@ -218,61 +220,77 @@ export default function ReportsPage() {
         <MtableLoading />
       ) : (
         <div className="card bg-white dark:bg-brand-charcoal shadow-xl border border-brand-beige/25 dark:border-brand-beige/10 rounded-2xl overflow-hidden">
-          
-          {/* Printable Report Section */}
-          <div ref={printRef} className="print:p-8 bg-white dark:bg-brand-charcoal">
-            {/* Print Only Header */}
-            <div className="hidden print:block text-center border-b-2 border-slate-900 pb-4 mb-6">
-              <h2 className="text-2xl font-black uppercase tracking-wider">Chayatol Resort</h2>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">
-                {reportTypesList.find((r) => r.value === reportType)?.label}
-              </p>
-              { (from || to) && (
-                <p className="text-[10px] font-mono text-slate-400 mt-0.5">
-                  Period: {from || "Start"} to {to || "End"}
-                </p>
-              )}
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="table table-zebra w-full print:text-black">
-                <thead className="bg-brand-primary text-white font-bold uppercase text-xs tracking-wider print:bg-slate-200 print:text-black">
-                  {reportData.length > 0 ? (
-                    <tr>
-                      {Object.keys(reportData[0]).map((key) => (
-                        <th key={key} className="p-4">{key}</th>
+          <div className="overflow-x-auto">
+            <table className="table table-zebra w-full">
+              <thead className="bg-brand-primary text-white font-bold uppercase text-xs tracking-wider">
+                {reportData.length > 0 ? (
+                  <tr>
+                    {Object.keys(reportData[0]).map((key) => (
+                      <th key={key} className="p-4">{key}</th>
+                    ))}
+                  </tr>
+                ) : (
+                  <tr>
+                    <th className="p-4">Report Data</th>
+                  </tr>
+                )}
+              </thead>
+              <tbody className="text-sm">
+                {reportData.length > 0 ? (
+                  reportData.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-brand-offwhite/50 dark:hover:bg-brand-offwhite/5 transition-colors border-b border-brand-beige/10 dark:border-brand-beige/5">
+                      {Object.values(row).map((val, i) => (
+                        <td key={i} className="p-4 font-medium">
+                          {typeof val === "object" ? JSON.stringify(val) : String(val)}
+                        </td>
                       ))}
                     </tr>
-                  ) : (
-                    <tr>
-                      <th className="p-4">Report Data</th>
-                    </tr>
-                  )}
-                </thead>
-                <tbody className="text-sm">
-                  {reportData.length > 0 ? (
-                    reportData.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-brand-offwhite/50 dark:hover:bg-brand-offwhite/5 transition-colors border-b border-brand-beige/10 dark:border-brand-beige/5">
-                        {Object.values(row).map((val, i) => (
-                          <td key={i} className="p-4 font-medium">
-                            {typeof val === "object" ? JSON.stringify(val) : String(val)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="text-center py-20 text-brand-sage font-bold uppercase tracking-wider text-xs">
-                        No report entries match the selected filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="text-center py-20 text-brand-sage font-bold uppercase tracking-wider text-xs">
+                      No report entries match the selected filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
+
+      {/* Hidden print container */}
+      <div style={{ display: "none" }}>
+        {printRes && (
+          <PrintReportTemplate
+            ref={printRef}
+            title={reportTypesList.find((r) => r.value === reportType)?.label}
+            subtitle="Lost & Found Report Ledger"
+            dateRange={from && to ? `${new Date(from).toLocaleDateString("en-GB")} to ${new Date(to).toLocaleDateString("en-GB")}` : "All Time"}
+          >
+            <table className="print-table">
+              <thead>
+                <tr>
+                  {printRes.length > 0 && Object.keys(printRes[0]).map((key) => (
+                    <th key={key}>{key}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {printRes.map((row, idx) => (
+                  <tr key={idx}>
+                    {Object.values(row).map((val, i) => (
+                      <td key={i}>
+                        {typeof val === "object" ? JSON.stringify(val) : String(val)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PrintReportTemplate>
+        )}
+      </div>
     </div>
   );
 }

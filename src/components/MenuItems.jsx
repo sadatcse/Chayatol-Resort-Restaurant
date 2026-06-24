@@ -227,6 +227,43 @@ const menuItems = () => {
         },
       ],
     },
+    // ================= FINANCE MANAGEMENT =================
+    {
+      title: "Finance Management",
+      icon: <MdAccountBalanceWallet className="text-lg" />,
+      children: [
+        {
+          title: "Expense Categories",
+          path: "/dashboard/finance/expense-categories",
+          icon: <MdCategory className="text-base" />,
+        },
+        {
+          title: "Expense Entry",
+          path: "/dashboard/finance/expenses",
+          icon: <MdAttachMoney className="text-base" />,
+        },
+        {
+          title: "Recurring Expenses",
+          path: "/dashboard/finance/recurring-expenses",
+          icon: <MdHistory className="text-base" />,
+        },
+        {
+          title: "Monthly Expense Report",
+          path: "/dashboard/finance/monthly-expense-report",
+          icon: <MdAssessment className="text-base" />,
+        },
+        {
+          title: "Profit & Loss",
+          path: "/dashboard/finance/profit-loss",
+          icon: <MdShowChart className="text-base" />,
+        },
+        {
+          title: "Cash Flow Report",
+          path: "/dashboard/finance/cash-flow",
+          icon: <MdTrendingUp className="text-base" />,
+        },
+      ],
+    },
 
     // ================= LOST & FOUND MANAGEMENT =================
     {

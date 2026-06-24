@@ -6,7 +6,7 @@ import useFoodCategories from "@/hooks/useFoodCategories";
 import usePaymentTypes from "@/hooks/usePaymentTypes";
 import { MdAdd, MdRemove, MdPrint, MdRestaurantMenu, MdOutlineTableRestaurant, MdPersonOutline, MdClose } from "react-icons/md";
 import ReceiptPrint from "@/components/pos/ReceiptPrint";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 import Swal from "sweetalert2";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import CustomerModal from "@/components/CustomerModal";
@@ -74,14 +74,14 @@ export default function POSPage() {
   const [staff, setStaff] = useState([]);
 
   const [loading, setLoading] = useState(false);
-  const [lastInvoice, setLastInvoice] = useState(null);
   const [existingInvoice, setExistingInvoice] = useState(null);
 
-  const printRef = useRef(null);
-  
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-  });
+  const {
+    printData: lastInvoice,
+    setPrintData: setLastInvoice,
+    printRef,
+    handlePrint
+  } = useStandardPrint();
 
   useEffect(() => {
     // Fetch tables, rooms, staff
@@ -390,7 +390,7 @@ export default function POSPage() {
 
       if (resData.success) {
         setCart([]);
-        setLastInvoice(resData.data);
+        const savedInv = resData.data;
         Swal.fire({
           title: "Success",
           text: `Order ${existingInvoice ? "Updated" : (status === "Paid" ? "Paid" : "Placed")} successfully.`,
@@ -400,7 +400,7 @@ export default function POSPage() {
           cancelButtonText: "Close"
         }).then((result) => {
           if (result.isConfirmed) {
-            setTimeout(() => handlePrint(), 100);
+            setLastInvoice(savedInv);
           }
           if (existingInvoice) {
              // If we were editing, maybe reload or go back

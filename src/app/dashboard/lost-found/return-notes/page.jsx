@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 import { FiSearch, FiEye, FiPrinter, FiX, FiInfo } from "react-icons/fi";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
@@ -16,12 +16,13 @@ export default function ReturnNotesPage() {
   const [limit] = useState(10);
   const [selectedNote, setSelectedNote] = useState(null);
 
-  const printRef = useRef(null);
-  
-  // Print Handler
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: selectedNote ? `ReturnNote_${selectedNote.returnNumber}` : "Return_Note",
+  const {
+    printData: printRes,
+    setPrintData: setPrintRes,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
+    documentTitle: selectedNote ? `ReturnNote_${selectedNote.returnNumber}` : "Return_Note"
   });
 
   // Query: Fetch Return Notes
@@ -128,7 +129,7 @@ export default function ReturnNotesPage() {
               </h3>
               <div className="flex gap-2">
                 <button
-                  onClick={handlePrint}
+                  onClick={() => setPrintRes(selectedNote)}
                   className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 flex items-center gap-1.5 rounded-lg px-3 cursor-pointer"
                 >
                   <FiPrinter size={14} /> Print

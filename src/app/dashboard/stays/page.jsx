@@ -8,7 +8,7 @@ import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -137,26 +137,34 @@ const StaysPage = () => {
 
   // Export states
   const [isExporting, setIsExporting] = useState(false);
-  const [exportStays, setExportStays] = useState([]);
-  const printRef = useRef(null);
-  const folioPrintRef = useRef(null);
-  
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const customerPrintRef = useRef(null);
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
+  const {
+    printData: exportStays,
+    setPrintData: setExportStays,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
     documentTitle: "Stay_and_Folio_Report",
+    onAfterPrint: () => setIsExporting(false)
   });
 
-  const handleFolioPrint = useReactToPrint({
-    contentRef: folioPrintRef,
-    documentTitle: `Folio_Ledger_${selectedStay?.stayNo || "Report"}`,
+  const {
+    printData: folioPrintRes,
+    setPrintData: setFolioPrintRes,
+    printRef: folioPrintRef,
+    handlePrint: handleFolioPrint
+  } = useStandardPrint({
+    documentTitle: `Folio_Ledger_${selectedStay?.stayNo || "Report"}`
   });
 
-  const handleCustomerPrint = useReactToPrint({
-    contentRef: customerPrintRef,
-    documentTitle: `Customer_Profile_${selectedStay?.customer?.fullName || "Report"}`,
+  const {
+    printData: customerPrintRes,
+    setPrintData: setCustomerPrintRes,
+    printRef: customerPrintRef,
+    handlePrint: handleCustomerPrint
+  } = useStandardPrint({
+    documentTitle: `Customer_Profile_${selectedStay?.customer?.fullName || "Report"}`
   });
 
   // Posting modals state
@@ -314,10 +322,6 @@ const StaysPage = () => {
     try {
       const data = await fetchAllStaysForExport();
       setExportStays(data);
-      setTimeout(() => {
-        handlePrint();
-        setIsExporting(false);
-      }, 300);
     } catch (err) {
       console.error(err);
       setIsExporting(false);
@@ -367,7 +371,7 @@ const StaysPage = () => {
   };
 
   const handlePrintFolioReport = () => {
-    handleFolioPrint();
+    setFolioPrintRes(selectedStay);
   };
 
   const handlePostFoodOrder = async () => {
@@ -478,7 +482,7 @@ const StaysPage = () => {
         icon: "success",
         confirmButtonText: "OK"
       }).then(() => {
-        handleFolioPrint();
+        setFolioPrintRes(selectedStay);
         setIsCheckoutModalOpen(false);
         setSelectedStay(null);
         setCheckoutPayment({ paymentType: "", amount: "", transactionRef: "" });
@@ -696,7 +700,7 @@ const StaysPage = () => {
                   <ExportButtons
                     onExportExcel={handleExportFolioExcel}
                     onExportCsv={handleExportFolioCsv}
-                    onPrint={handleFolioPrint}
+                    onPrint={() => setFolioPrintRes(selectedStay)}
                     isLoading={false}
                   />
                   <button onClick={() => setSelectedStay(null)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:bg-brand-beige">
@@ -1311,7 +1315,7 @@ const StaysPage = () => {
                 Close
               </button>
               <button 
-                onClick={handleCustomerPrint} 
+                onClick={() => setCustomerPrintRes(selectedStay)} 
                 className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md"
               >
                 Print Profile
@@ -1322,54 +1326,54 @@ const StaysPage = () => {
       )}
 
       {/* Hidden print container for Customer Profile Details */}
-      {selectedStay && selectedStay.customer && (
+      {customerPrintRes && customerPrintRes.customer && (
         <div style={{ display: "none" }}>
           <PrintReportTemplate
             ref={customerPrintRef}
             title="Guest Information Profile Report"
-            subtitle={`Customer Profile details for guest: ${selectedStay.customer.fullName}`}
+            subtitle={`Customer Profile details for guest: ${customerPrintRes.customer.fullName}`}
             dateRange=""
           >
             <div style={{ display: "flex", gap: "30px", marginBottom: "30px", borderBottom: "1px solid #ccc", paddingBottom: "20px" }}>
               <div style={{ width: "120px" }}>
-                {selectedStay.customer.customerPhoto ? (
-                  <img src={selectedStay.customer.customerPhoto} alt="Photo" style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "4px" }} />
+                {customerPrintRes.customer.customerPhoto ? (
+                  <img src={customerPrintRes.customer.customerPhoto} alt="Photo" style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "4px" }} />
                 ) : (
-                  <div style={{ width: "120px", height: "120px", border: "1px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "40px", backgroundColor: "#f3f4f6", color: "#6b7280" }}>
-                    {selectedStay.customer.fullName?.charAt(0).toUpperCase()}
+                  <div style={{ width: "120px", height: "120px", border: "1px solid #ccc", display: "flex", alignItems: "center", justifycontent: "center", fontWeight: "bold", fontSize: "40px", backgroundColor: "#f3f4f6", color: "#6b7280" }}>
+                    {customerPrintRes.customer.fullName?.charAt(0).toUpperCase()}
                   </div>
                 )}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 30px", width: "100%", fontSize: "12px" }}>
-                <div><strong>Full Name:</strong> {selectedStay.customer.fullName}</div>
-                <div><strong>Phone Number:</strong> {selectedStay.customer.phoneNumber}</div>
-                <div><strong>Email Address:</strong> {selectedStay.customer.emailAddress || "N/A"}</div>
-                <div><strong>Nationality:</strong> {selectedStay.customer.nationality || "Bangladeshi"}</div>
-                <div><strong>Gender / Marital Status:</strong> {selectedStay.customer.gender} / {selectedStay.customer.maritalStatus}</div>
-                <div><strong>Date of Birth:</strong> {selectedStay.customer.dateOfBirth ? new Date(selectedStay.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}</div>
+                <div><strong>Full Name:</strong> {customerPrintRes.customer.fullName}</div>
+                <div><strong>Phone Number:</strong> {customerPrintRes.customer.phoneNumber}</div>
+                <div><strong>Email Address:</strong> {customerPrintRes.customer.emailAddress || "N/A"}</div>
+                <div><strong>Nationality:</strong> {customerPrintRes.customer.nationality || "Bangladeshi"}</div>
+                <div><strong>Gender / Marital Status:</strong> {customerPrintRes.customer.gender} / {customerPrintRes.customer.maritalStatus}</div>
+                <div><strong>Date of Birth:</strong> {customerPrintRes.customer.dateOfBirth ? new Date(customerPrintRes.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}</div>
               </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "30px", fontSize: "12px" }}>
               <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px" }}>
                 <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>IDENTIFICATION</h4>
-                <p style={{ margin: "5px 0" }}><strong>ID Type:</strong> {selectedStay.customer.identificationType || "N/A"}</p>
-                <p style={{ margin: "5px 0" }}><strong>ID Number:</strong> {selectedStay.customer.identificationNumber || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>ID Type:</strong> {customerPrintRes.customer.identificationType || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>ID Number:</strong> {customerPrintRes.customer.identificationNumber || "N/A"}</p>
               </div>
 
               <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px" }}>
                 <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>OCCUPATION INFO</h4>
-                <p style={{ margin: "5px 0" }}><strong>Occupation:</strong> {selectedStay.customer.occupation || "N/A"}</p>
-                <p style={{ margin: "5px 0" }}><strong>Company Name:</strong> {selectedStay.customer.companyName || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>Occupation:</strong> {customerPrintRes.customer.occupation || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>Company Name:</strong> {customerPrintRes.customer.companyName || "N/A"}</p>
               </div>
             </div>
 
             <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px", marginBottom: "30px", fontSize: "12px" }}>
               <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>RESIDENTIAL ADDRESS</h4>
-              {selectedStay.customer.address ? (
+              {customerPrintRes.customer.address ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-                  <p style={{ margin: "0" }}><strong>Street:</strong> {selectedStay.customer.address.line1} {selectedStay.customer.address.line2 || ""}</p>
-                  <p style={{ margin: "0" }}><strong>City/Division/Country:</strong> {selectedStay.customer.address.city || "—"}, {selectedStay.customer.address.division || "—"}, {selectedStay.customer.address.country || "Bangladesh"}</p>
+                  <p style={{ margin: "0" }}><strong>Street:</strong> {customerPrintRes.customer.address.line1} {customerPrintRes.customer.address.line2 || ""}</p>
+                  <p style={{ margin: "0" }}><strong>City/Division/Country:</strong> {customerPrintRes.customer.address.city || "—"}, {customerPrintRes.customer.address.division || "—"}, {customerPrintRes.customer.address.country || "Bangladesh"}</p>
                 </div>
               ) : (
                 <p style={{ margin: "0", fontStyle: "italic" }}>No address provided.</p>
@@ -1378,11 +1382,11 @@ const StaysPage = () => {
 
             <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px", marginBottom: "30px", fontSize: "12px" }}>
               <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>EMERGENCY CONTACT</h4>
-              {selectedStay.customer.emergencyContact ? (
+              {customerPrintRes.customer.emergencyContact ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
-                  <p style={{ margin: "0" }}><strong>Name:</strong> {selectedStay.customer.emergencyContact.name || "N/A"}</p>
-                  <p style={{ margin: "0" }}><strong>Relation:</strong> {selectedStay.customer.emergencyContact.relation || "N/A"}</p>
-                  <p style={{ margin: "0" }}><strong>Phone:</strong> {selectedStay.customer.emergencyContact.phoneNumber || "N/A"}</p>
+                  <p style={{ margin: "0" }}><strong>Name:</strong> {customerPrintRes.customer.emergencyContact.name || "N/A"}</p>
+                  <p style={{ margin: "0" }}><strong>Relation:</strong> {customerPrintRes.customer.emergencyContact.relation || "N/A"}</p>
+                  <p style={{ margin: "0" }}><strong>Phone:</strong> {customerPrintRes.customer.emergencyContact.phoneNumber || "N/A"}</p>
                 </div>
               ) : (
                 <p style={{ margin: "0", fontStyle: "italic" }}>No emergency contact details provided.</p>
@@ -1439,58 +1443,60 @@ const StaysPage = () => {
 
       {/* Hidden print container for Guest Folio Ledger */}
       <div style={{ display: "none" }}>
-        <PrintReportTemplate
-          ref={folioPrintRef}
-          title={`Guest Folio Ledger - ${selectedStay?.stayNo}`}
-          subtitle={`Folio account details for guest ${selectedStay?.customer?.fullName || "Guest"}`}
-          dateRange={`Check-in: ${selectedStay ? new Date(selectedStay.checkInDate).toLocaleDateString("en-GB") : ""} to Expected Check-out: ${selectedStay ? new Date(selectedStay.expectedCheckOutDate).toLocaleDateString("en-GB") : ""}`}
-        >
-          <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
-            <strong>Customer Name:</strong> {selectedStay?.customer?.fullName} &nbsp;|&nbsp; 
-            <strong>Email:</strong> {selectedStay?.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
-            <strong>Phone:</strong> {selectedStay?.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
-            <strong>Assigned Rooms:</strong> {selectedStay?.rooms?.map(r => r.room?.roomNumber).join(", ")}
-          </div>
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Description</th>
-                <th style={{ textAlign: "right" }}>Debit (Charges)</th>
-                <th style={{ textAlign: "right" }}>Credit (Credits)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {folioEntries.map((row) => (
-                <tr key={row._id}>
-                  <td>{new Date(row.date).toLocaleDateString("en-GB")}</td>
-                  <td>{row.type}</td>
-                  <td style={{ fontWeight: "bold" }}>{row.description}</td>
-                  <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>
-                    {row.debit > 0 ? `৳${row.debit.toFixed(2)}` : "—"}
-                  </td>
-                  <td style={{ textAlign: "right", color: "green", fontWeight: "bold" }}>
-                    {row.credit > 0 ? `৳${row.credit.toFixed(2)}` : "—"}
+        {folioPrintRes && (
+          <PrintReportTemplate
+            ref={folioPrintRef}
+            title={`Guest Folio Ledger - ${folioPrintRes.stayNo}`}
+            subtitle={`Folio account details for guest ${folioPrintRes.customer?.fullName || "Guest"}`}
+            dateRange={`Check-in: ${new Date(folioPrintRes.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(folioPrintRes.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
+          >
+            <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
+              <strong>Customer Name:</strong> {folioPrintRes.customer?.fullName} &nbsp;|&nbsp; 
+              <strong>Email:</strong> {folioPrintRes.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
+              <strong>Phone:</strong> {folioPrintRes.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
+              <strong>Assigned Rooms:</strong> {folioPrintRes.rooms?.map(r => r.room?.roomNumber).join(", ")}
+            </div>
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                  <th style={{ textAlign: "right" }}>Debit (Charges)</th>
+                  <th style={{ textAlign: "right" }}>Credit (Credits)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {folioEntries.map((row) => (
+                  <tr key={row._id}>
+                    <td>{new Date(row.date).toLocaleDateString("en-GB")}</td>
+                    <td>{row.type}</td>
+                    <td style={{ fontWeight: "bold" }}>{row.description}</td>
+                    <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>
+                      {row.debit > 0 ? `৳${row.debit.toFixed(2)}` : "—"}
+                    </td>
+                    <td style={{ textAlign: "right", color: "green", fontWeight: "bold" }}>
+                      {row.credit > 0 ? `৳${row.credit.toFixed(2)}` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ fontWeight: "bold" }}>
+                  <td colSpan="3">TOTALS</td>
+                  <td style={{ textAlign: "right", color: "red" }}>৳{totalDebit.toFixed(2)}</td>
+                  <td style={{ textAlign: "right", color: "green" }}>৳{totalCredit.toFixed(2)}</td>
+                </tr>
+                <tr style={{ fontWeight: "bold", fontSize: "12px" }}>
+                  <td colSpan="3" style={{ borderTop: "2px solid black" }}>OUTSTANDING DUE BALANCE:</td>
+                  <td colSpan="2" style={{ textAlign: "right", color: outstandingDue > 0 ? "red" : "green", borderTop: "2px solid black" }}>
+                    ৳{outstandingDue.toFixed(2)}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ fontWeight: "bold" }}>
-                <td colSpan="3">TOTALS</td>
-                <td style={{ textAlign: "right", color: "red" }}>৳{totalDebit.toFixed(2)}</td>
-                <td style={{ textAlign: "right", color: "green" }}>৳{totalCredit.toFixed(2)}</td>
-              </tr>
-              <tr style={{ fontWeight: "bold", fontSize: "12px" }}>
-                <td colSpan="3" style={{ borderTop: "2px solid black" }}>OUTSTANDING DUE BALANCE:</td>
-                <td colSpan="2" style={{ textAlign: "right", color: outstandingDue > 0 ? "red" : "green", borderTop: "2px solid black" }}>
-                  ৳{outstandingDue.toFixed(2)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </PrintReportTemplate>
+              </tfoot>
+            </table>
+          </PrintReportTemplate>
+        )}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { FiEdit, FiTrash2, FiX, FiSearch, FiPlus, FiCreditCard, FiCheck, FiPrinter, FiXCircle } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -56,14 +56,12 @@ const ReservationsPage = () => {
   );
 
   // Printing states & Ref
-  const printRef = useRef(null);
-  const [printRes, setPrintRes] = useState(null);
+  const {
+    printData: printRes,
+    setPrintData: setPrintRes,
+    printRef
+  } = useStandardPrint();
   const [company, setCompany] = useState(null);
-
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    onAfterPrint: () => setPrintRes(null)
-  });
 
   // Fetch company details for letterhead print
   useEffect(() => {
@@ -81,12 +79,6 @@ const ReservationsPage = () => {
       fetchCompany();
     }
   }, [axiosSecure, currentUser]);
-
-  useEffect(() => {
-    if (printRes) {
-      handlePrint();
-    }
-  }, [printRes]);
 
   // Lists for dropdowns
   const [customers, setCustomers] = useState([]);

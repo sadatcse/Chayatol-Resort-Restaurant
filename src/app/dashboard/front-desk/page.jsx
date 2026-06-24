@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useContext, useRef, useMemo, useCallback } from "react";
-import { FiChevronLeft, FiChevronRight, FiPlus, FiCalendar, FiUser, FiHome, FiCheckCircle, FiInfo, FiX, FiEye, FiSearch, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiArrowRight, FiCreditCard, FiCheck, FiPrinter, FiXCircle } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiPlus, FiCalendar, FiUser, FiHome, FiCheckCircle, FiInfo, FiX, FiEye, FiSearch, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiArrowRight, FiCreditCard, FiCheck, FiPrinter, FiXCircle, FiTrash2 } from "react-icons/fi";
 import { MdRestaurant, MdBeachAccess } from "react-icons/md";
 import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
@@ -67,9 +67,24 @@ const FrontDeskTimelinePage = () => {
   const [extendFormData, setExtendFormData] = useState({ newCheckOutDate: "" });
   const [checkoutPayment, setCheckoutPayment] = useState({ paymentType: "", amount: "", transactionRef: "" });
 
-  // Refs for Stays print
-  const folioPrintRef = useRef(null);
-  const customerPrintRef = useRef(null);
+  // Standardize Print hook integration
+  const {
+    printData: folioPrintData,
+    setPrintData: setFolioPrintData,
+    printRef: folioPrintRef,
+    handlePrint: handleFolioPrint
+  } = useStandardPrint({
+    documentTitle: "Folio_Ledger",
+  });
+
+  const {
+    printData: customerPrintData,
+    setPrintData: setCustomerPrintData,
+    printRef: customerPrintRef,
+    handlePrint: handleCustomerPrint
+  } = useStandardPrint({
+    documentTitle: "Customer_Profile",
+  });
 
   // --- Reservations Dashboard State ---
   const [selectedRes, setSelectedRes] = useState(null);
@@ -86,7 +101,14 @@ const FrontDeskTimelinePage = () => {
 
   // Refs/details for Reservations print
   const [company, setCompany] = useState(null);
-  const resPrintRef = useRef(null);
+  const {
+    printData: resPrintData,
+    setPrintData: setResPrintData,
+    printRef: resPrintRef,
+    handlePrint: handleResPrint
+  } = useStandardPrint({
+    documentTitle: "Reservation_Invoice",
+  });
 
   // --- Walk-in Check-In Overlay Modal State ---
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
@@ -632,21 +654,7 @@ const FrontDeskTimelinePage = () => {
     return null;
   };
 
-  // Print setup hooks
-  const handleFolioPrint = useReactToPrint({
-    contentRef: folioPrintRef,
-    documentTitle: `Folio_Ledger_${selectedStay?.stayNo || "Report"}`,
-  });
 
-  const handleCustomerPrint = useReactToPrint({
-    contentRef: customerPrintRef,
-    documentTitle: `Customer_Profile_${selectedStay?.customer?.fullName || "Report"}`,
-  });
-
-  const handleResPrint = useReactToPrint({
-    contentRef: resPrintRef,
-    documentTitle: `Reservation_Invoice_${selectedRes?.reservationNo || "Report"}`,
-  });
 
   // Stays operations
   const fetchFolio = async (stayId) => {
@@ -791,7 +799,7 @@ const FrontDeskTimelinePage = () => {
         icon: "success",
         confirmButtonText: "OK"
       }).then(() => {
-        handleFolioPrint();
+        setFolioPrintData(selectedStay);
         setIsCheckoutModalOpen(false);
         setSelectedStay(null);
         setSelectedBlock(null);
@@ -1344,7 +1352,7 @@ const FrontDeskTimelinePage = () => {
                 <ExportButtons
                   onExportExcel={handleExportFolioExcel}
                   onExportCsv={handleExportFolioCsv}
-                  onPrint={handleFolioPrint}
+                  onPrint={() => setFolioPrintData(selectedStay)}
                   isLoading={false}
                 />
                 <button 
@@ -1483,7 +1491,7 @@ const FrontDeskTimelinePage = () => {
                   <FiCreditCard size={12} /> Manage Payments
                 </button>
                 <button 
-                  onClick={() => handleResPrint()} 
+                  onClick={() => setResPrintData(selectedRes)} 
                   className="btn btn-xs btn-outline border-brand-primary text-brand-primary rounded-lg px-3 py-1.5 h-auto flex items-center gap-1 uppercase tracking-widest font-bold text-[9px]"
                   title="Print Reservation Invoice"
                 >
@@ -2148,7 +2156,7 @@ const FrontDeskTimelinePage = () => {
                 Close
               </button>
               <button 
-                onClick={handleCustomerPrint} 
+                onClick={() => setCustomerPrintData(selectedStay)} 
                 className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md"
               >
                 Print Profile
@@ -2288,55 +2296,55 @@ const FrontDeskTimelinePage = () => {
         </dialog>
       )}
 
-      {/* Hidden print containers for react-to-print */}
-      {selectedStay && selectedStay.customer && (
+      {/* Hidden print containers for useStandardPrint */}
+      {customerPrintData && customerPrintData.customer && (
         <div style={{ display: "none" }}>
           <PrintReportTemplate
             ref={customerPrintRef}
             title="Guest Information Profile Report"
-            subtitle={`Customer Profile details for guest: ${selectedStay.customer.fullName}`}
+            subtitle={`Customer Profile details for guest: ${customerPrintData.customer.fullName}`}
             dateRange=""
           >
             <div style={{ display: "flex", gap: "30px", marginBottom: "30px", borderBottom: "1px solid #ccc", paddingBottom: "20px" }}>
               <div style={{ width: "120px" }}>
-                {selectedStay.customer.customerPhoto ? (
-                  <img src={selectedStay.customer.customerPhoto} alt="Photo" style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "4px" }} />
+                {customerPrintData.customer.customerPhoto ? (
+                  <img src={customerPrintData.customer.customerPhoto} alt="Photo" style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "4px" }} />
                 ) : (
                   <div style={{ width: "120px", height: "120px", border: "1px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "40px", backgroundColor: "#f3f4f6", color: "#6b7280" }}>
-                    {selectedStay.customer.fullName?.charAt(0).toUpperCase()}
+                    {customerPrintData.customer.fullName?.charAt(0).toUpperCase()}
                   </div>
                 )}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 30px", width: "100%", fontSize: "12px", color: "#000" }}>
-                <div><strong>Full Name:</strong> {selectedStay.customer.fullName}</div>
-                <div><strong>Phone Number:</strong> {selectedStay.customer.phoneNumber}</div>
-                <div><strong>Email Address:</strong> {selectedStay.customer.emailAddress || "N/A"}</div>
-                <div><strong>Nationality:</strong> {selectedStay.customer.nationality || "Bangladeshi"}</div>
-                <div><strong>Gender / Marital Status:</strong> {selectedStay.customer.gender} / {selectedStay.customer.maritalStatus}</div>
-                <div><strong>Date of Birth:</strong> {selectedStay.customer.dateOfBirth ? new Date(selectedStay.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}</div>
+                <div><strong>Full Name:</strong> {customerPrintData.customer.fullName}</div>
+                <div><strong>Phone Number:</strong> {customerPrintData.customer.phoneNumber}</div>
+                <div><strong>Email Address:</strong> {customerPrintData.customer.emailAddress || "N/A"}</div>
+                <div><strong>Nationality:</strong> {customerPrintData.customer.nationality || "Bangladeshi"}</div>
+                <div><strong>Gender / Marital Status:</strong> {customerPrintData.customer.gender} / {customerPrintData.customer.maritalStatus}</div>
+                <div><strong>Date of Birth:</strong> {customerPrintData.customer.dateOfBirth ? new Date(customerPrintData.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}</div>
               </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "30px", fontSize: "12px", color: "#000" }}>
               <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px" }}>
                 <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>IDENTIFICATION</h4>
-                <p style={{ margin: "5px 0" }}><strong>ID Type:</strong> {selectedStay.customer.identificationType || "N/A"}</p>
-                <p style={{ margin: "5px 0" }}><strong>ID Number:</strong> {selectedStay.customer.identificationNumber || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>ID Type:</strong> {customerPrintData.customer.identificationType || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>ID Number:</strong> {customerPrintData.customer.identificationNumber || "N/A"}</p>
               </div>
 
               <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px" }}>
                 <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>OCCUPATION INFO</h4>
-                <p style={{ margin: "5px 0" }}><strong>Occupation:</strong> {selectedStay.customer.occupation || "N/A"}</p>
-                <p style={{ margin: "5px 0" }}><strong>Company Name:</strong> {selectedStay.customer.companyName || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>Occupation:</strong> {customerPrintData.customer.occupation || "N/A"}</p>
+                <p style={{ margin: "5px 0" }}><strong>Company Name:</strong> {customerPrintData.customer.companyName || "N/A"}</p>
               </div>
             </div>
 
             <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px", marginBottom: "30px", fontSize: "12px", color: "#000" }}>
               <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>RESIDENTIAL ADDRESS</h4>
-              {selectedStay.customer.address ? (
+              {customerPrintData.customer.address ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-                  <p style={{ margin: "0" }}><strong>Street:</strong> {selectedStay.customer.address.line1} {selectedStay.customer.address.line2 || ""}</p>
-                  <p style={{ margin: "0" }}><strong>City/Division/Country:</strong> {selectedStay.customer.address.city || "—"}, {selectedStay.customer.address.division || "—"}, {selectedStay.customer.address.country || "Bangladesh"}</p>
+                  <p style={{ margin: "0" }}><strong>Street:</strong> {customerPrintData.customer.address.line1} {customerPrintData.customer.address.line2 || ""}</p>
+                  <p style={{ margin: "0" }}><strong>City/Division/Country:</strong> {customerPrintData.customer.address.city || "—"}, {customerPrintData.customer.address.division || "—"}, {customerPrintData.customer.address.country || "Bangladesh"}</p>
                 </div>
               ) : (
                 <p style={{ margin: "0", fontStyle: "italic" }}>No address provided.</p>
@@ -2345,11 +2353,11 @@ const FrontDeskTimelinePage = () => {
 
             <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px", marginBottom: "30px", fontSize: "12px", color: "#000" }}>
               <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>EMERGENCY CONTACT</h4>
-              {selectedStay.customer.emergencyContact ? (
+              {customerPrintData.customer.emergencyContact ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
-                  <p style={{ margin: "0" }}><strong>Name:</strong> {selectedStay.customer.emergencyContact.name || "N/A"}</p>
-                  <p style={{ margin: "0" }}><strong>Relation:</strong> {selectedStay.customer.emergencyContact.relation || "N/A"}</p>
-                  <p style={{ margin: "0" }}><strong>Phone:</strong> {selectedStay.customer.emergencyContact.phoneNumber || "N/A"}</p>
+                  <p style={{ margin: "0" }}><strong>Name:</strong> {customerPrintData.customer.emergencyContact.name || "N/A"}</p>
+                  <p style={{ margin: "0" }}><strong>Relation:</strong> {customerPrintData.customer.emergencyContact.relation || "N/A"}</p>
+                  <p style={{ margin: "0" }}><strong>Phone:</strong> {customerPrintData.customer.emergencyContact.phoneNumber || "N/A"}</p>
                 </div>
               ) : (
                 <p style={{ margin: "0", fontStyle: "italic" }}>No emergency contact details provided.</p>
@@ -2359,19 +2367,19 @@ const FrontDeskTimelinePage = () => {
         </div>
       )}
 
-      {selectedStay && (
+      {folioPrintData && (
         <div style={{ display: "none" }}>
           <PrintReportTemplate
             ref={folioPrintRef}
-            title={`Guest Folio Ledger - ${selectedStay.stayNo}`}
-            subtitle={`Folio account details for guest ${selectedStay.customer?.fullName || "Guest"}`}
-            dateRange={`Check-in: ${new Date(selectedStay.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(selectedStay.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
+            title={`Guest Folio Ledger - ${folioPrintData.stayNo}`}
+            subtitle={`Folio account details for guest ${folioPrintData.customer?.fullName || "Guest"}`}
+            dateRange={`Check-in: ${new Date(folioPrintData.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(folioPrintData.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
           >
             <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px", color: "#000" }}>
-              <strong>Customer Name:</strong> {selectedStay.customer?.fullName} &nbsp;|&nbsp; 
-              <strong>Email:</strong> {selectedStay.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
-              <strong>Phone:</strong> {selectedStay.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
-              <strong>Assigned Rooms:</strong> {selectedStay.rooms?.map(r => r.room?.roomNumber).join(", ")}
+              <strong>Customer Name:</strong> {folioPrintData.customer?.fullName} &nbsp;|&nbsp; 
+              <strong>Email:</strong> {folioPrintData.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
+              <strong>Phone:</strong> {folioPrintData.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
+              <strong>Assigned Rooms:</strong> {folioPrintData.rooms?.map(r => r.room?.roomNumber).join(", ")}
             </div>
             <table className="print-table">
               <thead>
@@ -2416,74 +2424,56 @@ const FrontDeskTimelinePage = () => {
         </div>
       )}
 
-      {selectedRes && (
+      {resPrintData && (
         <div style={{ display: "none" }}>
-          <div ref={resPrintRef} className="p-8 bg-white text-black font-sans w-full" style={{ color: "#000" }}>
-            {/* Header Letterhead */}
-            <div style={{ display: "flex", justifyContent: "between", alignItems: "start", borderBottom: "2px solid #000", paddingBottom: "15px", marginBottom: "25px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-                {company?.logo ? (
-                  <img src={company.logo} alt="Logo" style={{ width: "64px", height: "64px", objectFit: "contain" }} />
-                ) : (
-                  <div style={{ width: "64px", height: "64px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "20px", border: "1px solid #ccc", borderRadius: "4px" }}>
-                    CR
-                  </div>
-                )}
-                <div>
-                  <h1 style={{ fontSize: "20px", fontWeight: "800", margin: 0 }}>{company?.name || "Chayatol Resort & Restaurant"}</h1>
-                  <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{company?.address}</p>
-                  <p style={{ fontSize: "11px", margin: 0 }}>Phone: {company?.phone} | Email: {company?.email}</p>
-                </div>
-              </div>
-              <div style={{ textAlign: "right", fontSize: "11px" }}>
-                <p style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase", margin: 0 }}>Reservation Invoice</p>
-                <p style={{ margin: "2px 0 0 0" }}><strong>Reservation No:</strong> {selectedRes.reservationNo}</p>
-                <p style={{ margin: 0 }}><strong>Date:</strong> {new Date(selectedRes.createdAt || Date.now()).toLocaleDateString()}</p>
-              </div>
-            </div>
-
+          <PrintReportTemplate
+            ref={resPrintRef}
+            title="Reservation Invoice"
+            subtitle={`Invoice for Reservation No: ${resPrintData.reservationNo}`}
+            dateRange=""
+          >
             {/* Guest & Reservation details */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "25px", fontSize: "11px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "25px", fontSize: "11px", color: "#000" }}>
               <div>
                 <h3 style={{ fontWeight: "bold", borderBottom: "1px solid #ccc", paddingBottom: "4px", textTransform: "uppercase", margin: "0 0 8px 0" }}>Guest Information</h3>
-                <p style={{ margin: "3px 0" }}><strong>Name:</strong> {selectedRes.customer?.fullName}</p>
-                <p style={{ margin: "3px 0" }}><strong>Phone:</strong> {selectedRes.customer?.phoneNumber}</p>
-                {selectedRes.customer?.email && <p style={{ margin: "3px 0" }}><strong>Email:</strong> {selectedRes.customer.email}</p>}
+                <p style={{ margin: "3px 0" }}><strong>Name:</strong> {resPrintData.customer?.fullName}</p>
+                <p style={{ margin: "3px 0" }}><strong>Phone:</strong> {resPrintData.customer?.phoneNumber}</p>
+                {resPrintData.customer?.emailAddress && <p style={{ margin: "3px 0" }}><strong>Email:</strong> {resPrintData.customer.emailAddress}</p>}
               </div>
               <div>
                 <h3 style={{ fontWeight: "bold", borderBottom: "1px solid #ccc", paddingBottom: "4px", textTransform: "uppercase", margin: "0 0 8px 0" }}>Reservation Info</h3>
-                <p style={{ margin: "3px 0" }}><strong>Check-In Date:</strong> {new Date(selectedRes.checkInDate).toLocaleDateString()}</p>
-                <p style={{ margin: "3px 0" }}><strong>Check-Out Date:</strong> {new Date(selectedRes.checkOutDate).toLocaleDateString()}</p>
-                <p style={{ margin: "3px 0" }}><strong>Booking Source:</strong> {selectedRes.bookingSource}</p>
-                <p style={{ margin: "3px 0" }}><strong>Status:</strong> {selectedRes.status}</p>
+                <p style={{ margin: "3px 0" }}><strong>Check-In Date:</strong> {new Date(resPrintData.checkInDate).toLocaleDateString("en-GB")}</p>
+                <p style={{ margin: "3px 0" }}><strong>Check-Out Date:</strong> {new Date(resPrintData.checkOutDate).toLocaleDateString("en-GB")}</p>
+                <p style={{ margin: "3px 0" }}><strong>Booking Source:</strong> {resPrintData.bookingSource}</p>
+                <p style={{ margin: "3px 0" }}><strong>Status:</strong> {resPrintData.status}</p>
               </div>
             </div>
 
             {/* Booked Rooms Table */}
             <div style={{ marginBottom: "25px" }}>
               <h3 style={{ fontSize: "11px", fontWeight: "bold", textTransform: "uppercase", margin: "0 0 8px 0" }}>Booked Rooms</h3>
-              <table style={{ width: "100%", fontSize: "11px", textAlign: "left", borderCollapse: "collapse", border: "1px solid #ddd" }}>
+              <table className="print-table" style={{ width: "100%", fontSize: "11px", textAlign: "left", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ backgroundColor: "#f3f4f6", borderBottom: "1px solid #ddd" }}>
-                    <th style={{ padding: "8px", border: "1px solid #ddd" }}>Room Type</th>
-                    <th style={{ padding: "8px", border: "1px solid #ddd" }}>Meal Plan</th>
-                    <th style={{ padding: "8px", border: "1px solid #ddd" }}>Assigned Room</th>
-                    <th style={{ padding: "8px", border: "1px solid #ddd", textAlign: "right" }}>Nightly Rate</th>
-                    <th style={{ padding: "8px", border: "1px solid #ddd", textAlign: "center" }}>Nights</th>
-                    <th style={{ padding: "8px", border: "1px solid #ddd", textAlign: "right" }}>Subtotal</th>
+                  <tr>
+                    <th>Room Type</th>
+                    <th>Meal Plan</th>
+                    <th>Assigned Room</th>
+                    <th style={{ textAlign: "right" }}>Nightly Rate</th>
+                    <th style={{ textAlign: "center" }}>Nights</th>
+                    <th style={{ textAlign: "right" }}>Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedRes.rooms.map((r, i) => {
+                  {resPrintData.rooms.map((r, i) => {
                     const sub = r.nightlyRate * r.nights;
                     return (
-                      <tr key={i} style={{ borderBottom: "1px solid #ddd" }}>
-                        <td style={{ padding: "8px", border: "1px solid #ddd" }}>{r.roomType}</td>
-                        <td style={{ padding: "8px", border: "1px solid #ddd" }}>{r.mealPlan || "Room Only"}</td>
-                        <td style={{ padding: "8px", border: "1px solid #ddd" }}>{r.room?.roomNumber || r.roomNo || "Unassigned"}</td>
-                        <td style={{ padding: "8px", border: "1px solid #ddd", textAlign: "right" }}>৳{r.nightlyRate}</td>
-                        <td style={{ padding: "8px", border: "1px solid #ddd", textAlign: "center" }}>{r.nights}</td>
-                        <td style={{ padding: "8px", border: "1px solid #ddd", textAlign: "right", fontWeight: "bold" }}>৳{sub}</td>
+                      <tr key={i}>
+                        <td>{r.roomType}</td>
+                        <td>{r.mealPlan || "Room Only"}</td>
+                        <td>{r.room?.roomNumber || r.roomNo || "Unassigned"}</td>
+                        <td style={{ textAlign: "right" }}>৳{r.nightlyRate}</td>
+                        <td style={{ textAlign: "center" }}>{r.nights}</td>
+                        <td style={{ textAlign: "right", fontWeight: "bold" }}>৳{sub}</td>
                       </tr>
                     );
                   })}
@@ -2495,22 +2485,22 @@ const FrontDeskTimelinePage = () => {
             <div style={{ marginBottom: "25px" }}>
               <h3 style={{ fontSize: "11px", fontWeight: "bold", textTransform: "uppercase", margin: "0 0 8px 0" }}>Prepayment & Deposits</h3>
               {paymentsList.length > 0 ? (
-                <table style={{ width: "100%", fontSize: "11px", textAlign: "left", borderCollapse: "collapse", border: "1px solid #ddd" }}>
+                <table className="print-table" style={{ width: "100%", fontSize: "11px", textAlign: "left", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ backgroundColor: "#f3f4f6", borderBottom: "1px solid #ddd" }}>
-                      <th style={{ padding: "8px", border: "1px solid #ddd" }}>Date</th>
-                      <th style={{ padding: "8px", border: "1px solid #ddd" }}>Payment Method</th>
-                      <th style={{ padding: "8px", border: "1px solid #ddd" }}>Transaction Reference</th>
-                      <th style={{ padding: "8px", border: "1px solid #ddd", textAlign: "right" }}>Amount</th>
+                    <tr>
+                      <th>Date</th>
+                      <th>Payment Method</th>
+                      <th>Transaction Reference</th>
+                      <th style={{ textAlign: "right" }}>Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paymentsList.map((p, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid #ddd" }}>
-                        <td style={{ padding: "8px", border: "1px solid #ddd" }}>{new Date(p.paymentDate).toLocaleString()}</td>
-                        <td style={{ padding: "8px", border: "1px solid #ddd" }}>{p.paymentType}</td>
-                        <td style={{ padding: "8px", border: "1px solid #ddd" }}>{p.transactionRef || "N/A"}</td>
-                        <td style={{ padding: "8px", border: "1px solid #ddd", textAlign: "right", fontWeight: "bold", color: "green" }}>৳{p.amount}</td>
+                      <tr key={i}>
+                        <td>{new Date(p.paymentDate).toLocaleString("en-GB")}</td>
+                        <td>{p.paymentType}</td>
+                        <td>{p.transactionRef || "N/A"}</td>
+                        <td style={{ textAlign: "right", fontWeight: "bold", color: "green" }}>৳{p.amount}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2521,52 +2511,40 @@ const FrontDeskTimelinePage = () => {
             </div>
 
             {/* Cancellation details if Cancelled */}
-            {selectedRes.status === "Cancelled" && (
+            {resPrintData.status === "Cancelled" && (
               <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "5px", padding: "12px", marginBottom: "25px", fontSize: "11px", color: "#991b1b" }}>
                 <h4 style={{ margin: "0 0 5px 0", fontWeight: "bold", textTransform: "uppercase" }}>Cancellation Summary</h4>
-                <p style={{ margin: "3px 0" }}><strong>Cancellation Fee:</strong> ৳{selectedRes.cancellationFee || 0}</p>
-                {selectedRes.cancellationReason && <p style={{ margin: "3px 0" }}><strong>Reason:</strong> {selectedRes.cancellationReason}</p>}
+                <p style={{ margin: "3px 0" }}><strong>Cancellation Fee:</strong> ৳{resPrintData.cancellationFee || 0}</p>
+                {resPrintData.cancellationReason && <p style={{ margin: "3px 0" }}><strong>Reason:</strong> {resPrintData.cancellationReason}</p>}
               </div>
             )}
 
             {/* Final financial calculations summary */}
-            <div style={{ display: "flex", justifyContent: "end", marginBottom: "50px" }}>
+            <div style={{ display: "flex", justifyContent: "end" }}>
               <div style={{ width: "250px", fontSize: "11px", border: "1px solid #ddd", padding: "10px", borderRadius: "5px" }}>
-                <div style={{ display: "flex", justifyContent: "between", fontWeight: "semibold", margin: "2px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "semibold", margin: "2px 0" }}>
                   <span>Grand Total Cost:</span>
                   <span>৳{
-                    selectedRes.status === "Cancelled"
-                      ? (selectedRes.cancellationFee || 0)
-                      : selectedRes.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0)
+                    resPrintData.status === "Cancelled"
+                      ? (resPrintData.cancellationFee || 0)
+                      : resPrintData.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0)
                   }</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "between", fontWeight: "semibold", color: "green", margin: "2px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "semibold", color: "green", margin: "2px 0" }}>
                   <span>Total Deposit Paid:</span>
-                  <span>৳{selectedRes.totalPaid || 0}</span>
+                  <span>৳{resPrintData.totalPaid || 0}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "between", borderTop: "1px solid #ccc", paddingTop: "5px", fontWeight: "bold", color: "red", fontSize: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #ccc", paddingTop: "5px", fontWeight: "bold", color: "red", fontSize: "12px" }}>
                   <span>Outstanding Due:</span>
                   <span>৳{
-                    (selectedRes.status === "Cancelled"
-                      ? (selectedRes.cancellationFee || 0)
-                      : selectedRes.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0)) - (selectedRes.totalPaid || 0)
+                    (resPrintData.status === "Cancelled"
+                      ? (resPrintData.cancellationFee || 0)
+                      : resPrintData.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0)) - (resPrintData.totalPaid || 0)
                   }</span>
                 </div>
               </div>
             </div>
-
-            {/* Signatures */}
-            <div style={{ marginTop: "60px", display: "flex", justifyContent: "between", fontSize: "11px", color: "#6b7280" }}>
-              <div style={{ textAlign: "center", width: "150px" }}>
-                <div style={{ borderBottom: "1px solid #9ca3af", height: "40px", marginBottom: "4px" }}></div>
-                <p style={{ fontWeight: "bold", margin: 0 }}>Guest Signature</p>
-              </div>
-              <div style={{ textAlign: "center", width: "150px" }}>
-                <div style={{ borderBottom: "1px solid #9ca3af", height: "40px", marginBottom: "4px" }}></div>
-                <p style={{ fontWeight: "bold", margin: 0 }}>Authorized Signature</p>
-              </div>
-            </div>
-          </div>
+          </PrintReportTemplate>
         </div>
       )}
 

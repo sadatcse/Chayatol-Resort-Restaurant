@@ -7,7 +7,7 @@ import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -31,17 +31,21 @@ const RoomIssuePage = () => {
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportRoomIssues, setExportRoomIssues] = useState([]);
   const [expandedBatches, setExpandedBatches] = useState({});
-  const printRef = useRef(null);
 
   const toggleBatch = (batchId) => {
     setExpandedBatches((prev) => ({ ...prev, [batchId]: !prev[batchId] }));
   };
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
+  // Standardize Print hook integration
+  const {
+    printData,
+    setPrintData,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
     documentTitle: "Room_Consumable_Issue_Report",
+    onAfterPrint: () => setIsExporting(false)
   });
 
   const fetchAllRoomIssuesForExport = async () => {
@@ -49,7 +53,11 @@ const RoomIssuePage = () => {
       const params = new URLSearchParams({ page: 1, limit: 99999 });
       if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
       if (fromDate) params.append("from", fromDate.toISOString());
-      if (toDate) params.append("to", toDate.toISOString());
+      if (toDate) {
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        params.append("to", endOfDay.toISOString());
+      }
 
       const response = await axiosSecure.get(`/stock-ops/room-issue?${params.toString()}`);
       return response.data.data || [];
@@ -163,11 +171,7 @@ const RoomIssuePage = () => {
         }
       });
 
-      setExportRoomIssues(flatData);
-      setTimeout(() => {
-        handlePrint();
-        setIsExporting(false);
-      }, 300);
+      setPrintData(flatData);
     } catch (err) {
       console.error(err);
       setIsExporting(false);
@@ -562,43 +566,45 @@ const RoomIssuePage = () => {
       </AnimatePresence>
       {/* Hidden print container */}
       <div style={{ display: "none" }}>
-        <PrintReportTemplate
-          ref={printRef}
-          title="Room Consumable Issue Report"
-          subtitle="All consumable and amenity transfers to rooms"
-          dateRange={
-            fromDate && toDate
-              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
-              : "All Time"
-          }
-        >
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Item</th>
-                <th>Category</th>
-                <th style={{ textAlign: "right" }}>Quantity Issued</th>
-                <th>Room No.</th>
-                <th>Guest Name</th>
-                <th>Issued By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exportRoomIssues.map((r) => (
-                <tr key={r._id}>
-                  <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A"}</td>
-                  <td style={{ fontWeight: "bold" }}>{r.ingredient?.name} ({r.ingredient?.unit})</td>
-                  <td>{r.ingredient?.category?.categoryName || "—"}</td>
-                  <td style={{ textAlign: "right", color: "#2563eb", fontWeight: "bold" }}>−{Math.abs(r.adjustment)}</td>
-                  <td>Room {r.roomNumber}</td>
-                  <td>{r.guestName || "—"}</td>
-                  <td>{r.createdBy?.name || "System"}</td>
+        {printData && (
+          <PrintReportTemplate
+            ref={printRef}
+            title="Room Consumable Issue Report"
+            subtitle="All consumable and amenity transfers to rooms"
+            dateRange={
+              fromDate && toDate
+                ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+                : "All Time"
+            }
+          >
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Item</th>
+                  <th>Category</th>
+                  <th style={{ textAlign: "right" }}>Quantity Issued</th>
+                  <th>Room No.</th>
+                  <th>Guest Name</th>
+                  <th>Issued By</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </PrintReportTemplate>
+              </thead>
+              <tbody>
+                {printData.map((r) => (
+                  <tr key={r._id}>
+                    <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A"}</td>
+                    <td style={{ fontWeight: "bold" }}>{r.ingredient?.name} ({r.ingredient?.unit})</td>
+                    <td>{r.ingredient?.category?.categoryName || "—"}</td>
+                    <td style={{ textAlign: "right", color: "#2563eb", fontWeight: "bold" }}>−{Math.abs(r.adjustment)}</td>
+                    <td>Room {r.roomNumber}</td>
+                    <td>{r.guestName || "—"}</td>
+                    <td>{r.createdBy?.name || "System"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PrintReportTemplate>
+        )}
       </div>
     </div>
   );

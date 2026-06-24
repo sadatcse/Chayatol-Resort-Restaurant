@@ -7,7 +7,7 @@ import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -40,17 +40,21 @@ const WastagePage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportWastages, setExportWastages] = useState([]);
   const [expandedBatches, setExpandedBatches] = useState({});
-  const printRef = useRef(null);
 
   const toggleBatch = (batchId) => {
     setExpandedBatches((prev) => ({ ...prev, [batchId]: !prev[batchId] }));
   };
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
+  // Standardize Print hook integration
+  const {
+    printData,
+    setPrintData,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
     documentTitle: "Wastage_Management_Report",
+    onAfterPrint: () => setIsExporting(false)
   });
 
   const fetchAllWastageForExport = async () => {
@@ -167,11 +171,7 @@ const WastagePage = () => {
         }
       });
 
-      setExportWastages(flatData);
-      setTimeout(() => {
-        handlePrint();
-        setIsExporting(false);
-      }, 300);
+      setPrintData(flatData);
     } catch (err) {
       console.error(err);
       setIsExporting(false);
@@ -683,43 +683,45 @@ const WastagePage = () => {
       </AnimatePresence>
       {/* Hidden print container */}
       <div style={{ display: "none" }}>
-        <PrintReportTemplate
-          ref={printRef}
-          title="Wastage Management Report"
-          subtitle="All recorded damaged, expired, spoiled, or lost inventory"
-          dateRange={
-            fromDate && toDate
-              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
-              : "All Time"
-          }
-        >
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Ingredient</th>
-                <th>Category</th>
-                <th style={{ textAlign: "right" }}>Quantity Lost</th>
-                <th>Reason</th>
-                <th>Note</th>
-                <th>Recorded By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exportWastages.map((r) => (
-                <tr key={r._id}>
-                  <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A"}</td>
-                  <td style={{ fontWeight: "bold" }}>{r.ingredient?.name} ({r.ingredient?.unit})</td>
-                  <td>{r.ingredient?.category?.categoryName || "—"}</td>
-                  <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>−{Math.abs(r.adjustment)}</td>
-                  <td>{r.reason}</td>
-                  <td>{r.note || "—"}</td>
-                  <td>{r.createdBy?.name || "System"}</td>
+        {printData && (
+          <PrintReportTemplate
+            ref={printRef}
+            title="Wastage Management Report"
+            subtitle="All recorded damaged, expired, spoiled, or lost inventory"
+            dateRange={
+              fromDate && toDate
+                ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+                : "All Time"
+            }
+          >
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Ingredient</th>
+                  <th>Category</th>
+                  <th style={{ textAlign: "right" }}>Quantity Lost</th>
+                  <th>Reason</th>
+                  <th>Note</th>
+                  <th>Recorded By</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </PrintReportTemplate>
+              </thead>
+              <tbody>
+                {printData.map((r) => (
+                  <tr key={r._id}>
+                    <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A"}</td>
+                    <td style={{ fontWeight: "bold" }}>{r.ingredient?.name} ({r.ingredient?.unit})</td>
+                    <td>{r.ingredient?.category?.categoryName || "—"}</td>
+                    <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>−{Math.abs(r.adjustment)}</td>
+                    <td>{r.reason}</td>
+                    <td>{r.note || "—"}</td>
+                    <td>{r.createdBy?.name || "System"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PrintReportTemplate>
+        )}
       </div>
 
     </div>
