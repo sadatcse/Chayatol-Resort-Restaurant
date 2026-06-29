@@ -7,7 +7,7 @@ import { MdSearch, MdReceipt, MdVisibility, MdDelete, MdPrint, MdClose, MdEdit }
 import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
 import ReceiptPrint from "@/components/pos/ReceiptPrint";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 import SectionHeader from "@/components/Comon/SectionHeader";
 
 export default function InvoicesPage() {
@@ -19,8 +19,14 @@ export default function InvoicesPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   
-  const [printingInvoice, setPrintingInvoice] = useState(null);
-  const printRef = useRef(null);
+  const {
+    printData: printingInvoice,
+    setPrintData: setPrintingInvoice,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
+    documentTitle: "Invoice"
+  });
 
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -44,17 +50,9 @@ export default function InvoicesPage() {
     fetchInvoices();
   }, [fetchInvoices]);
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: "Invoice",
-  });
-
   const printReceipt = useCallback((invoice) => {
     setPrintingInvoice(invoice);
-    setTimeout(() => {
-      handlePrint();
-    }, 100);
-  }, [handlePrint]);
+  }, [setPrintingInvoice]);
 
   const printBatchReceipt = useCallback((invoice, batch, batchIndex) => {
     const batchSubTotal = batch.items?.reduce((acc, item) => acc + (item.totalPrice || 0), 0) || 0;
@@ -72,10 +70,7 @@ export default function InvoicesPage() {
       paymentMethod: "Pending" // KOT isn't fully paid on its own usually
     };
     setPrintingInvoice(batchInvoice);
-    setTimeout(() => {
-      handlePrint();
-    }, 100);
-  }, [handlePrint]);
+  }, [setPrintingInvoice]);
 
   const deleteInvoice = async (id) => {
     const result = await Swal.fire({

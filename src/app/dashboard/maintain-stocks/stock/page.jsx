@@ -5,7 +5,7 @@ import { FiEdit, FiSearch, FiSliders, FiBell, FiEye, FiX, FiCheckCircle, FiXCirc
 import { MdEditNote } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -513,12 +513,15 @@ const StocksPage = () => {
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportStocks, setExportStocks] = useState([]);
-  const printRef = useRef(null);
-
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
+  // Standardize Print hook integration
+  const {
+    printData,
+    setPrintData,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
     documentTitle: "Current_Stock_Levels",
+    onAfterPrint: () => setIsExporting(false)
   });
 
   const fetchAllStocksForExport = async () => {
@@ -593,11 +596,7 @@ const StocksPage = () => {
     setIsExporting(true);
     try {
       const data = await fetchAllStocksForExport();
-      setExportStocks(data);
-      setTimeout(() => {
-        handlePrint();
-        setIsExporting(false);
-      }, 300);
+      setPrintData(data);
     } catch (err) {
       console.error(err);
       setIsExporting(false);
@@ -904,49 +903,51 @@ const StocksPage = () => {
       </AnimatePresence>
       {/* Hidden print container */}
       <div style={{ display: "none" }}>
-        <PrintReportTemplate
-          ref={printRef}
-          title="Current Stock Levels Report"
-          subtitle={
-            selectedCategory
-              ? `Category: ${activeCategories.find((c) => c._id === selectedCategory)?.categoryName || ""} ${showLowStockOnly ? " | Low Stock Only" : ""}`
-              : `All Categories ${showLowStockOnly ? " | Low Stock Only" : ""}`
-          }
-          dateRange=""
-        >
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>Ingredient Name</th>
-                <th>Category</th>
-                <th>SKU</th>
-                <th>Purchase Unit</th>
-                <th style={{ textAlign: "center" }}>Alert Level</th>
-                <th style={{ textAlign: "right" }}>Current Quantity</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exportStocks.map((item) => {
-                const isLow = item.quantityInStock < (item.ingredient?.stockAlert || 0);
-                const status = item.quantityInStock <= 0 ? "Out of Stock" : (isLow ? "Low Stock" : "In Stock");
-                return (
-                  <tr key={item._id}>
-                    <td style={{ fontWeight: "bold" }}>{item.ingredient?.name}</td>
-                    <td>{item.ingredient?.category?.categoryName || "N/A"}</td>
-                    <td>{item.ingredient?.sku}</td>
-                    <td>{item.unit}</td>
-                    <td style={{ textAlign: "center" }}>{item.ingredient?.stockAlert || 0}</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{item.quantityInStock}</td>
-                    <td style={{ color: item.quantityInStock <= 0 ? "red" : (isLow ? "orange" : "green") }}>
-                      {status}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </PrintReportTemplate>
+        {printData && (
+          <PrintReportTemplate
+            ref={printRef}
+            title="Current Stock Levels Report"
+            subtitle={
+              selectedCategory
+                ? `Category: ${activeCategories.find((c) => c._id === selectedCategory)?.categoryName || ""} ${showLowStockOnly ? " | Low Stock Only" : ""}`
+                : `All Categories ${showLowStockOnly ? " | Low Stock Only" : ""}`
+            }
+            dateRange=""
+          >
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Ingredient Name</th>
+                  <th>Category</th>
+                  <th>SKU</th>
+                  <th>Purchase Unit</th>
+                  <th style={{ textAlign: "center" }}>Alert Level</th>
+                  <th style={{ textAlign: "right" }}>Current Quantity</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printData.map((item) => {
+                  const isLow = item.quantityInStock < (item.ingredient?.stockAlert || 0);
+                  const status = item.quantityInStock <= 0 ? "Out of Stock" : (isLow ? "Low Stock" : "In Stock");
+                  return (
+                    <tr key={item._id}>
+                      <td style={{ fontWeight: "bold" }}>{item.ingredient?.name}</td>
+                      <td>{item.ingredient?.category?.categoryName || "N/A"}</td>
+                      <td>{item.ingredient?.sku}</td>
+                      <td>{item.unit}</td>
+                      <td style={{ textAlign: "center" }}>{item.ingredient?.stockAlert || 0}</td>
+                      <td style={{ textAlign: "right", fontWeight: "bold" }}>{item.quantityInStock}</td>
+                      <td style={{ color: item.quantityInStock <= 0 ? "red" : (isLow ? "orange" : "green") }}>
+                        {status}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </PrintReportTemplate>
+        )}
       </div>
 
     </div>

@@ -8,16 +8,33 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page")) || 1;
     const limit = parseInt(searchParams.get("limit")) || 10;
+    const status = searchParams.get("status") || "";
+    const inclusion = searchParams.get("inclusion") || "";
     const search = searchParams.get("search") || "";
 
     const skip = (page - 1) * limit;
 
     const query = {};
+    if (status) {
+      query.status = status;
+    }
+
+    if (inclusion) {
+      if (inclusion === "breakfast") {
+        query.priceWithBreakfast = { $gt: 0 };
+      } else if (inclusion === "allday") {
+        query.priceWithAllDayFood = { $gt: 0 };
+      } else if (inclusion === "roomonly") {
+        // Rooms where they only support base room pricing (both extra options are 0 or empty)
+        query.priceWithBreakfast = { $eq: 0 };
+        query.priceWithAllDayFood = { $eq: 0 };
+      }
+    }
+
     if (search) {
       query.$or = [
         { roomNumber: { $regex: search, $options: "i" } },
-        { roomType: { $regex: search, $options: "i" } },
-        { status: { $regex: search, $options: "i" } }
+        { roomType: { $regex: search, $options: "i" } }
       ];
     }
 

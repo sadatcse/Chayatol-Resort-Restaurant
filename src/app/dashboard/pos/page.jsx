@@ -6,11 +6,13 @@ import useFoodCategories from "@/hooks/useFoodCategories";
 import usePaymentTypes from "@/hooks/usePaymentTypes";
 import { MdAdd, MdRemove, MdPrint, MdRestaurantMenu, MdOutlineTableRestaurant, MdPersonOutline, MdClose } from "react-icons/md";
 import ReceiptPrint from "@/components/pos/ReceiptPrint";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 import Swal from "sweetalert2";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import CustomerModal from "@/components/CustomerModal";
 import { useSearchParams } from "next/navigation";
+import { calculateCompleteness } from "@/lib/customerHelper";
+import { FiEdit } from "react-icons/fi";
 
 export default function POSPage() {
   const searchParams = useSearchParams();
@@ -62,6 +64,7 @@ export default function POSPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [customerToEdit, setCustomerToEdit] = useState(null);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -74,14 +77,14 @@ export default function POSPage() {
   const [staff, setStaff] = useState([]);
 
   const [loading, setLoading] = useState(false);
-  const [lastInvoice, setLastInvoice] = useState(null);
   const [existingInvoice, setExistingInvoice] = useState(null);
 
-  const printRef = useRef(null);
-  
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-  });
+  const {
+    printData: lastInvoice,
+    setPrintData: setLastInvoice,
+    printRef,
+    handlePrint
+  } = useStandardPrint();
 
   useEffect(() => {
     // Fetch tables, rooms, staff
@@ -390,7 +393,7 @@ export default function POSPage() {
 
       if (resData.success) {
         setCart([]);
-        setLastInvoice(resData.data);
+        const savedInv = resData.data;
         Swal.fire({
           title: "Success",
           text: `Order ${existingInvoice ? "Updated" : (status === "Paid" ? "Paid" : "Placed")} successfully.`,
@@ -400,7 +403,7 @@ export default function POSPage() {
           cancelButtonText: "Close"
         }).then((result) => {
           if (result.isConfirmed) {
-            setTimeout(() => handlePrint(), 100);
+            setLastInvoice(savedInv);
           }
           if (existingInvoice) {
              // If we were editing, maybe reload or go back
@@ -721,35 +724,95 @@ export default function POSPage() {
                   </button>
                 </div>
              </div>
-
              {searchResults.length > 0 && (
                <div className="flex flex-col gap-2 mt-2 animate-fade-in">
                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Search Results</div>
-                 {searchResults.map((cust) => (
-                   <div key={cust._id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                     <div className="flex flex-col">
-                       <span className="text-sm font-bold text-gray-800 dark:text-gray-200">{cust.fullName}</span>
-                       <span className="text-xs text-gray-500">{cust.phoneNumber}</span>
+                 {searchResults.map((cust) => {
+                   const score = calculateCompleteness(cust);
+                   const badgeClass = score <= 3 
+                     ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                     : score <= 7 
+                     ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                     : score <= 9 
+                     ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                     : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+                   
+                   return (
+                     <div key={cust._id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                       <div className="flex flex-col">
+                         <span className="text-sm font-bold text-gray-800 dark:text-gray-200">{cust.fullName}</span>
+                         <span className="text-xs text-gray-500 font-mono">{cust.phoneNumber}</span>
+                         <div className="flex items-center gap-2 mt-1">
+                           <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                             Profile: {score}/10
+                           </span>
+                           <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                             <div 
+                               className={`h-full rounded-full transition-all duration-300 ${
+                                 score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                               }`}
+                               style={{ width: `${score * 10}%` }}
+                             />
+                           </div>
+                         </div>
+                       </div>
+                       <button type="button" onClick={() => selectCustomer(cust)} className="btn btn-xs bg-brand-primary text-white border-none hover:bg-brand-secondary px-3">Select</button>
                      </div>
-                     <button type="button" onClick={() => selectCustomer(cust)} className="btn btn-xs bg-brand-primary text-white border-none hover:bg-brand-secondary px-3">Select</button>
-                   </div>
-                 ))}
+                   );
+                 })}
                  <button type="button" onClick={() => { setSearchResults([]); setIsCustomerModalOpen(true); }} className="text-xs text-blue-500 font-bold hover:underline self-start mt-1">
                    + Add New Customer
                  </button>
                </div>
              )}
-
-             {selectedCustomer && searchResults.length === 0 && (
-               <div className="bg-brand-offwhite dark:bg-gray-800 p-3 rounded-lg border border-brand-beige dark:border-gray-700 mt-2">
-                  <div className="flex justify-between items-start">
-                    <div className="text-xs text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Customer</div>
-                    <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerName(""); }} className="text-xs text-red-500 hover:underline">Remove</button>
-                  </div>
-                  <div className="font-bold text-gray-800 dark:text-white">{selectedCustomer.fullName}</div>
-                  <div className="text-xs text-gray-500">{selectedCustomer.phoneNumber}</div>
-               </div>
-             )}
+ 
+             {selectedCustomer && searchResults.length === 0 && (() => {
+               const score = calculateCompleteness(selectedCustomer);
+               const badgeClass = score <= 3 
+                 ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                 : score <= 7 
+                 ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                 : score <= 9 
+                 ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                 : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+               
+               return (
+                 <div className="bg-brand-offwhite dark:bg-gray-800 p-3 rounded-lg border border-brand-beige dark:border-gray-700 mt-2 text-brand-charcoal dark:text-brand-offwhite">
+                    <div className="flex justify-between items-start">
+                      <div className="text-xs text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Customer</div>
+                      <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerName(""); }} className="text-xs text-red-500 hover:underline">Remove</button>
+                    </div>
+                    <div className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                      {selectedCustomer.fullName}
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setCustomerToEdit(selectedCustomer);
+                          setIsCustomerModalOpen(true);
+                        }}
+                        className="btn btn-ghost btn-xs text-brand-primary p-0 h-auto hover:bg-transparent"
+                        title="Edit Profile"
+                      >
+                        <FiEdit size={14} />
+                      </button>
+                    </div>
+                    <div className="text-xs text-gray-500 font-mono">{selectedCustomer.phoneNumber}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                        Profile: {score}/10
+                      </span>
+                      <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                          }`}
+                          style={{ width: `${score * 10}%` }}
+                        />
+                      </div>
+                    </div>
+                 </div>
+               );
+             })()}
           </div>
         )}
 
@@ -822,12 +885,24 @@ export default function POSPage() {
 
       <CustomerModal 
         isOpen={isCustomerModalOpen} 
-        onClose={() => setIsCustomerModalOpen(false)} 
+        onClose={() => {
+          setIsCustomerModalOpen(false);
+          setCustomerToEdit(null);
+        }} 
         initialPhoneNumber={customerPhone}
-        onSuccess={(formData) => {
-          setCustomerName(formData.fullName);
-          setCustomerPhone(formData.phoneNumber);
-          setSelectedCustomer(formData);
+        customerToEdit={customerToEdit}
+        onSuccess={(updatedCust) => {
+          if (customerToEdit) {
+            setCustomerName(updatedCust.fullName);
+            setCustomerPhone(updatedCust.phoneNumber);
+            setSelectedCustomer(updatedCust);
+            setSearchResults(prev => prev.map(c => c._id === updatedCust._id ? updatedCust : c));
+          } else {
+            setCustomerName(updatedCust.fullName);
+            setCustomerPhone(updatedCust.phoneNumber);
+            setSelectedCustomer(updatedCust);
+          }
+          setCustomerToEdit(null);
         }}
       />
     </div>

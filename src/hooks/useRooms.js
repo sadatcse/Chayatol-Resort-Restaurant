@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useContext } from "react";
 import { AuthContext } from "../providers/AuthProvider";
 import useAxiosSecure from "./useAxiosSecure";
 
-const useRooms = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
+const useRooms = (currentPage = 1, itemsPerPage = 10, searchTerm = "", status = "", inclusion = "") => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
   const [rooms, setRooms] = useState([]);
@@ -17,7 +17,7 @@ const useRooms = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
     setIsLoading(true);
     try {
       const response = await axiosSecure.get(
-        `/room/paginated?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}`
+        `/room/paginated?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}&status=${status}&inclusion=${inclusion}`
       );
       setRooms(response.data.rooms || []);
       setTotalPages(response.data.totalPages || 1);
@@ -27,7 +27,7 @@ const useRooms = (currentPage = 1, itemsPerPage = 10, searchTerm = "") => {
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, user]);
+  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, user, status, inclusion]);
 
   useEffect(() => {
     fetchRooms();

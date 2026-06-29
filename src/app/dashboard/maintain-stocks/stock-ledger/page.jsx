@@ -6,7 +6,7 @@ import { MdInventory2, MdTrendingDown, MdTrendingUp, MdSwapHoriz } from "react-i
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
@@ -42,10 +42,14 @@ const StockLedgerPage = () => {
   const [ledger, setLedger] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const printRef = useRef(null);
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
+  // Standardize Print hook integration
+  const {
+    printData,
+    setPrintData,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
     documentTitle: `Stock_Ledger_${selectedIngredient?.name || "Report"}`,
   });
 
@@ -127,7 +131,7 @@ const StockLedgerPage = () => {
   const handlePrintReport = () => {
     setIsExporting(true);
     try {
-      handlePrint();
+      setPrintData(ledger);
     } catch (err) {
       console.error(err);
     } finally {
@@ -429,77 +433,80 @@ const StockLedgerPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
       {/* Hidden print container */}
       <div style={{ display: "none" }}>
-        <PrintReportTemplate
-          ref={printRef}
-          title={`Stock Ledger - ${selectedIngredient?.name}`}
-          subtitle={`Stock movements history for ${selectedIngredient?.name} (SKU: ${selectedIngredient?.sku})`}
-          dateRange={
-            fromDate && toDate
-              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
-              : "All Time"
-          }
-        >
-          <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
-            <strong>Ingredient Name:</strong> {ledger?.ingredient?.name} &nbsp;|&nbsp; 
-            <strong>Category:</strong> {ledger?.ingredient?.category?.categoryName} &nbsp;|&nbsp; 
-            <strong>SKU:</strong> {ledger?.ingredient?.sku} &nbsp;|&nbsp; 
-            <strong>Unit:</strong> {ledger?.ingredient?.unit} &nbsp;|&nbsp; 
-            <strong>Current Stock:</strong> {ledger?.currentStock}
-          </div>
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Date & Time</th>
-                <th>Transaction Type</th>
-                <th style={{ textAlign: "right" }}>Qty In</th>
-                <th style={{ textAlign: "right" }}>Qty Out</th>
-                <th style={{ textAlign: "right" }}>Balance</th>
-                <th>Details</th>
-                <th>By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledger?.movements?.map((row, idx) => {
-                const meta = TYPE_META[row.type] || { label: row.type };
-                return (
-                  <tr key={row._id}>
-                    <td>{idx + 1}</td>
-                    <td>
-                      {new Date(row.date).toLocaleDateString("en-GB")} {new Date(row.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </td>
-                    <td>{meta.label}</td>
-                    <td style={{ textAlign: "right", color: "green", fontWeight: "bold" }}>
-                      {row.qtyIn > 0 ? `+${row.qtyIn}` : "—"}
-                    </td>
-                    <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>
-                      {row.qtyOut > 0 ? `−${row.qtyOut}` : "—"}
-                    </td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{row.balance}</td>
-                    <td>
-                      {row.reason && <span>{row.reason} · </span>}
-                      {row.kitchenName && <span>{row.kitchenName} · </span>}
-                      {row.roomNumber && <span>Room {row.roomNumber} · </span>}
-                      {row.note || ""}
-                    </td>
-                    <td>{row.createdBy?.name || "System"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr style={{ fontWeight: "bold" }}>
-                <td colSpan="3">CLOSING BALANCE</td>
-                <td style={{ textAlign: "right" }}>+{stats?.totalIn?.toFixed(2)}</td>
-                <td style={{ textAlign: "right" }}>−{stats?.totalOut?.toFixed(2)}</td>
-                <td style={{ textAlign: "right" }}>{ledger?.currentStock}</td>
-                <td colSpan="2">{ledger?.ingredient?.unit}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </PrintReportTemplate>
+        {printData && (
+          <PrintReportTemplate
+            ref={printRef}
+            title={`Stock Ledger - ${selectedIngredient?.name}`}
+            subtitle={`Stock movements history for ${selectedIngredient?.name} (SKU: ${selectedIngredient?.sku})`}
+            dateRange={
+              fromDate && toDate
+                ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+                : "All Time"
+            }
+          >
+            <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px", color: "#000" }}>
+              <strong>Ingredient Name:</strong> {printData.ingredient?.name} &nbsp;|&nbsp; 
+              <strong>Category:</strong> {printData.ingredient?.category?.categoryName} &nbsp;|&nbsp; 
+              <strong>SKU:</strong> {printData.ingredient?.sku} &nbsp;|&nbsp; 
+              <strong>Unit:</strong> {printData.ingredient?.unit} &nbsp;|&nbsp; 
+              <strong>Current Stock:</strong> {printData.currentStock}
+            </div>
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Date & Time</th>
+                  <th>Transaction Type</th>
+                  <th style={{ textAlign: "right" }}>Qty In</th>
+                  <th style={{ textAlign: "right" }}>Qty Out</th>
+                  <th style={{ textAlign: "right" }}>Balance</th>
+                  <th>Details</th>
+                  <th>By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printData.movements?.map((row, idx) => {
+                  const meta = TYPE_META[row.type] || { label: row.type };
+                  return (
+                    <tr key={row._id}>
+                      <td>{idx + 1}</td>
+                      <td>
+                        {new Date(row.date).toLocaleDateString("en-GB")} {new Date(row.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td>{meta.label}</td>
+                      <td style={{ textAlign: "right", color: "green", fontWeight: "bold" }}>
+                        {row.qtyIn > 0 ? `+${row.qtyIn}` : "—"}
+                      </td>
+                      <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>
+                        {row.qtyOut > 0 ? `−${row.qtyOut}` : "—"}
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: "bold" }}>{row.balance}</td>
+                      <td>
+                        {row.reason && <span>{row.reason} · </span>}
+                        {row.kitchenName && <span>{row.kitchenName} · </span>}
+                        {row.roomNumber && <span>Room {row.roomNumber} · </span>}
+                        {row.note || ""}
+                      </td>
+                      <td>{row.createdBy?.name || "System"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{ fontWeight: "bold" }}>
+                  <td colSpan="3">CLOSING BALANCE</td>
+                  <td style={{ textAlign: "right" }}>+{stats?.totalIn?.toFixed(2)}</td>
+                  <td style={{ textAlign: "right" }}>−{stats?.totalOut?.toFixed(2)}</td>
+                  <td style={{ textAlign: "right" }}>{printData.currentStock}</td>
+                  <td colSpan="2">{printData.ingredient?.unit}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </PrintReportTemplate>
+        )}
       </div>
     </div>
   );

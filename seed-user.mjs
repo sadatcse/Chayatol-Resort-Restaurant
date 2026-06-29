@@ -19,15 +19,7 @@ const seedUsers = async () => {
     console.log("Connected successfully.");
 
     const usersToSeed = [
-      {
-        name: 'MD SADAT KHAN',
-        email: 'sadatcse@gmail.com',
-        password: '12345678',
-        role: 'superadmin',
-        mobileNumber: '01712345678',
-        department: 'IT',
-        status: 'active',
-      },
+
       {
         name: 'Apon Khan',
         email: 'apon@gmail.com',
@@ -41,7 +33,7 @@ const seedUsers = async () => {
 
     for (const userData of usersToSeed) {
       const existingUser = await User.findOne({ email: userData.email });
-      
+
       if (existingUser) {
         console.log(`User ${userData.email} already exists. Updating password, role, and details...`);
         existingUser.password = userData.password;
@@ -61,7 +53,7 @@ const seedUsers = async () => {
 
     await mongoose.connection.close();
     process.exit(0);
-    
+
   } catch (error) {
     console.error(`❌ Error seeding users: ${error.message}`);
     process.exit(1);

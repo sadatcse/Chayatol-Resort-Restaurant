@@ -6,7 +6,7 @@ import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -41,18 +41,24 @@ const PurchasesPage = () => {
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [isExporting, setIsExporting] = useState(false);
-  const [exportPurchases, setExportPurchases] = useState([]);
-  const printListRef = useRef(null);
-  const printDetailRef = useRef(null);
-
-  const handlePrintList = useReactToPrint({
-    contentRef: printListRef,
+  // Standardize Print hook integrations
+  const {
+    printData: printListData,
+    setPrintData: setPrintListData,
+    printRef: printListRef,
+    handlePrint: handlePrintList
+  } = useStandardPrint({
     documentTitle: "Purchase_Invoices_Report",
+    onAfterPrint: () => setIsExporting(false)
   });
 
-  const handlePrintDetail = useReactToPrint({
-    contentRef: printDetailRef,
-    documentTitle: viewingPurchase => viewingPurchase ? `Purchase_Invoice_${viewingPurchase.invoiceNumber}` : "Purchase_Invoice_Details",
+  const {
+    printData: printDetailData,
+    setPrintData: setPrintDetailData,
+    printRef: printDetailRef,
+    handlePrint: handlePrintDetail
+  } = useStandardPrint({
+    documentTitle: viewingPurchase ? `Purchase_Invoice_${viewingPurchase.invoiceNumber}` : "Purchase_Invoice_Details",
   });
 
   const fetchAllPurchasesForExport = async () => {
@@ -126,11 +132,7 @@ const PurchasesPage = () => {
     setIsExporting(true);
     try {
       const data = await fetchAllPurchasesForExport();
-      setExportPurchases(data);
-      setTimeout(() => {
-        handlePrintList();
-        setIsExporting(false);
-      }, 300);
+      setPrintListData(data);
     } catch (err) {
       console.error(err);
       setIsExporting(false);
@@ -141,6 +143,7 @@ const PurchasesPage = () => {
   const monthOptions = useMemo(() => {
     const options = [];
     const date = new Date();
+    date.setDate(1); // Set to day 1 to avoid rollover bugs when subtracting months
     // Go back 12 months
     for (let i = 0; i < 12; i++) {
       const year = date.getFullYear();
@@ -1097,7 +1100,7 @@ const PurchasesPage = () => {
 
             <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
               <button
-                onClick={() => handlePrintDetail()}
+                onClick={() => setPrintDetailData(viewingPurchase)}
                 className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-6 flex items-center gap-2 cursor-pointer"
               >
                 <FiPrinter /> Print Invoice
@@ -1112,28 +1115,28 @@ const PurchasesPage = () => {
       )}
       {/* Hidden print container for a single invoice details */}
       <div style={{ display: "none" }}>
-        {viewingPurchase && (
+        {printDetailData && (
           <PrintReportTemplate
             ref={printDetailRef}
-            title={`Purchase Invoice: ${viewingPurchase.invoiceNumber}`}
-            subtitle={`Supplier: ${viewingPurchase.vendor?.vendorName || "Unknown"} | Date: ${viewingPurchase.purchaseDate ? new Date(viewingPurchase.purchaseDate).toLocaleDateString("en-GB") : ""}`}
+            title={`Purchase Invoice: ${printDetailData.invoiceNumber}`}
+            subtitle={`Supplier: ${printDetailData.vendor?.vendorName || "Unknown"} | Date: ${printDetailData.purchaseDate ? new Date(printDetailData.purchaseDate).toLocaleDateString("en-GB") : ""}`}
             dateRange=""
           >
             <div style={{ marginBottom: "20px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", fontSize: "11px", marginBottom: "20px" }}>
                 <div>
                   <h4 style={{ fontWeight: "bold", borderBottom: "1px solid #000", paddingBottom: "3px" }}>Supplier Details</h4>
-                  <p><strong>Name:</strong> {viewingPurchase.vendor?.vendorName}</p>
-                  <p><strong>ID:</strong> {viewingPurchase.vendor?.vendorID}</p>
-                  <p><strong>Phone:</strong> {viewingPurchase.vendor?.primaryPhone}</p>
-                  <p><strong>Address:</strong> {viewingPurchase.vendor?.address}</p>
+                  <p><strong>Name:</strong> {printDetailData.vendor?.vendorName}</p>
+                  <p><strong>ID:</strong> {printDetailData.vendor?.vendorID}</p>
+                  <p><strong>Phone:</strong> {printDetailData.vendor?.primaryPhone}</p>
+                  <p><strong>Address:</strong> {printDetailData.vendor?.address}</p>
                 </div>
                 <div>
                   <h4 style={{ fontWeight: "bold", borderBottom: "1px solid #000", paddingBottom: "3px" }}>Invoice Details</h4>
-                  <p><strong>Invoice Code:</strong> {viewingPurchase.invoiceNumber}</p>
-                  <p><strong>Bill Date:</strong> {viewingPurchase.purchaseDate ? new Date(viewingPurchase.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</p>
-                  <p><strong>Payment Status:</strong> {viewingPurchase.paymentStatus}</p>
-                  <p><strong>Payment Method:</strong> {viewingPurchase.paymentMethod}</p>
+                  <p><strong>Invoice Code:</strong> {printDetailData.invoiceNumber}</p>
+                  <p><strong>Bill Date:</strong> {printDetailData.purchaseDate ? new Date(printDetailData.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</p>
+                  <p><strong>Payment Status:</strong> {printDetailData.paymentStatus}</p>
+                  <p><strong>Payment Method:</strong> {printDetailData.paymentMethod}</p>
                 </div>
               </div>
             </div>
@@ -1149,7 +1152,7 @@ const PurchasesPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {viewingPurchase.items?.map((item) => (
+                {printDetailData.items?.map((item) => (
                   <tr key={item._id}>
                     <td>{item.ingredient?.name} ({item.ingredient?.unit})</td>
                     <td>{item.ingredient?.category?.categoryName || "N/A"}</td>
@@ -1165,15 +1168,15 @@ const PurchasesPage = () => {
               <div style={{ width: "250px", fontSize: "11px", border: "1px solid #d1d5db", padding: "10px", borderRadius: "8px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
                   <span>Grand Total:</span>
-                  <span style={{ fontWeight: "bold" }}>{(viewingPurchase.grandTotal || 0).toFixed(2)} BDT</span>
+                  <span style={{ fontWeight: "bold" }}>{(printDetailData.grandTotal || 0).toFixed(2)} BDT</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
                   <span>Amount Paid:</span>
-                  <span>{(viewingPurchase.paidAmount || 0).toFixed(2)} BDT</span>
+                  <span>{(printDetailData.paidAmount || 0).toFixed(2)} BDT</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", borderTop: "1px solid #e5e7eb", paddingTop: "5px", color: "red" }}>
                   <span>Balance Due:</span>
-                  <span>{((viewingPurchase.grandTotal || 0) - (viewingPurchase.paidAmount || 0)).toFixed(2)} BDT</span>
+                  <span>{((printDetailData.grandTotal || 0) - (printDetailData.paidAmount || 0)).toFixed(2)} BDT</span>
                 </div>
               </div>
             </div>
@@ -1183,45 +1186,47 @@ const PurchasesPage = () => {
 
       {/* Hidden print container for purchases list */}
       <div style={{ display: "none" }}>
-        <PrintReportTemplate
-          ref={printListRef}
-          title="Purchase Invoices & Dues"
-          subtitle="All recorded supplier purchases and payment statuses"
-          dateRange={
-            fromDate && toDate
-              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
-              : "All Time"
-          }
-        >
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>Invoice</th>
-                <th>Supplier Name</th>
-                <th style={{ textAlign: "center" }}>Items</th>
-                <th style={{ textAlign: "right" }}>Grand Total</th>
-                <th style={{ textAlign: "right" }}>Amount Paid</th>
-                <th style={{ textAlign: "right" }}>Balance Due</th>
-                <th>Status</th>
-                <th>Bill Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exportPurchases.map((purchase) => (
-                <tr key={purchase._id}>
-                  <td>{purchase.invoiceNumber}</td>
-                  <td>{purchase.vendor?.vendorName || "Unknown"}</td>
-                  <td style={{ textAlign: "center" }}>{purchase.items?.length || 0}</td>
-                  <td style={{ textAlign: "right" }}>{(purchase.grandTotal || 0).toFixed(2)} BDT</td>
-                  <td style={{ textAlign: "right" }}>{(purchase.paidAmount || 0).toFixed(2)} BDT</td>
-                  <td style={{ textAlign: "right" }}>{((purchase.grandTotal || 0) - (purchase.paidAmount || 0)).toFixed(2)} BDT</td>
-                  <td>{purchase.paymentStatus}</td>
-                  <td>{purchase.purchaseDate ? new Date(purchase.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
+        {printListData && (
+          <PrintReportTemplate
+            ref={printListRef}
+            title="Purchase Invoices & Dues"
+            subtitle="All recorded supplier purchases and payment statuses"
+            dateRange={
+              fromDate && toDate
+                ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+                : "All Time"
+            }
+          >
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Supplier Name</th>
+                  <th style={{ textAlign: "center" }}>Items</th>
+                  <th style={{ textAlign: "right" }}>Grand Total</th>
+                  <th style={{ textAlign: "right" }}>Amount Paid</th>
+                  <th style={{ textAlign: "right" }}>Balance Due</th>
+                  <th>Status</th>
+                  <th>Bill Date</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </PrintReportTemplate>
+              </thead>
+              <tbody>
+                {printListData.map((purchase) => (
+                  <tr key={purchase._id}>
+                    <td>{purchase.invoiceNumber}</td>
+                    <td>{purchase.vendor?.vendorName || "Unknown"}</td>
+                    <td style={{ textAlign: "center" }}>{purchase.items?.length || 0}</td>
+                    <td style={{ textAlign: "right" }}>{(purchase.grandTotal || 0).toFixed(2)} BDT</td>
+                    <td style={{ textAlign: "right" }}>{(purchase.paidAmount || 0).toFixed(2)} BDT</td>
+                    <td style={{ textAlign: "right" }}>{((purchase.grandTotal || 0) - (purchase.paidAmount || 0)).toFixed(2)} BDT</td>
+                    <td>{purchase.paymentStatus}</td>
+                    <td>{purchase.purchaseDate ? new Date(purchase.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PrintReportTemplate>
+        )}
       </div>
 
     </div>

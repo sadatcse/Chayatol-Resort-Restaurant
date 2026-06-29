@@ -7,7 +7,7 @@ import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useReactToPrint } from "react-to-print";
+import useStandardPrint from "@/hooks/useStandardPrint";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -37,17 +37,21 @@ const ReturnsPage = () => {
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportReturns, setExportReturns] = useState([]);
   const [expandedBatches, setExpandedBatches] = useState({});
-  const printRef = useRef(null);
 
   const toggleBatch = (batchId) => {
     setExpandedBatches((prev) => ({ ...prev, [batchId]: !prev[batchId] }));
   };
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
+  // Standardize Print hook integration
+  const {
+    printData,
+    setPrintData,
+    printRef,
+    handlePrint
+  } = useStandardPrint({
     documentTitle: "Return_Management_Report",
+    onAfterPrint: () => setIsExporting(false)
   });
 
   const fetchAllReturnsForExport = async () => {
@@ -172,11 +176,7 @@ const ReturnsPage = () => {
         }
       });
 
-      setExportReturns(flatData);
-      setTimeout(() => {
-        handlePrint();
-        setIsExporting(false);
-      }, 300);
+      setPrintData(flatData);
     } catch (err) {
       console.error(err);
       setIsExporting(false);
@@ -528,43 +528,45 @@ const ReturnsPage = () => {
       </AnimatePresence>
       {/* Hidden print container */}
       <div style={{ display: "none" }}>
-        <PrintReportTemplate
-          ref={printRef}
-          title="Return Management Report"
-          subtitle="All returned ingredients list"
-          dateRange={
-            fromDate && toDate
-              ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
-              : "All Time"
-          }
-        >
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Ingredient</th>
-                <th>Category</th>
-                <th style={{ textAlign: "right" }}>Quantity Returned</th>
-                <th>Type</th>
-                <th>Location</th>
-                <th>Recorded By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exportReturns.map((r) => (
-                <tr key={r._id}>
-                  <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A"}</td>
-                  <td style={{ fontWeight: "bold" }}>{r.ingredient?.name} ({r.ingredient?.unit})</td>
-                  <td>{r.ingredient?.category?.categoryName || "—"}</td>
-                  <td style={{ textAlign: "right", color: "#059669", fontWeight: "bold" }}>+{r.adjustment}</td>
-                  <td>{TYPE_LABELS[r.type]}</td>
-                  <td>{r.type === "return_kitchen" ? (r.kitchenName || "—") : `Room ${r.roomNumber || "—"}`}</td>
-                  <td>{r.createdBy?.name || "System"}</td>
+        {printData && (
+          <PrintReportTemplate
+            ref={printRef}
+            title="Return Management Report"
+            subtitle="All returned ingredients list"
+            dateRange={
+              fromDate && toDate
+                ? `${fromDate.toLocaleDateString("en-GB")} to ${toDate.toLocaleDateString("en-GB")}`
+                : "All Time"
+            }
+          >
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Ingredient</th>
+                  <th>Category</th>
+                  <th style={{ textAlign: "right" }}>Quantity Returned</th>
+                  <th>Type</th>
+                  <th>Location</th>
+                  <th>Recorded By</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </PrintReportTemplate>
+              </thead>
+              <tbody>
+                {printData.map((r) => (
+                  <tr key={r._id}>
+                    <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A"}</td>
+                    <td style={{ fontWeight: "bold" }}>{r.ingredient?.name} ({r.ingredient?.unit})</td>
+                    <td>{r.ingredient?.category?.categoryName || "—"}</td>
+                    <td style={{ textAlign: "right", color: "#059669", fontWeight: "bold" }}>+{r.adjustment}</td>
+                    <td>{TYPE_LABELS[r.type]}</td>
+                    <td>{r.type === "return_kitchen" ? (r.kitchenName || "—") : `Room ${r.roomNumber || "—"}`}</td>
+                    <td>{r.createdBy?.name || "System"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PrintReportTemplate>
+        )}
       </div>
     </div>
   );
