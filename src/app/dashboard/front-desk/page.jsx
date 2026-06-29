@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useContext, useRef, useMemo, useCallback } from "react";
-import { FiChevronLeft, FiChevronRight, FiPlus, FiCalendar, FiUser, FiHome, FiCheckCircle, FiInfo, FiX, FiEye, FiSearch, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiArrowRight, FiCreditCard, FiCheck, FiPrinter, FiXCircle, FiTrash2 } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiPlus, FiCalendar, FiUser, FiHome, FiCheckCircle, FiInfo, FiX, FiEye, FiSearch, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiArrowRight, FiCreditCard, FiCheck, FiPrinter, FiXCircle, FiTrash2, FiEdit } from "react-icons/fi";
 import { MdRestaurant, MdBeachAccess } from "react-icons/md";
 import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,7 @@ import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 import CustomerModal from "@/components/CustomerModal";
+import { calculateCompleteness } from "@/lib/customerHelper";
 
 const FrontDeskTimelinePage = () => {
   const axiosSecure = useAxiosSecure();
@@ -123,6 +124,7 @@ const FrontDeskTimelinePage = () => {
   const [walkinCustSearchLoading, setWalkinCustSearchLoading] = useState(false);
   const [walkinCustSearchResults, setWalkinCustSearchResults] = useState([]);
   const [isWalkinCustModalOpen, setIsWalkinCustModalOpen] = useState(false);
+  const [walkinCustToEdit, setWalkinCustToEdit] = useState(null);
   const [isWalkinSubmitting, setIsWalkinSubmitting] = useState(false);
 
   // --- New Reservation Overlay Modal State ---
@@ -142,6 +144,7 @@ const FrontDeskTimelinePage = () => {
   const [newResCustSearchResults, setNewResCustSearchResults] = useState([]);
   const [selectedNewResCust, setSelectedNewResCust] = useState(null);
   const [isNewResCustModalOpen, setIsNewResCustModalOpen] = useState(false);
+  const [newResCustToEdit, setNewResCustToEdit] = useState(null);
   const [isNewResSubmitting, setIsNewResSubmitting] = useState(false);
 
   // Month navigation helper
@@ -2596,21 +2599,45 @@ const FrontDeskTimelinePage = () => {
                 {walkinCustSearchResults.length > 0 && (
                   <div className="flex flex-col gap-2 mt-2 p-3 bg-gray-50 dark:bg-brand-charcoal/30 border border-brand-beige/50 dark:border-brand-beige/20 rounded-lg">
                     <div className="text-[10px] font-bold text-brand-sage uppercase tracking-wider">Search Results</div>
-                    {walkinCustSearchResults.map((cust) => (
-                      <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-gray-800 dark:text-brand-offwhite">{cust.fullName}</span>
-                          <span className="text-xs text-brand-sage">{cust.phoneNumber}</span>
+                    {walkinCustSearchResults.map((cust) => {
+                      const score = calculateCompleteness(cust);
+                      const badgeClass = score <= 3 
+                        ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                        : score <= 7 
+                        ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                        : score <= 9 
+                        ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                        : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+                      
+                      return (
+                        <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-gray-800 dark:text-brand-offwhite">{cust.fullName}</span>
+                            <span className="text-xs text-brand-sage font-mono">{cust.phoneNumber}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                Profile: {score}/10
+                              </span>
+                              <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                                  }`}
+                                  style={{ width: `${score * 10}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => selectWalkinCust(cust)} 
+                            className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
+                          >
+                            Select
+                          </button>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => selectWalkinCust(cust)} 
-                          className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
-                        >
-                          Select
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <button 
                       type="button" 
                       onClick={() => { setWalkinCustSearchResults([]); setIsWalkinCustModalOpen(true); }} 
@@ -2621,26 +2648,63 @@ const FrontDeskTimelinePage = () => {
                   </div>
                 )}
 
-                {selectedWalkinCust && walkinCustSearchResults.length === 0 && (
-                  <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite">
-                    <div>
-                      <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest</div>
-                      <div className="font-bold text-sm">{selectedWalkinCust.fullName}</div>
-                      <div className="text-xs text-brand-sage">{selectedWalkinCust.phoneNumber}</div>
+                {selectedWalkinCust && walkinCustSearchResults.length === 0 && (() => {
+                  const score = calculateCompleteness(selectedWalkinCust);
+                  const badgeClass = score <= 3 
+                    ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                    : score <= 7 
+                    ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                    : score <= 9 
+                    ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                    : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+                  
+                  return (
+                    <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite">
+                      <div>
+                        <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest</div>
+                        <div className="font-bold text-sm flex items-center gap-2">
+                          {selectedWalkinCust.fullName}
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setWalkinCustToEdit(selectedWalkinCust);
+                              setIsWalkinCustModalOpen(true);
+                            }}
+                            className="btn btn-ghost btn-xs text-brand-primary p-0 h-auto hover:bg-transparent"
+                            title="Edit Profile"
+                          >
+                            <FiEdit size={14} />
+                          </button>
+                        </div>
+                        <div className="text-xs text-brand-sage font-mono">{selectedWalkinCust.phoneNumber}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                            Profile: {score}/10
+                          </span>
+                          <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                              }`}
+                              style={{ width: `${score * 10}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => { 
+                          setSelectedWalkinCust(null); 
+                          setWalkinCustomer(""); 
+                          setWalkinPhoneSearch(""); 
+                        }} 
+                        className="text-xs text-red-500 hover:underline font-bold"
+                      >
+                        Remove
+                      </button>
                     </div>
-                    <button 
-                      type="button" 
-                      onClick={() => { 
-                        setSelectedWalkinCust(null); 
-                        setWalkinCustomer(""); 
-                        setWalkinPhoneSearch(""); 
-                      }} 
-                      className="text-xs text-red-500 hover:underline font-bold"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Rooms Selection */}
@@ -2853,21 +2917,45 @@ const FrontDeskTimelinePage = () => {
                 {newResCustSearchResults.length > 0 && (
                   <div className="flex flex-col gap-2 mt-2 p-3 bg-gray-50 dark:bg-brand-charcoal/30 border border-brand-beige/50 dark:border-brand-beige/20 rounded-lg">
                     <div className="text-[10px] font-bold text-brand-sage uppercase tracking-wider">Search Results</div>
-                    {newResCustSearchResults.map((cust) => (
-                      <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-gray-800 dark:text-brand-offwhite">{cust.fullName}</span>
-                          <span className="text-xs text-brand-sage">{cust.phoneNumber}</span>
+                    {newResCustSearchResults.map((cust) => {
+                      const score = calculateCompleteness(cust);
+                      const badgeClass = score <= 3 
+                        ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                        : score <= 7 
+                        ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                        : score <= 9 
+                        ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                        : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+                      
+                      return (
+                        <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-gray-800 dark:text-brand-offwhite">{cust.fullName}</span>
+                            <span className="text-xs text-brand-sage font-mono">{cust.phoneNumber}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                Profile: {score}/10
+                              </span>
+                              <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                                  }`}
+                                  style={{ width: `${score * 10}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => selectNewResCust(cust)} 
+                            className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
+                          >
+                            Select
+                          </button>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => selectNewResCust(cust)} 
-                          className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
-                        >
-                          Select
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <button 
                       type="button" 
                       onClick={() => { setNewResCustSearchResults([]); setIsNewResCustModalOpen(true); }} 
@@ -2878,26 +2966,63 @@ const FrontDeskTimelinePage = () => {
                   </div>
                 )}
 
-                {selectedNewResCust && newResCustSearchResults.length === 0 && (
-                  <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite">
-                    <div>
-                      <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest</div>
-                      <div className="font-bold text-sm">{selectedNewResCust.fullName}</div>
-                      <div className="text-xs text-brand-sage">{selectedNewResCust.phoneNumber}</div>
+                {selectedNewResCust && newResCustSearchResults.length === 0 && (() => {
+                  const score = calculateCompleteness(selectedNewResCust);
+                  const badgeClass = score <= 3 
+                    ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                    : score <= 7 
+                    ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                    : score <= 9 
+                    ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                    : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+                  
+                  return (
+                    <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite">
+                      <div>
+                        <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest</div>
+                        <div className="font-bold text-sm flex items-center gap-2">
+                          {selectedNewResCust.fullName}
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setNewResCustToEdit(selectedNewResCust);
+                              setIsNewResCustModalOpen(true);
+                            }}
+                            className="btn btn-ghost btn-xs text-brand-primary p-0 h-auto hover:bg-transparent"
+                            title="Edit Profile"
+                          >
+                            <FiEdit size={14} />
+                          </button>
+                        </div>
+                        <div className="text-xs text-brand-sage font-mono">{selectedNewResCust.phoneNumber}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                            Profile: {score}/10
+                          </span>
+                          <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                              }`}
+                              style={{ width: `${score * 10}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => { 
+                          setSelectedNewResCust(null); 
+                          setNewResFormData({ ...newResFormData, customer: "" }); 
+                          setNewResPhoneSearch(""); 
+                        }} 
+                        className="text-xs text-red-500 hover:underline font-bold"
+                      >
+                        Remove
+                      </button>
                     </div>
-                    <button 
-                      type="button" 
-                      onClick={() => { 
-                        setSelectedNewResCust(null); 
-                        setNewResFormData({ ...newResFormData, customer: "" }); 
-                        setNewResPhoneSearch(""); 
-                      }} 
-                      className="text-xs text-red-500 hover:underline font-bold"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Checkin / Checkout dates */}
@@ -3093,16 +3218,40 @@ const FrontDeskTimelinePage = () => {
       {/* Customer Quick Registration Overlay */}
       <CustomerModal 
         isOpen={isWalkinCustModalOpen} 
-        onClose={() => setIsWalkinCustModalOpen(false)} 
+        onClose={() => {
+          setIsWalkinCustModalOpen(false);
+          setWalkinCustToEdit(null);
+        }} 
         initialPhoneNumber={walkinPhoneSearch}
-        onSuccess={handleWalkinCustomerCreateSuccess}
+        customerToEdit={walkinCustToEdit}
+        onSuccess={async (updatedCust) => {
+          if (walkinCustToEdit) {
+            setSelectedWalkinCust(updatedCust);
+            setWalkinCustSearchResults(prev => prev.map(c => c._id === updatedCust._id ? updatedCust : c));
+          } else {
+            handleWalkinCustomerCreateSuccess(updatedCust);
+          }
+          setWalkinCustToEdit(null);
+        }}
       />
 
       <CustomerModal 
         isOpen={isNewResCustModalOpen} 
-        onClose={() => setIsNewResCustModalOpen(false)} 
+        onClose={() => {
+          setIsNewResCustModalOpen(false);
+          setNewResCustToEdit(null);
+        }} 
         initialPhoneNumber={newResPhoneSearch}
-        onSuccess={handleNewResCustomerCreateSuccess}
+        customerToEdit={newResCustToEdit}
+        onSuccess={async (updatedCust) => {
+          if (newResCustToEdit) {
+            setSelectedNewResCust(updatedCust);
+            setNewResCustSearchResults(prev => prev.map(c => c._id === updatedCust._id ? updatedCust : c));
+          } else {
+            handleNewResCustomerCreateSuccess(updatedCust);
+          }
+          setNewResCustToEdit(null);
+        }}
       />
     </div>
   );

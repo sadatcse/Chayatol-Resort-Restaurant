@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useContext } from "react";
-import { FiCheck, FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiCheck, FiPlus, FiTrash2, FiEdit } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
 
@@ -9,6 +9,7 @@ import SectionHeader from "@/components/Comon/SectionHeader";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import CustomerModal from "@/components/CustomerModal";
+import { calculateCompleteness } from "@/lib/customerHelper";
 
 const WalkInCheckInPage = () => {
   const axiosSecure = useAxiosSecure();
@@ -40,6 +41,7 @@ const WalkInCheckInPage = () => {
   const [custSearchResults, setCustSearchResults] = useState([]);
   const [selectedCust, setSelectedCust] = useState(null);
   const [isCustModalOpen, setIsCustModalOpen] = useState(false);
+  const [customerToEdit, setCustomerToEdit] = useState(null);
 
   const handleSearchCustomer = async () => {
     if (!phoneSearch || phoneSearch.trim().length < 3) {
@@ -255,21 +257,45 @@ const WalkInCheckInPage = () => {
           {custSearchResults.length > 0 && (
             <div className="flex flex-col gap-2 mt-2 p-3 bg-gray-50 dark:bg-brand-charcoal/30 border border-brand-beige/50 dark:border-brand-beige/20 rounded-lg animate-fade-in">
               <div className="text-[10px] font-bold text-brand-sage uppercase tracking-wider">Search Results</div>
-              {custSearchResults.map((cust) => (
-                <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-gray-800 dark:text-brand-offwhite">{cust.fullName}</span>
-                    <span className="text-xs text-brand-sage">{cust.phoneNumber}</span>
+              {custSearchResults.map((cust) => {
+                const score = calculateCompleteness(cust);
+                const badgeClass = score <= 3 
+                  ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                  : score <= 7 
+                  ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                  : score <= 9 
+                  ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                  : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+                
+                return (
+                  <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-gray-800 dark:text-brand-offwhite">{cust.fullName}</span>
+                      <span className="text-xs text-brand-sage font-mono">{cust.phoneNumber}</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                          Profile: {score}/10
+                        </span>
+                        <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                            }`}
+                            style={{ width: `${score * 10}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => selectCust(cust)} 
+                      className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
+                    >
+                      Select
+                    </button>
                   </div>
-                  <button 
-                    type="button" 
-                    onClick={() => selectCust(cust)} 
-                    className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
-                  >
-                    Select
-                  </button>
-                </div>
-              ))}
+                );
+              })}
               <button 
                 type="button" 
                 onClick={() => { setCustSearchResults([]); setIsCustModalOpen(true); }} 
@@ -280,26 +306,63 @@ const WalkInCheckInPage = () => {
             </div>
           )}
 
-          {selectedCust && custSearchResults.length === 0 && (
-            <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center">
-              <div>
-                <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest</div>
-                <div className="font-bold text-brand-black dark:text-brand-offwhite">{selectedCust.fullName}</div>
-                <div className="text-xs text-brand-sage">{selectedCust.phoneNumber}</div>
+          {selectedCust && custSearchResults.length === 0 && (() => {
+            const score = calculateCompleteness(selectedCust);
+            const badgeClass = score <= 3 
+              ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+              : score <= 7 
+              ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+              : score <= 9 
+              ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+              : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+            
+            return (
+              <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite">
+                <div>
+                  <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest</div>
+                  <div className="font-bold text-brand-black dark:text-brand-offwhite flex items-center gap-2">
+                    {selectedCust.fullName}
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setCustomerToEdit(selectedCust);
+                        setIsCustModalOpen(true);
+                      }}
+                      className="btn btn-ghost btn-xs text-brand-primary p-0 h-auto hover:bg-transparent"
+                      title="Edit Profile"
+                    >
+                      <FiEdit size={14} />
+                    </button>
+                  </div>
+                  <div className="text-xs text-brand-sage font-mono">{selectedCust.phoneNumber}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                      Profile: {score}/10
+                    </span>
+                    <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${score * 10}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => { 
+                    setSelectedCust(null); 
+                    setCustomer(""); 
+                    setPhoneSearch(""); 
+                  }} 
+                  className="text-xs text-red-500 hover:underline font-bold"
+                >
+                  Remove
+                </button>
               </div>
-              <button 
-                type="button" 
-                onClick={() => { 
-                  setSelectedCust(null); 
-                  setCustomer(""); 
-                  setPhoneSearch(""); 
-                }} 
-                className="text-xs text-red-500 hover:underline font-bold"
-              >
-                Remove
-              </button>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Rooms Selection */}
@@ -451,9 +514,21 @@ const WalkInCheckInPage = () => {
 
       <CustomerModal 
         isOpen={isCustModalOpen} 
-        onClose={() => setIsCustModalOpen(false)} 
+        onClose={() => {
+          setIsCustModalOpen(false);
+          setCustomerToEdit(null);
+        }} 
         initialPhoneNumber={phoneSearch}
-        onSuccess={handleCustomerCreateSuccess}
+        customerToEdit={customerToEdit}
+        onSuccess={(updatedCust) => {
+          if (customerToEdit) {
+            setSelectedCust(updatedCust);
+            setCustomers(prev => prev.map(c => c._id === updatedCust._id ? updatedCust : c));
+          } else {
+            handleCustomerCreateSuccess(updatedCust);
+          }
+          setCustomerToEdit(null);
+        }}
       />
     </div>
   );
