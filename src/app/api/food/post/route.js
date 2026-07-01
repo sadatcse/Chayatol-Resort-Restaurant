@@ -7,6 +7,17 @@ export async function POST(request) {
     await connectDB();
     const data = await request.json();
 
+    if (!data.foodName || !data.foodName.trim()) {
+      return NextResponse.json({ success: false, message: "Food name is required" }, { status: 400 });
+    }
+
+    const existing = await Food.findOne({
+      foodName: { $regex: new RegExp(`^${data.foodName.trim()}$`, "i") }
+    });
+    if (existing) {
+      return NextResponse.json({ success: false, message: "A food item with this name already exists." }, { status: 400 });
+    }
+
     const newFood = await Food.create(data);
 
     return NextResponse.json(

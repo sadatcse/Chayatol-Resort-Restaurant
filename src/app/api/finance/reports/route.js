@@ -6,6 +6,7 @@ import ReservationPayment from "@/models/ReservationPayment";
 import Invoice from "@/models/Invoice";
 import Purchase from "@/models/Purchase";
 import VendorPayment from "@/models/VendorPayment";
+import FolioEntry from "@/models/FolioEntry";
 
 export async function GET(req) {
   try {
@@ -31,6 +32,12 @@ export async function GET(req) {
       paymentDate: { $gte: startDate, $lte: endDate }
     });
 
+    // 1.1 Fetch Stay Folio Payments
+    const folioPayments = await FolioEntry.find({
+      type: { $in: ["Payment", "Advance Payment"] },
+      date: { $gte: startDate, $lte: endDate }
+    });
+
     let roomRevenue = 0;
     let bookingRefunds = 0;
     reservationPayments.forEach(p => {
@@ -39,6 +46,10 @@ export async function GET(req) {
       } else {
         bookingRefunds += Math.abs(p.amount);
       }
+    });
+
+    folioPayments.forEach(fp => {
+      roomRevenue += fp.credit || 0;
     });
 
     // 2. Fetch Restaurant POS Invoices (Restaurant Sales)

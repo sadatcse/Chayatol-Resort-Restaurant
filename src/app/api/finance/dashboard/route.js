@@ -4,6 +4,7 @@ import Expense from "@/models/Expense";
 import ReservationPayment from "@/models/ReservationPayment";
 import Invoice from "@/models/Invoice";
 import Purchase from "@/models/Purchase";
+import FolioEntry from "@/models/FolioEntry";
 
 export async function GET(req) {
   try {
@@ -20,8 +21,9 @@ export async function GET(req) {
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     // --- 1. TODAY STATS ---
-    const [todayResPayments, todayInvoices, todayExpenses] = await Promise.all([
+    const [todayResPayments, todayFolioPayments, todayInvoices, todayExpenses] = await Promise.all([
       ReservationPayment.find({ paymentDate: { $gte: startOfToday, $lte: endOfToday } }),
+      FolioEntry.find({ type: { $in: ["Payment", "Advance Payment"] }, date: { $gte: startOfToday, $lte: endOfToday } }),
       Invoice.find({ createdAt: { $gte: startOfToday, $lte: endOfToday }, paymentStatus: { $in: ["Paid", "Partial"] } }),
       Expense.find({ expenseDate: { $gte: startOfToday, $lte: endOfToday } })
     ]);
@@ -29,6 +31,9 @@ export async function GET(req) {
     let todayRevenue = 0;
     todayResPayments.forEach(p => {
       todayRevenue += p.amount;
+    });
+    todayFolioPayments.forEach(fp => {
+      todayRevenue += fp.credit || 0;
     });
     todayInvoices.forEach(inv => {
       todayRevenue += inv.grandTotal || 0;
@@ -40,8 +45,9 @@ export async function GET(req) {
     });
 
     // --- 2. MONTHLY STATS ---
-    const [monthResPayments, monthInvoices, monthExpenses, monthPurchases] = await Promise.all([
+    const [monthResPayments, monthFolioPayments, monthInvoices, monthExpenses, monthPurchases] = await Promise.all([
       ReservationPayment.find({ paymentDate: { $gte: startOfMonth, $lte: endOfMonth } }),
+      FolioEntry.find({ type: { $in: ["Payment", "Advance Payment"] }, date: { $gte: startOfMonth, $lte: endOfMonth } }),
       Invoice.find({ createdAt: { $gte: startOfMonth, $lte: endOfMonth }, paymentStatus: { $in: ["Paid", "Partial"] } }),
       Expense.find({ expenseDate: { $gte: startOfMonth, $lte: endOfMonth } }),
       Purchase.find({ purchaseDate: { $gte: startOfMonth, $lte: endOfMonth } })
@@ -50,6 +56,9 @@ export async function GET(req) {
     let monthlyRevenue = 0;
     monthResPayments.forEach(p => {
       monthlyRevenue += p.amount;
+    });
+    monthFolioPayments.forEach(fp => {
+      monthlyRevenue += fp.credit || 0;
     });
     monthInvoices.forEach(inv => {
       monthlyRevenue += inv.grandTotal || 0;

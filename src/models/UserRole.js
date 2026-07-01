@@ -7,6 +7,8 @@ const UserRoleSchema = Schema(
     userrole: {
       type: String,
       required: [true, "Please provide the user role"],
+      unique: true,
+      trim: true,
     },
   },
   { timestamps: true }

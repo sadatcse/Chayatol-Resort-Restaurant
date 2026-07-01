@@ -7,6 +7,7 @@ const FoodSchema = Schema(
       type: String,
       required: [true, "Please provide the food name"],
       trim: true,
+      unique: true,
     },
     category: {
       type: String,

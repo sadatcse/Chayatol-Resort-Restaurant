@@ -7,6 +7,7 @@ const lostFoundLocationSchema = new Schema(
       type: String,
       required: [true, "Location name is required"],
       trim: true,
+      unique: true,
     },
     type: {
       type: String,

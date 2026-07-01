@@ -18,12 +18,17 @@ import CustomerModal from "@/components/CustomerModal";
 import { calculateCompleteness } from "@/lib/customerHelper";
 
 const FrontDeskTimelinePage = () => {
+  const [mounted, setMounted] = useState(false);
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
   const router = useRouter();
 
   const [currentDate, setCurrentDate] = useState(new Date()); // Holds active month/year
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Timeline Data
   const [rooms, setRooms] = useState([]);
@@ -90,7 +95,7 @@ const FrontDeskTimelinePage = () => {
   // --- Reservations Dashboard State ---
   const [selectedRes, setSelectedRes] = useState(null);
   const [isResDetailModalOpen, setIsResDetailModalOpen] = useState(false);
-  
+
   // Prepayments and deposits modal
   const [isResPayModalOpen, setIsResPayModalOpen] = useState(false);
   const [paymentsList, setPaymentsList] = useState([]);
@@ -188,7 +193,8 @@ const FrontDeskTimelinePage = () => {
       setStays(data.stays || []);
     } catch (err) {
       console.error("Error loading timeline data:", err);
-      Swal.fire("Error", "Failed to load timeline records", "error");
+      const errMsg = err.response?.data?.message || err.message || "Failed to load timeline records";
+      Swal.fire("Error", `Failed to load timeline records: ${errMsg}`, "error");
     } finally {
       setIsLoading(false);
     }
@@ -239,8 +245,8 @@ const FrontDeskTimelinePage = () => {
   const isToday = (dateObj) => {
     const today = new Date();
     return dateObj.getDate() === today.getDate() &&
-           dateObj.getMonth() === today.getMonth() &&
-           dateObj.getFullYear() === today.getFullYear();
+      dateObj.getMonth() === today.getMonth() &&
+      dateObj.getFullYear() === today.getFullYear();
   };
 
   // Navigate months (shifts reference date by a month)
@@ -494,6 +500,28 @@ const FrontDeskTimelinePage = () => {
     const updated = [...newResFormData.rooms];
     updated[index][field] = value;
 
+    // Reset room selection when roomType changes, and fetch first room price matching this type
+    if (field === "roomType") {
+      updated[index].room = ""; // Reset room selection
+      if (value) {
+        const typeRoom = availableRooms.find(r => r.roomType === value);
+        if (typeRoom) {
+          const selectedMeal = updated[index].mealPlan || "Room Only";
+          if (selectedMeal === "Breakfast Included") {
+            updated[index].nightlyRate = typeRoom.priceWithBreakfast || 0;
+          } else if (selectedMeal === "All-Day Food Included") {
+            updated[index].nightlyRate = typeRoom.priceWithAllDayFood || 0;
+          } else {
+            updated[index].nightlyRate = typeRoom.price || 0;
+          }
+        } else {
+          updated[index].nightlyRate = 0;
+        }
+      } else {
+        updated[index].nightlyRate = 0;
+      }
+    }
+
     if (field === "room" || field === "mealPlan") {
       const roomId = updated[index].room;
       const selectedMeal = updated[index].mealPlan || "Room Only";
@@ -508,6 +536,18 @@ const FrontDeskTimelinePage = () => {
             updated[index].nightlyRate = roomObj.priceWithAllDayFood || 0;
           } else {
             updated[index].nightlyRate = roomObj.price || 0;
+          }
+        }
+      } else if (updated[index].roomType) {
+        // Fallback: If no specific room is assigned yet but room type is set, calculate rate based on room type
+        const typeRoom = availableRooms.find(r => r.roomType === updated[index].roomType);
+        if (typeRoom) {
+          if (selectedMeal === "Breakfast Included") {
+            updated[index].nightlyRate = typeRoom.priceWithBreakfast || 0;
+          } else if (selectedMeal === "All-Day Food Included") {
+            updated[index].nightlyRate = typeRoom.priceWithAllDayFood || 0;
+          } else {
+            updated[index].nightlyRate = typeRoom.price || 0;
           }
         }
       }
@@ -887,11 +927,11 @@ const FrontDeskTimelinePage = () => {
       await axiosSecure.post(`/reservations/${selectedRes._id}/payments`, resPayFormData);
       await fetchResPayments(selectedRes._id);
       setResPayFormData({ paymentType: "", amount: "", transactionRef: "", notes: "", receivedBy: "" });
-      
+
       // Update selectedRes with latest financial info if needed
       const resVal = await axiosSecure.get(`/reservations/${selectedRes._id}`);
       setSelectedRes(resVal.data);
-      
+
       fetchTimelineData();
       Swal.fire("Success", "Payment/deposit recorded.", "success");
     } catch (error) {
@@ -1007,11 +1047,11 @@ const FrontDeskTimelinePage = () => {
           receivedBy: formValues.receiver
         };
         await axiosSecure.post(`/reservations/${res._id}/payments`, payload);
-        
+
         // Update selectedRes with latest info
         const resVal = await axiosSecure.get(`/reservations/${selectedRes._id}`);
         setSelectedRes(resVal.data);
-        
+
         fetchTimelineData();
         Swal.fire("Refund Logged", `Refund payout of ৳${refundAmt} recorded.`, "success");
       } catch (err) {
@@ -1091,11 +1131,11 @@ const FrontDeskTimelinePage = () => {
       if (result.isConfirmed) {
         // Prefill Walk-in modal
         setWalkinRooms([{ room: room._id, mealPlan: "Room Only", nightlyRate: room.price || 0, adults: 1, children: 0, nights: 1 }]);
-        
+
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         setWalkinExpectedCheckOutDate(tomorrow.toISOString().split("T")[0]);
-        
+
         setSelectedWalkinCust(null);
         setWalkinCustomer("");
         setWalkinPhoneSearch("");
@@ -1124,6 +1164,14 @@ const FrontDeskTimelinePage = () => {
       }
     });
   };
+
+  if (!mounted) {
+    return (
+      <div className="flex h-[50vh] w-full items-center justify-center bg-brand-offwhite dark:bg-brand-charcoal">
+        <span className="loading loading-spinner loading-lg text-brand-primary"></span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
@@ -1166,7 +1214,7 @@ const FrontDeskTimelinePage = () => {
             <span className="font-bold text-brand-sage">In House</span>
           </div>
 
-          <button 
+          <button
             onClick={() => {
               setNewResFormData({
                 customer: "",
@@ -1185,14 +1233,14 @@ const FrontDeskTimelinePage = () => {
               setNewResPhoneSearch("");
               setNewResCustSearchResults([]);
               setIsNewResModalOpen(true);
-            }} 
+            }}
             className="btn bg-blue-600 hover:bg-blue-700 text-white border-none btn-sm rounded-full shadow gap-2 px-5 mr-2"
           >
             <FiPlus />
             <span className="uppercase tracking-widest text-[10px] font-bold">New Reservation</span>
           </button>
 
-          <button 
+          <button
             onClick={() => {
               setWalkinRooms([{ room: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, nights: 1 }]);
               const tom = new Date();
@@ -1203,7 +1251,7 @@ const FrontDeskTimelinePage = () => {
               setWalkinPhoneSearch("");
               setWalkinCustSearchResults([]);
               setIsWalkinModalOpen(true);
-            }} 
+            }}
             className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none btn-sm rounded-full shadow gap-2 px-5"
           >
             <FiPlus />
@@ -1358,11 +1406,11 @@ const FrontDeskTimelinePage = () => {
                   onPrint={() => setFolioPrintData(selectedStay)}
                   isLoading={false}
                 />
-                <button 
+                <button
                   onClick={() => {
                     setSelectedStay(null);
                     setSelectedBlock(null);
-                  }} 
+                  }}
                   className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:bg-brand-beige dark:hover:bg-brand-offwhite/10"
                 >
                   <FiX size={20} />
@@ -1378,7 +1426,7 @@ const FrontDeskTimelinePage = () => {
                   <span className="text-brand-sage">Customer:</span>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="font-bold text-sm text-brand-charcoal dark:text-brand-offwhite">{selectedStay.customer?.fullName}</span>
-                    <button 
+                    <button
                       onClick={() => setIsCustomerModalOpen(true)}
                       className="btn btn-xs btn-outline border-brand-primary text-brand-primary rounded-full px-3 hover:bg-brand-primary hover:text-white transition-all duration-200 cursor-pointer font-bold text-[10px]"
                     >
@@ -1459,11 +1507,11 @@ const FrontDeskTimelinePage = () => {
                   <button onClick={() => setIsExtendModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 sm:col-span-2">
                     <FiClock /> Extend Stay
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       setCheckoutPayment({ paymentType: "", amount: outstandingDue > 0 ? outstandingDue : "", transactionRef: "" });
                       setIsCheckoutModalOpen(true);
-                    }} 
+                    }}
                     className="btn btn-sm bg-brand-primary text-white border-none w-full sm:col-span-2 rounded-full cursor-pointer font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow"
                   >
                     Checkout Guest <FiArrowRight />
@@ -1486,26 +1534,26 @@ const FrontDeskTimelinePage = () => {
                 <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest font-mono">Res No: {selectedRes.reservationNo}</span>
               </div>
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => openResPaymentsModal(selectedRes)} 
+                <button
+                  onClick={() => openResPaymentsModal(selectedRes)}
                   className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none rounded-lg px-3 py-1.5 h-auto flex items-center gap-1 shadow-sm uppercase tracking-widest font-bold text-[9px]"
                   title="Manage Payments/Deposits"
                 >
                   <FiCreditCard size={12} /> Manage Payments
                 </button>
-                <button 
-                  onClick={() => setResPrintData(selectedRes)} 
+                <button
+                  onClick={() => setResPrintData(selectedRes)}
                   className="btn btn-xs btn-outline border-brand-primary text-brand-primary rounded-lg px-3 py-1.5 h-auto flex items-center gap-1 uppercase tracking-widest font-bold text-[9px]"
                   title="Print Reservation Invoice"
                 >
                   <FiPrinter size={12} /> Print Invoice
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     setSelectedRes(null);
                     setSelectedBlock(null);
                     setIsResDetailModalOpen(false);
-                  }} 
+                  }}
                   className="btn btn-sm btn-circle btn-ghost text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-beige dark:hover:bg-brand-offwhite/10"
                 >
                   <FiX size={20} />
@@ -1610,8 +1658,8 @@ const FrontDeskTimelinePage = () => {
               {/* Action Buttons */}
               <div className="pt-4 flex justify-end gap-3 border-t border-brand-beige/35">
                 {selectedRes.status !== "Checked-In" && selectedRes.status !== "Cancelled" && (
-                  <button 
-                    onClick={() => openCheckinModal(selectedRes)} 
+                  <button
+                    onClick={() => openCheckinModal(selectedRes)}
                     className="btn btn-sm bg-green-600 hover:bg-green-700 text-white border-none rounded-full cursor-pointer gap-1 px-5 shadow font-bold uppercase tracking-wider text-[10px]"
                   >
                     <FiCheck /> Confirm Check-In
@@ -1619,8 +1667,8 @@ const FrontDeskTimelinePage = () => {
                 )}
 
                 {selectedRes.status !== "Checked-In" && selectedRes.status !== "Cancelled" && (
-                  <button 
-                    onClick={() => handleCancelReservation(selectedRes)} 
+                  <button
+                    onClick={() => handleCancelReservation(selectedRes)}
                     className="btn btn-sm bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-full cursor-pointer gap-1 px-5 font-bold uppercase tracking-wider text-[10px]"
                   >
                     <FiXCircle /> Cancel Booking
@@ -1628,19 +1676,19 @@ const FrontDeskTimelinePage = () => {
                 )}
 
                 {selectedRes.status === "Cancelled" && (selectedRes.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0) - (selectedRes.totalPaid || 0)) < 0 && (
-                  <button 
-                    onClick={() => handleQuickRefund(selectedRes, Math.abs(selectedRes.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0) - (selectedRes.totalPaid || 0)))} 
+                  <button
+                    onClick={() => handleQuickRefund(selectedRes, Math.abs(selectedRes.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0) - (selectedRes.totalPaid || 0)))}
                     className="btn btn-sm bg-red-600 hover:bg-red-700 text-white border-none rounded-full cursor-pointer px-5 shadow font-bold uppercase tracking-wider text-[10px]"
                   >
                     Process Refund ৳{Math.abs(selectedRes.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0) - (selectedRes.totalPaid || 0))}
                   </button>
                 )}
 
-                <button 
+                <button
                   onClick={() => {
                     setIsResDetailModalOpen(false);
                     router.push(`/dashboard/reservations?reservationId=${selectedRes._id}`);
-                  }} 
+                  }}
                   className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full px-6 font-bold uppercase tracking-wider text-[10px]"
                 >
                   Edit / Manage
@@ -2020,9 +2068,9 @@ const FrontDeskTimelinePage = () => {
                 {/* Profile Photo / Avatar */}
                 <div className="flex flex-col items-center gap-3 w-full md:w-1/4">
                   {selectedStay.customer.customerPhoto ? (
-                    <img 
-                      src={selectedStay.customer.customerPhoto} 
-                      alt={selectedStay.customer.fullName} 
+                    <img
+                      src={selectedStay.customer.customerPhoto}
+                      alt={selectedStay.customer.fullName}
                       className="w-32 h-32 rounded-full object-cover border-4 border-brand-primary/20 shadow-md"
                     />
                   ) : (
@@ -2076,9 +2124,9 @@ const FrontDeskTimelinePage = () => {
                     {selectedStay.customer.uploadIdCopy && (
                       <div className="mt-2">
                         <span className="text-xs text-brand-sage block mb-1">ID Copy Document</span>
-                        <a 
-                          href={selectedStay.customer.uploadIdCopy} 
-                          target="_blank" 
+                        <a
+                          href={selectedStay.customer.uploadIdCopy}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1"
                         >
@@ -2158,8 +2206,8 @@ const FrontDeskTimelinePage = () => {
               <button onClick={() => setIsCustomerModalOpen(false)} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">
                 Close
               </button>
-              <button 
-                onClick={() => setCustomerPrintData(selectedStay)} 
+              <button
+                onClick={() => setCustomerPrintData(selectedStay)}
                 className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md"
               >
                 Print Profile
@@ -2379,9 +2427,9 @@ const FrontDeskTimelinePage = () => {
             dateRange={`Check-in: ${new Date(folioPrintData.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(folioPrintData.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
           >
             <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px", color: "#000" }}>
-              <strong>Customer Name:</strong> {folioPrintData.customer?.fullName} &nbsp;|&nbsp; 
-              <strong>Email:</strong> {folioPrintData.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
-              <strong>Phone:</strong> {folioPrintData.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
+              <strong>Customer Name:</strong> {folioPrintData.customer?.fullName} &nbsp;|&nbsp;
+              <strong>Email:</strong> {folioPrintData.customer?.emailAddress || "N/A"} &nbsp;|&nbsp;
+              <strong>Phone:</strong> {folioPrintData.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp;
               <strong>Assigned Rooms:</strong> {folioPrintData.rooms?.map(r => r.room?.roomNumber).join(", ")}
             </div>
             <table className="print-table">
@@ -2561,8 +2609,8 @@ const FrontDeskTimelinePage = () => {
                 <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">Walk-In Check-In</h3>
                 <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest font-mono">Create stays record directly from the timeline</span>
               </div>
-              <button 
-                onClick={() => setIsWalkinModalOpen(false)} 
+              <button
+                onClick={() => setIsWalkinModalOpen(false)}
                 className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:bg-brand-beige dark:hover:bg-brand-offwhite/10"
               >
                 <FiX size={20} />
@@ -2574,22 +2622,22 @@ const FrontDeskTimelinePage = () => {
               <div className="form-control w-full">
                 <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Select Customer *</span></label>
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={walkinPhoneSearch} 
-                    onChange={(e) => { 
-                      setWalkinPhoneSearch(e.target.value); 
-                      setSelectedWalkinCust(null); 
-                      setWalkinCustomer(""); 
-                      setWalkinCustSearchResults([]); 
-                    }} 
-                    placeholder="Search by phone number (e.g. 01700000000)" 
-                    className="input input-bordered input-xs h-9 border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary flex-1 bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite" 
+                  <input
+                    type="text"
+                    value={walkinPhoneSearch}
+                    onChange={(e) => {
+                      setWalkinPhoneSearch(e.target.value);
+                      setSelectedWalkinCust(null);
+                      setWalkinCustomer("");
+                      setWalkinCustSearchResults([]);
+                    }}
+                    placeholder="Search by phone number (e.g. 01700000000)"
+                    className="input input-bordered input-xs h-9 border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary flex-1 bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
                   />
-                  <button 
-                    type="button" 
-                    onClick={handleWalkinSearchCustomer} 
-                    disabled={walkinCustSearchLoading} 
+                  <button
+                    type="button"
+                    onClick={handleWalkinSearchCustomer}
+                    disabled={walkinCustSearchLoading}
                     className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none px-6 btn-xs h-9 font-bold uppercase tracking-widest"
                   >
                     {walkinCustSearchLoading ? "..." : "Search"}
@@ -2601,14 +2649,14 @@ const FrontDeskTimelinePage = () => {
                     <div className="text-[10px] font-bold text-brand-sage uppercase tracking-wider">Search Results</div>
                     {walkinCustSearchResults.map((cust) => {
                       const score = calculateCompleteness(cust);
-                      const badgeClass = score <= 3 
-                        ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
-                        : score <= 7 
-                        ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
-                        : score <= 9 
-                        ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
-                        : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
-                      
+                      const badgeClass = score <= 3
+                        ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50"
+                        : score <= 7
+                          ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50"
+                          : score <= 9
+                            ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50"
+                            : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+
                       return (
                         <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
                           <div className="flex flex-col">
@@ -2619,18 +2667,17 @@ const FrontDeskTimelinePage = () => {
                                 Profile: {score}/10
                               </span>
                               <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
-                                  }`}
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                                    }`}
                                   style={{ width: `${score * 10}%` }}
                                 />
                               </div>
                             </div>
                           </div>
-                          <button 
-                            type="button" 
-                            onClick={() => selectWalkinCust(cust)} 
+                          <button
+                            type="button"
+                            onClick={() => selectWalkinCust(cust)}
                             className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
                           >
                             Select
@@ -2638,9 +2685,9 @@ const FrontDeskTimelinePage = () => {
                         </div>
                       );
                     })}
-                    <button 
-                      type="button" 
-                      onClick={() => { setWalkinCustSearchResults([]); setIsWalkinCustModalOpen(true); }} 
+                    <button
+                      type="button"
+                      onClick={() => { setWalkinCustSearchResults([]); setIsWalkinCustModalOpen(true); }}
                       className="text-xs text-blue-500 font-bold hover:underline self-start mt-1 cursor-pointer"
                     >
                       + Add New Customer
@@ -2650,21 +2697,21 @@ const FrontDeskTimelinePage = () => {
 
                 {selectedWalkinCust && walkinCustSearchResults.length === 0 && (() => {
                   const score = calculateCompleteness(selectedWalkinCust);
-                  const badgeClass = score <= 3 
-                    ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
-                    : score <= 7 
-                    ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
-                    : score <= 9 
-                    ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
-                    : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
-                  
+                  const badgeClass = score <= 3
+                    ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50"
+                    : score <= 7
+                      ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50"
+                      : score <= 9
+                        ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50"
+                        : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+
                   return (
                     <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite">
                       <div>
                         <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest</div>
                         <div className="font-bold text-sm flex items-center gap-2">
                           {selectedWalkinCust.fullName}
-                          <button 
+                          <button
                             type="button"
                             onClick={() => {
                               setWalkinCustToEdit(selectedWalkinCust);
@@ -2682,22 +2729,21 @@ const FrontDeskTimelinePage = () => {
                             Profile: {score}/10
                           </span>
                           <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-300 ${
-                                score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
-                              }`}
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                                }`}
                               style={{ width: `${score * 10}%` }}
                             />
                           </div>
                         </div>
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => { 
-                          setSelectedWalkinCust(null); 
-                          setWalkinCustomer(""); 
-                          setWalkinPhoneSearch(""); 
-                        }} 
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWalkinCust(null);
+                          setWalkinCustomer("");
+                          setWalkinPhoneSearch("");
+                        }}
                         className="text-xs text-red-500 hover:underline font-bold"
                       >
                         Remove
@@ -2849,16 +2895,16 @@ const FrontDeskTimelinePage = () => {
 
             {/* Modal Footer */}
             <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
-              <button 
-                type="button" 
-                onClick={() => setIsWalkinModalOpen(false)} 
+              <button
+                type="button"
+                onClick={() => setIsWalkinModalOpen(false)}
                 className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6"
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
-                onClick={handleWalkInCheckinSubmit} 
+              <button
+                type="button"
+                onClick={handleWalkInCheckinSubmit}
                 className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md"
                 disabled={isWalkinSubmitting}
               >
@@ -2879,8 +2925,8 @@ const FrontDeskTimelinePage = () => {
                 <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">New Reservation</h3>
                 <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest font-mono">Book and assign rooms for future stays</span>
               </div>
-              <button 
-                onClick={() => setIsNewResModalOpen(false)} 
+              <button
+                onClick={() => setIsNewResModalOpen(false)}
                 className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:bg-brand-beige dark:hover:bg-brand-offwhite/10"
               >
                 <FiX size={20} />
@@ -2892,22 +2938,22 @@ const FrontDeskTimelinePage = () => {
               <div className="form-control w-full">
                 <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Select Customer *</span></label>
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={newResPhoneSearch} 
-                    onChange={(e) => { 
-                      setNewResPhoneSearch(e.target.value); 
-                      setSelectedNewResCust(null); 
-                      setNewResFormData({ ...newResFormData, customer: "" }); 
-                      setNewResCustSearchResults([]); 
-                    }} 
-                    placeholder="Search by phone number (e.g. 01700000000)" 
-                    className="input input-bordered input-xs h-9 border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary flex-1 bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite" 
+                  <input
+                    type="text"
+                    value={newResPhoneSearch}
+                    onChange={(e) => {
+                      setNewResPhoneSearch(e.target.value);
+                      setSelectedNewResCust(null);
+                      setNewResFormData({ ...newResFormData, customer: "" });
+                      setNewResCustSearchResults([]);
+                    }}
+                    placeholder="Search by phone number (e.g. 01700000000)"
+                    className="input input-bordered input-xs h-9 border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary flex-1 bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
                   />
-                  <button 
-                    type="button" 
-                    onClick={handleNewResSearchCustomer} 
-                    disabled={newResCustSearchLoading} 
+                  <button
+                    type="button"
+                    onClick={handleNewResSearchCustomer}
+                    disabled={newResCustSearchLoading}
                     className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none px-6 btn-xs h-9 font-bold uppercase tracking-widest"
                   >
                     {newResCustSearchLoading ? "..." : "Search"}
@@ -2919,14 +2965,14 @@ const FrontDeskTimelinePage = () => {
                     <div className="text-[10px] font-bold text-brand-sage uppercase tracking-wider">Search Results</div>
                     {newResCustSearchResults.map((cust) => {
                       const score = calculateCompleteness(cust);
-                      const badgeClass = score <= 3 
-                        ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
-                        : score <= 7 
-                        ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
-                        : score <= 9 
-                        ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
-                        : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
-                      
+                      const badgeClass = score <= 3
+                        ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50"
+                        : score <= 7
+                          ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50"
+                          : score <= 9
+                            ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50"
+                            : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+
                       return (
                         <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
                           <div className="flex flex-col">
@@ -2937,18 +2983,17 @@ const FrontDeskTimelinePage = () => {
                                 Profile: {score}/10
                               </span>
                               <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
-                                  }`}
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                                    }`}
                                   style={{ width: `${score * 10}%` }}
                                 />
                               </div>
                             </div>
                           </div>
-                          <button 
-                            type="button" 
-                            onClick={() => selectNewResCust(cust)} 
+                          <button
+                            type="button"
+                            onClick={() => selectNewResCust(cust)}
                             className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
                           >
                             Select
@@ -2956,9 +3001,9 @@ const FrontDeskTimelinePage = () => {
                         </div>
                       );
                     })}
-                    <button 
-                      type="button" 
-                      onClick={() => { setNewResCustSearchResults([]); setIsNewResCustModalOpen(true); }} 
+                    <button
+                      type="button"
+                      onClick={() => { setNewResCustSearchResults([]); setIsNewResCustModalOpen(true); }}
                       className="text-xs text-blue-500 font-bold hover:underline self-start mt-1 cursor-pointer"
                     >
                       + Add New Customer
@@ -2968,21 +3013,21 @@ const FrontDeskTimelinePage = () => {
 
                 {selectedNewResCust && newResCustSearchResults.length === 0 && (() => {
                   const score = calculateCompleteness(selectedNewResCust);
-                  const badgeClass = score <= 3 
-                    ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
-                    : score <= 7 
-                    ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
-                    : score <= 9 
-                    ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
-                    : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
-                  
+                  const badgeClass = score <= 3
+                    ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50"
+                    : score <= 7
+                      ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50"
+                      : score <= 9
+                        ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50"
+                        : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+
                   return (
                     <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite">
                       <div>
                         <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest</div>
                         <div className="font-bold text-sm flex items-center gap-2">
                           {selectedNewResCust.fullName}
-                          <button 
+                          <button
                             type="button"
                             onClick={() => {
                               setNewResCustToEdit(selectedNewResCust);
@@ -3000,22 +3045,21 @@ const FrontDeskTimelinePage = () => {
                             Profile: {score}/10
                           </span>
                           <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-300 ${
-                                score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
-                              }`}
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                                }`}
                               style={{ width: `${score * 10}%` }}
                             />
                           </div>
                         </div>
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => { 
-                          setSelectedNewResCust(null); 
-                          setNewResFormData({ ...newResFormData, customer: "" }); 
-                          setNewResPhoneSearch(""); 
-                        }} 
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedNewResCust(null);
+                          setNewResFormData({ ...newResFormData, customer: "" });
+                          setNewResPhoneSearch("");
+                        }}
                         className="text-xs text-red-500 hover:underline font-bold"
                       >
                         Remove
@@ -3122,9 +3166,11 @@ const FrontDeskTimelinePage = () => {
                         className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-8"
                       >
                         <option value="">Auto Assign Room</option>
-                        {availableRooms.map(rm => (
-                          <option key={rm._id} value={rm._id}>{rm.roomNumber} ({rm.roomType})</option>
-                        ))}
+                        {availableRooms
+                          .filter(rm => !r.roomType || rm.roomType === r.roomType)
+                          .map(rm => (
+                            <option key={rm._id} value={rm._id}>{rm.roomNumber} ({rm.roomType})</option>
+                          ))}
                       </select>
                     </div>
 
@@ -3195,16 +3241,16 @@ const FrontDeskTimelinePage = () => {
 
             {/* Modal Footer */}
             <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
-              <button 
-                type="button" 
-                onClick={() => setIsNewResModalOpen(false)} 
+              <button
+                type="button"
+                onClick={() => setIsNewResModalOpen(false)}
                 className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6"
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
-                onClick={handleNewReservationSubmit} 
+              <button
+                type="button"
+                onClick={handleNewReservationSubmit}
                 className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md"
                 disabled={isNewResSubmitting}
               >
@@ -3216,12 +3262,12 @@ const FrontDeskTimelinePage = () => {
       )}
 
       {/* Customer Quick Registration Overlay */}
-      <CustomerModal 
-        isOpen={isWalkinCustModalOpen} 
+      <CustomerModal
+        isOpen={isWalkinCustModalOpen}
         onClose={() => {
           setIsWalkinCustModalOpen(false);
           setWalkinCustToEdit(null);
-        }} 
+        }}
         initialPhoneNumber={walkinPhoneSearch}
         customerToEdit={walkinCustToEdit}
         onSuccess={async (updatedCust) => {
@@ -3235,12 +3281,12 @@ const FrontDeskTimelinePage = () => {
         }}
       />
 
-      <CustomerModal 
-        isOpen={isNewResCustModalOpen} 
+      <CustomerModal
+        isOpen={isNewResCustModalOpen}
         onClose={() => {
           setIsNewResCustModalOpen(false);
           setNewResCustToEdit(null);
-        }} 
+        }}
         initialPhoneNumber={newResPhoneSearch}
         customerToEdit={newResCustToEdit}
         onSuccess={async (updatedCust) => {

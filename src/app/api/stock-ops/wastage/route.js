@@ -165,6 +165,17 @@ export async function POST(req) {
     const body = await req.json();
     const userId = (auth.user.id || auth.user._id)?.toString();
 
+    // Deduplication check: check if a wastage log was created by the same user in the last 10 seconds
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const potentialDuplicate = await StockMovement.findOne({
+      type: "wastage",
+      createdBy: userId,
+      createdAt: { $gte: tenSecondsAgo }
+    });
+    if (potentialDuplicate) {
+      return NextResponse.json({ message: "Duplicate wastage submission detected. Please wait a moment." }, { status: 409 });
+    }
+
     const isBulk = Array.isArray(body.items);
     const date = body.date ? new Date(body.date) : new Date();
     const items = isBulk ? body.items : [body];

@@ -92,6 +92,16 @@ export async function POST(req) {
       return NextResponse.json({ message: "Please provide customer, room details, and expected check-out date." }, { status: 400 });
     }
 
+    // Deduplication check: check if the customer has a check-in created in the last 10 seconds
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const potentialDuplicate = await Stay.findOne({
+      customer,
+      createdAt: { $gte: tenSecondsAgo }
+    });
+    if (potentialDuplicate) {
+      return NextResponse.json({ message: "Duplicate check-in detected. Please wait a moment." }, { status: 409 });
+    }
+
     const stayRooms = [];
     const roomsToUpdate = [];
 

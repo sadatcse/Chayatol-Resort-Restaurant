@@ -95,6 +95,18 @@ export async function POST(req) {
 
     const userId = auth.user.id || auth.user._id;
 
+    // Deduplication check: check if a matching payment was created in the last 10 seconds
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const potentialDuplicate = await VendorPayment.findOne({
+      vendor,
+      amount: Number(amount),
+      paymentMethod,
+      createdAt: { $gte: tenSecondsAgo }
+    });
+    if (potentialDuplicate) {
+      return NextResponse.json({ error: "Duplicate payment detected. Please wait a moment." }, { status: 409 });
+    }
+
     const newPayment = await VendorPayment.create({
       vendor,
       purchase: purchase || null,

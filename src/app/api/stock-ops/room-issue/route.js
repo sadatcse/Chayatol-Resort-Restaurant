@@ -171,9 +171,20 @@ export async function POST(req) {
 
     const roomNumber = body.roomNumber;
     const guestName = body.guestName?.trim() || "";
-
     if (!roomNumber || !roomNumber.trim()) {
       return NextResponse.json({ message: "Room number is required." }, { status: 400 });
+    }
+
+    // Deduplication check: check if a room issue of the same roomNumber was created by the same user in the last 10 seconds
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const potentialDuplicate = await StockMovement.findOne({
+      type: "room_issue",
+      roomNumber: roomNumber.trim(),
+      createdBy: userId,
+      createdAt: { $gte: tenSecondsAgo }
+    });
+    if (potentialDuplicate) {
+      return NextResponse.json({ message: "Duplicate room issue submission detected. Please wait a moment." }, { status: 409 });
     }
 
     const items = isBulk ? body.items : [body];

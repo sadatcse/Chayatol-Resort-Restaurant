@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import Room from "@/models/Room";
 import Reservation from "@/models/Reservation";
 import Stay from "@/models/Stay";
+import Customer from "@/models/Customer";
 
 export async function GET(req) {
   try {

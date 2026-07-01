@@ -13,7 +13,21 @@ export async function POST(req) {
   try {
     await dbConnect();
     const departmentData = await req.json();
-    const result = await Department.create(departmentData);
+
+    if (!departmentData.department || !departmentData.department.trim()) {
+      return NextResponse.json({ message: "Department name is required" }, { status: 400 });
+    }
+
+    const existing = await Department.findOne({
+      department: { $regex: new RegExp(`^${departmentData.department.trim()}$`, "i") }
+    });
+    if (existing) {
+      return NextResponse.json({ message: "Department already exists." }, { status: 400 });
+    }
+
+    const result = await Department.create({
+      department: departmentData.department.trim()
+    });
 
     await logTransaction({ req, resStatus: 201, user: auth.user, details: `Created department: ${departmentData.department}` });
 

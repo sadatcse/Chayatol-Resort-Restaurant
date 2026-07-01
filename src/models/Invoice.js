@@ -125,6 +125,37 @@ const invoiceSchema = new Schema(
 
     notes: String,
 
+    // --- NEW: Added fields for Teaxo POS & Kitchen Display compatibility ---
+    products: [
+      {
+        productId: String,
+        productName: String,
+        qty: { type: Number, default: 0 },
+        printedQty: { type: Number, default: 0 },
+        addedInRound: { type: Number, default: 1 },
+        rate: { type: Number, default: 0 },
+        subtotal: { type: Number, default: 0 },
+        vat: { type: Number, default: 0 },
+        sd: { type: Number, default: 0 },
+        cookStatus: { type: String, default: "PENDING" },
+        isComplimentary: { type: Boolean, default: false },
+        drinkBar: { type: Boolean, default: false },
+        history: [
+          {
+            updateNumber: { type: Number, default: 0 },
+            updateTime: { type: Date, default: Date.now },
+            cookStatus: { type: String, default: "PENDING" },
+            qty: { type: Number, default: 0 }
+          }
+        ]
+      }
+    ],
+    invoiceSerial: { type: String, default: null },
+    dateTime: { type: Date, default: Date.now },
+    customerName: { type: String, default: "" },
+    customerMobile: { type: String, default: "" },
+    kotRound: { type: Number, default: 1 },
+
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

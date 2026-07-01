@@ -179,6 +179,19 @@ export async function POST(req) {
       return NextResponse.json({ message: "Room number is required for room returns." }, { status: 400 });
     }
 
+    // Deduplication check: check if a matching return was created by the same user in the last 10 seconds
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const potentialDuplicate = await StockMovement.findOne({
+      type: returnType,
+      kitchenName: returnType === "return_kitchen" ? kitchenName.trim() : undefined,
+      roomNumber: returnType === "return_room" ? roomNumber.trim() : undefined,
+      createdBy: userId,
+      createdAt: { $gte: tenSecondsAgo }
+    });
+    if (potentialDuplicate) {
+      return NextResponse.json({ message: "Duplicate return submission detected. Please wait a moment." }, { status: 409 });
+    }
+
     const items = isBulk ? body.items : [body];
 
     if (items.length === 0) {

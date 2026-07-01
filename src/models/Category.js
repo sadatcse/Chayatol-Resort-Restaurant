@@ -7,6 +7,7 @@ const CategorySchema = Schema(
       type: String,
       required: [true, "Please provide the category name"],
       trim: true,
+      unique: true,
     },
     serial: {
       type: Number,

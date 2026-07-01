@@ -4,6 +4,7 @@ import Reservation from "@/models/Reservation";
 import ReservationPayment from "@/models/ReservationPayment";
 import Stay from "@/models/Stay";
 import Room from "@/models/Room";
+import Customer from "@/models/Customer";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";

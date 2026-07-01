@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Reservation from "@/models/Reservation";
 import ReservationPayment from "@/models/ReservationPayment";
+import Customer from "@/models/Customer";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 

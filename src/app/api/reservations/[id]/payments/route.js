@@ -43,6 +43,18 @@ export async function POST(req, { params }) {
       return NextResponse.json({ message: "Reservation not found" }, { status: 404 });
     }
 
+    // Deduplication check: check if a matching payment was created in the last 10 seconds
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const potentialDuplicate = await ReservationPayment.findOne({
+      reservationId: id,
+      amount: Number(amount),
+      paymentType,
+      createdAt: { $gte: tenSecondsAgo }
+    });
+    if (potentialDuplicate) {
+      return NextResponse.json({ message: "Duplicate payment detected. Please wait a moment." }, { status: 409 });
+    }
+
     // Create payment
     const payment = await ReservationPayment.create({
       reservationId: id,

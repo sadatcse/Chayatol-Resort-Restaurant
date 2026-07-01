@@ -27,6 +27,15 @@ export async function POST(req) {
     if (!invoiceNumber || !invoiceNumber.trim()) {
       return NextResponse.json({ message: "Invoice number is required." }, { status: 400 });
     }
+
+    // Check if purchase with this invoice number already exists for this vendor
+    const existingPurchase = await Purchase.findOne({
+      vendor,
+      invoiceNumber: { $regex: new RegExp(`^${invoiceNumber.trim()}$`, "i") }
+    });
+    if (existingPurchase) {
+      return NextResponse.json({ message: "A purchase with this invoice number already exists for this vendor." }, { status: 400 });
+    }
     if (!items || items.length === 0) {
       return NextResponse.json({ message: "At least one purchase item is required." }, { status: 400 });
     }

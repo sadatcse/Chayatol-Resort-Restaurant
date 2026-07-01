@@ -30,8 +30,15 @@ export async function POST(req) {
     const body = await req.json();
     const { name, type, description, isActive } = body;
 
-    if (!name) {
+    if (!name || !name.trim()) {
       return NextResponse.json({ message: "Location name is required" }, { status: 400 });
+    }
+
+    const existing = await LostFoundLocation.findOne({
+      name: { $regex: new RegExp(`^${name.trim()}$`, "i") }
+    });
+    if (existing) {
+      return NextResponse.json({ message: "A location with this name already exists." }, { status: 400 });
     }
 
     const newLocation = await LostFoundLocation.create({

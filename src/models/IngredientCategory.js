@@ -7,6 +7,7 @@ const IngredientCategorySchema = Schema(
       type: String,
       required: [true, "Please provide a category name"],
       trim: true,
+      unique: true,
     },
     isActive: {
       type: Boolean,

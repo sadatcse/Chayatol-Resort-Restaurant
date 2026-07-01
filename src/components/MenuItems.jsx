@@ -44,49 +44,31 @@ import {
   MdCategory,
   MdPlace,
   MdSearch,
+  MdTableRestaurant,
+  MdFeedback,
+  MdLogout,
+  MdRestaurant,
+  MdAdminPanelSettings,
 } from "react-icons/md";
 
 const menuItems = () => {
   return [
-    // ================= DASHBOARD =================
+    // Dashboard
     {
       title: "Dashboard",
       path: "/dashboard/home",
       icon: <MdHome className="text-lg" />,
     },
 
-    // ================= OFFICE MANAGEMENT =================
+    // Front Office
     {
-      title: "Office Management",
-      icon: <MdBusiness className="text-lg" />,
-      children: [
-        {
-          title: "Staff Management",
-          path: "/dashboard/staff",
-          icon: <MdPeople className="text-base" />,
-        },
-        {
-          title: "Customers",
-          path: "/dashboard/customers",
-          icon: <MdGroup className="text-base" />,
-        },
-        {
-          title: "User Access Logs",
-          path: "/dashboard/user-access",
-          icon: <MdListAlt className="text-base" />,
-        },
-      ],
-    },
-
-    // ================= RESORT MANAGEMENT =================
-    {
-      title: "Resort Management",
+      title: "Front Office",
       icon: <MdBeachAccess className="text-lg" />,
       children: [
         {
           title: "Front Desk",
           path: "/dashboard/front-desk",
-          icon: <MdBeachAccess className="text-base" />,
+          icon: <MdDashboard className="text-base" />,
         },
         {
           title: "Reservations",
@@ -104,37 +86,32 @@ const menuItems = () => {
           icon: <MdListAlt className="text-base" />,
         },
         {
-          title: "Reservation Payments",
+          title: "Resort Payment",
           path: "/dashboard/payments",
           icon: <MdPayments className="text-base" />,
         },
         {
-          title: "Room Type",
-          path: "/dashboard/room-types",
-          icon: <MdCategory className="text-base" />,
+          title: "Check-out",
+          path: "/dashboard/checkout",
+          icon: <MdLogout className="text-base" />,
         },
         {
-          title: "Rooms & Rate Plans",
-          path: "/dashboard/rooms",
-          icon: <MdListAlt className="text-base" />,
+          title: "Room Transfer",
+          path: "/dashboard/room-transfer",
+          icon: <MdSwapHoriz className="text-base" />,
         },
         {
-          title: "Resort Services",
-          path: "/dashboard/resort-services",
-          icon: <MdListAlt className="text-base" />,
-        },
-        {
-          title: "Service Categories",
-          path: "/dashboard/resort-services/categories",
-          icon: <MdListAlt className="text-base" />,
+          title: "Guest History",
+          path: "/dashboard/guest-history",
+          icon: <MdHistory className="text-base" />,
         },
       ],
     },
 
-    // ================= RESTAURANT MANAGEMENT =================
+    // Restaurant
     {
-      title: "Restaurant Management",
-      icon: <MdLocalShipping className="text-lg" />,
+      title: "Restaurant",
+      icon: <MdRestaurant className="text-lg" />,
       children: [
         {
           title: "POS System",
@@ -142,43 +119,53 @@ const menuItems = () => {
           icon: <MdReceiptLong className="text-base" />,
         },
         {
+          title: "Table View",
+          path: "/dashboard/tables/view",
+          icon: <MdTableRestaurant className="text-base" />,
+        },
+        {
+          title: "Table Reservation",
+          path: "/dashboard/tables/reservation",
+          icon: <MdEventAvailable className="text-base" />,
+        },
+        {
+          title: "Table Management",
+          path: "/dashboard/tables/manage",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Pending Orders",
+          path: "/dashboard/pending-orders",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Finished Orders",
+          path: "/dashboard/finished-orders",
+          icon: <MdCheckCircle className="text-base" />,
+        },
+        {
+          title: "Kitchen Display",
+          path: "/dashboard/kitchen-display",
+          icon: <MdKitchen className="text-base" />,
+        },
+        {
           title: "Invoices",
           path: "/dashboard/invoices",
-          icon: <MdListAlt className="text-base" />,
+          icon: <MdReceiptLong className="text-base" />,
         },
         {
-          title: "Food Menu",
-          path: "/dashboard/food",
-          icon: <MdListAlt className="text-base" />,
-        },
-        {
-          title: "Food Categories",
-          path: "/dashboard/settings/categories",
-          icon: <MdListAlt className="text-base" />,
-        },
-        {
-          title: "Restaurant Table",
-          path: "/dashboard/setting/restauranttable",
-          icon: <MdListAlt className="text-base" />,
+          title: "Customer Reviews",
+          path: "/dashboard/reviews",
+          icon: <MdFeedback className="text-base" />,
         },
       ],
     },
 
-    // ================= MAINTAIN STOCKS =================
+    // Inventory
     {
-      title: "Maintain Stocks",
+      title: "Inventory",
       icon: <MdInventory className="text-lg" />,
       children: [
-        {
-          title: "Ingredients Categories",
-          path: "/dashboard/maintain-stocks/categories",
-          icon: <MdListAlt className="text-base" />,
-        },
-        {
-          title: "Ingredients Name",
-          path: "/dashboard/maintain-stocks/ingredients",
-          icon: <MdListAlt className="text-base" />,
-        },
         {
           title: "Vendor Management",
           path: "/dashboard/maintain-stocks/vendors",
@@ -199,12 +186,6 @@ const menuItems = () => {
           path: "/dashboard/maintain-stocks/stock",
           icon: <MdWarehouse className="text-base" />,
         },
-        // ---- New Stock Movement Modules ----
-        {
-          title: "Wastage Management",
-          path: "/dashboard/maintain-stocks/wastage",
-          icon: <MdDeleteForever className="text-base" />,
-        },
         {
           title: "Kitchen Issue",
           path: "/dashboard/maintain-stocks/kitchen-issue",
@@ -221,22 +202,23 @@ const menuItems = () => {
           icon: <MdUndo className="text-base" />,
         },
         {
+          title: "Wastage Management",
+          path: "/dashboard/maintain-stocks/wastage",
+          icon: <MdDeleteForever className="text-base" />,
+        },
+        {
           title: "Stock Ledger",
           path: "/dashboard/maintain-stocks/stock-ledger",
           icon: <MdShowChart className="text-base" />,
         },
       ],
     },
-    // ================= FINANCE MANAGEMENT =================
+
+    // Finance
     {
-      title: "Finance Management",
+      title: "Finance",
       icon: <MdAccountBalanceWallet className="text-lg" />,
       children: [
-        {
-          title: "Expense Categories",
-          path: "/dashboard/finance/expense-categories",
-          icon: <MdCategory className="text-base" />,
-        },
         {
           title: "Expense Entry",
           path: "/dashboard/finance/expenses",
@@ -248,11 +230,6 @@ const menuItems = () => {
           icon: <MdHistory className="text-base" />,
         },
         {
-          title: "Monthly Expense Report",
-          path: "/dashboard/finance/monthly-expense-report",
-          icon: <MdAssessment className="text-base" />,
-        },
-        {
           title: "Profit & Loss",
           path: "/dashboard/finance/profit-loss",
           icon: <MdShowChart className="text-base" />,
@@ -262,10 +239,33 @@ const menuItems = () => {
           path: "/dashboard/finance/cash-flow",
           icon: <MdTrendingUp className="text-base" />,
         },
+        {
+          title: "Monthly Expense Report",
+          path: "/dashboard/finance/monthly-expense-report",
+          icon: <MdAssessment className="text-base" />,
+        },
       ],
     },
 
-    // ================= LOST & FOUND MANAGEMENT =================
+    // People
+    {
+      title: "People",
+      icon: <MdPeople className="text-lg" />,
+      children: [
+        {
+          title: "Customers",
+          path: "/dashboard/customers",
+          icon: <MdGroup className="text-base" />,
+        },
+        {
+          title: "Staff Management",
+          path: "/dashboard/staff",
+          icon: <MdPerson className="text-base" />,
+        },
+      ],
+    },
+
+    // Lost & Found
     {
       title: "Lost & Found",
       icon: <MdSearch className="text-lg" />,
@@ -306,16 +306,6 @@ const menuItems = () => {
           icon: <MdAssessment className="text-base" />,
         },
         {
-          title: "Categories",
-          path: "/dashboard/lost-found/categories",
-          icon: <MdCategory className="text-base" />,
-        },
-        {
-          title: "Locations",
-          path: "/dashboard/lost-found/locations",
-          icon: <MdPlace className="text-base" />,
-        },
-        {
           title: "Settings",
           path: "/dashboard/lost-found/settings",
           icon: <MdSettings className="text-base" />,
@@ -323,12 +313,107 @@ const menuItems = () => {
       ],
     },
 
-    // ================= SETTINGS =================
+    // Reports
+    {
+      title: "Reports",
+      icon: <MdAssessment className="text-lg" />,
+      children: [
+        {
+          title: "Daily Sales Report",
+          path: "/dashboard/reports/daily-sales",
+          icon: <MdTrendingUp className="text-base" />,
+        },
+        {
+          title: "Product Sales Report",
+          path: "/dashboard/reports/product-sales",
+          icon: <MdShowChart className="text-base" />,
+        },
+        {
+          title: "Daily Order Report",
+          path: "/dashboard/reports/daily-orders",
+          icon: <MdAssessment className="text-base" />,
+        },
+        {
+          title: "Custom Order Report",
+          path: "/dashboard/reports/custom-orders",
+          icon: <MdHistory className="text-base" />,
+        },
+      ],
+    },
+
+    // Administration
+    {
+      title: "Administration",
+      icon: <MdAdminPanelSettings className="text-lg" />,
+      children: [
+        {
+          title: "User Access Logs",
+          path: "/dashboard/user-access",
+          icon: <MdListAlt className="text-base" />,
+        },
+      ],
+    },
+
+    // Settings
     {
       title: "Setting",
       icon: <MdSettings className="text-lg" />,
       children: [
-
+        {
+          title: "Room Type",
+          path: "/dashboard/room-types",
+          icon: <MdCategory className="text-base" />,
+        },
+        {
+          title: "Rooms & Rate Plans",
+          path: "/dashboard/rooms",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Resort Services",
+          path: "/dashboard/resort-services",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Service Categories",
+          path: "/dashboard/resort-services/categories",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Food Categories",
+          path: "/dashboard/settings/categories",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Food Menu",
+          path: "/dashboard/food",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Restaurant Table",
+          path: "/dashboard/setting/restauranttable",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Ingredients Categories",
+          path: "/dashboard/maintain-stocks/categories",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Ingredients Name",
+          path: "/dashboard/maintain-stocks/ingredients",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Payment Type",
+          path: "/dashboard/setting/paymenttype",
+          icon: <MdPayments className="text-base" />,
+        },
+        {
+          title: "Expense Categories",
+          path: "/dashboard/finance/expense-categories",
+          icon: <MdCategory className="text-base" />,
+        },
         {
           title: "Departments",
           path: "/dashboard/settings/departments",
@@ -339,20 +424,9 @@ const menuItems = () => {
           path: "/dashboard/settings/roles",
           icon: <MdBadge className="text-base" />,
         },
-
         {
           title: "Access Control",
           path: "/dashboard/setting/permission",
-          icon: <MdPayments className="text-base" />,
-        },
-        {
-          title: "Payment Type",
-          path: "/dashboard/setting/paymenttype",
-          icon: <MdPayments className="text-base" />,
-        },
-        {
-          title: "Expense Category",
-          path: "/dashboard/setting/expensecategory",
           icon: <MdPayments className="text-base" />,
         },
         {
@@ -360,7 +434,6 @@ const menuItems = () => {
           path: "/dashboard/setting/kitchen",
           icon: <MdKitchen className="text-base" />,
         },
-
         {
           title: "System Controls",
           path: "/dashboard/settings/controls",
@@ -371,7 +444,16 @@ const menuItems = () => {
           path: "/dashboard/profile",
           icon: <MdPerson className="text-base" />,
         },
-
+        {
+          title: "Lost & Found Categories",
+          path: "/dashboard/lost-found/categories",
+          icon: <MdCategory className="text-base" />,
+        },
+        {
+          title: "Lost & Found Locations",
+          path: "/dashboard/lost-found/locations",
+          icon: <MdPlace className="text-base" />,
+        },
       ],
     },
   ];

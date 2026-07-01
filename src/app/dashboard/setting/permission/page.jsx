@@ -6,7 +6,7 @@ import menuItems from "@/components/MenuItems";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import useGetRoles from "@/hooks/useGetRoles";
-import MtableLoading from "@/components/Comon/MtableLoading"; 
+import MtableLoading from "@/components/Comon/MtableLoading";
 
 const PermissionItem = ({ item, groupName, role, initialChecked, onPermissionChange }) => {
   const [isChecked, setIsChecked] = useState(initialChecked);
@@ -18,16 +18,16 @@ const PermissionItem = ({ item, groupName, role, initialChecked, onPermissionCha
 
   const handleCheckboxChange = async (e) => {
     const checked = e.target.checked;
-    setIsChecked(checked); 
+    setIsChecked(checked);
 
     const permissionPayload = {
-      title: item.title, 
-      isAllowed: checked, 
+      title: item.title,
+      isAllowed: checked,
       role,
-      group_name: groupName, 
-      path: item.path, 
+      group_name: groupName,
+      path: item.path,
     };
-    
+
     try {
       await axiosSecure.put(`/permissions`, permissionPayload);
       toast.success(`Permission for '${item.title}' updated.`);
@@ -94,7 +94,7 @@ const UserPermission = () => {
         <div className="card bg-brand-white dark:bg-brand-charcoal shadow-xl border-t-4 border-brand-primary rounded-2xl overflow-hidden">
           <div className="card-body p-6">
             <h2 className="card-title text-2xl mb-4 text-brand-primary font-bold">Manage Role Permissions</h2>
-            
+
             <div className="form-control w-full max-w-xs mb-6">
               <label className="label">
                 <span className="label-text font-semibold text-brand-dark-grey dark:text-brand-sage">Select a Role to Configure</span>
@@ -109,7 +109,7 @@ const UserPermission = () => {
                 ))}
               </select>
             </div>
-            
+
             {loading ? (
               <MtableLoading />
             ) : (
@@ -117,27 +117,27 @@ const UserPermission = () => {
                 {allMenuItems.map((menuGroup) => (
                   <div key={menuGroup.title} className="p-5 border border-brand-beige/30 dark:border-brand-dark-grey/30 rounded-2xl bg-brand-white dark:bg-brand-charcoal/50 shadow-sm flex flex-col">
                     <h3 className="text-lg font-bold mb-4 flex items-center gap-3 border-b border-brand-beige/25 dark:border-brand-dark-grey/25 pb-2 text-brand-charcoal dark:text-brand-offwhite">
-                      <span className="text-brand-primary text-xl">{menuGroup.icon}</span> 
+                      <span className="text-brand-primary text-xl">{menuGroup.icon}</span>
                       <span>{menuGroup.title}</span>
                     </h3>
                     <div className="space-y-2.5 flex-1">
                       {menuGroup.children ? (
                         menuGroup.children.map(child => (
                           <PermissionItem
-                            key={child.path} 
-                            item={child} 
+                            key={child.path}
+                            item={child}
                             groupName={menuGroup.title}
-                            role={role} 
+                            role={role}
                             initialChecked={isRouteAllowed(child.path)}
                             onPermissionChange={fetchPermissions}
                           />
                         ))
                       ) : (
                         <PermissionItem
-                          key={menuGroup.path} 
-                          item={menuGroup} 
+                          key={menuGroup.path}
+                          item={menuGroup}
                           groupName="General"
-                          role={role} 
+                          role={role}
                           initialChecked={isRouteAllowed(menuGroup.path)}
                           onPermissionChange={fetchPermissions}
                         />

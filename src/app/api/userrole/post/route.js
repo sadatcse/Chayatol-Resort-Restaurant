@@ -13,7 +13,21 @@ export async function POST(req) {
   try {
     await dbConnect();
     const userRoleData = await req.json();
-    const result = await UserRole.create(userRoleData);
+
+    if (!userRoleData.userrole || !userRoleData.userrole.trim()) {
+      return NextResponse.json({ message: "User role name is required" }, { status: 400 });
+    }
+
+    const existing = await UserRole.findOne({
+      userrole: { $regex: new RegExp(`^${userRoleData.userrole.trim()}$`, "i") }
+    });
+    if (existing) {
+      return NextResponse.json({ message: "User role already exists." }, { status: 400 });
+    }
+
+    const result = await UserRole.create({
+      userrole: userRoleData.userrole.trim()
+    });
 
     await logTransaction({ req, resStatus: 201, user: auth.user, details: `Created user role: ${userRoleData.userrole}` });
 

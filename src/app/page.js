@@ -12,6 +12,7 @@ import Logo from "@/assets/Logo/logo.png";
 import Logo_Dark from "@/assets/Logo/logo_dark.png";
 
 const Login = () => {
+  const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState("light");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,11 +21,12 @@ const Login = () => {
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  
+
   const router = useRouter();
   const { loginUser } = useContext(AuthContext);
 
   useEffect(() => {
+    setMounted(true);
     const savedEmail = localStorage.getItem("email");
     const savedPassword = localStorage.getItem("password");
     const savedTheme = localStorage.getItem("theme");
@@ -91,17 +93,27 @@ const Login = () => {
     Swal.fire("Request Sent", "If an account exists, a reset link will be sent.", "success");
   };
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-brand-offwhite via-brand-white to-brand-beige dark:from-brand-charcoal dark:via-brand-dark-grey dark:to-brand-black">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-brand-primary font-medium tracking-widest text-xs uppercase animate-pulse">Loading Chayatol...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Premium Theme Switcher */}
       <div className="fixed top-6 right-8 z-40">
         <button
           onClick={handleThemeToggle}
-          className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm font-medium transition-all duration-300 cursor-pointer ${
-            theme === "dark"
+          className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm font-medium transition-all duration-300 cursor-pointer ${theme === "dark"
               ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite hover:bg-brand-dark-grey"
               : "bg-brand-white border-brand-beige text-brand-dark-grey hover:bg-brand-offwhite"
-          }`}
+            }`}
         >
           {theme === "dark" ? (
             <>
@@ -118,19 +130,17 @@ const Login = () => {
       </div>
 
       {/* Main Container */}
-      <div className={`min-h-screen flex items-center justify-center p-4 transition-all duration-500 ${
-        theme === "dark" 
-          ? "bg-gradient-to-br from-brand-charcoal via-brand-dark-grey to-brand-black" 
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-all duration-500 ${theme === "dark"
+          ? "bg-gradient-to-br from-brand-charcoal via-brand-dark-grey to-brand-black"
           : "bg-gradient-to-br from-brand-offwhite via-brand-white to-brand-beige"
-      }`}>
-        
-        {/* Login Card */}
-        <div className={`flex rounded-3xl shadow-2xl overflow-hidden max-w-4xl w-full border transition-all duration-300 ${
-          theme === "dark" 
-            ? "bg-brand-charcoal/90 border-brand-dark-grey/50" 
-            : "bg-brand-white/95 border-brand-beige/50"
         }`}>
-          
+
+        {/* Login Card */}
+        <div className={`flex rounded-3xl shadow-2xl overflow-hidden max-w-4xl w-full border transition-all duration-300 ${theme === "dark"
+            ? "bg-brand-charcoal/90 border-brand-dark-grey/50"
+            : "bg-brand-white/95 border-brand-beige/50"
+          }`}>
+
           {/* Left Panel (Image with elegant Brand Overlay) */}
           <div
             className="hidden md:block md:w-1/2 bg-cover bg-center relative"
@@ -152,7 +162,7 @@ const Login = () => {
               </div>
             </div>
           </div>
- 
+
           {/* Right Panel (Form) */}
           <div className="w-full md:w-1/2 p-10 flex flex-col justify-center">
             {/* Brand Logo */}
@@ -163,14 +173,14 @@ const Login = () => {
                 className="w-40 h-auto object-contain transition-all hover:scale-105 duration-300"
               />
             </div>
- 
+
             <h2 className={`text-2xl font-bold text-center tracking-tight ${theme === "dark" ? "text-brand-offwhite" : "text-brand-charcoal"}`}>
               Login to Portal
             </h2>
             <p className="text-center mb-8 text-xs text-brand-dark-grey dark:text-brand-sage">
               Please enter your credentials to continue
             </p>
- 
+
             <form onSubmit={handleLogin} noValidate className="space-y-5">
               {/* Email Input */}
               <div>
@@ -184,11 +194,10 @@ const Login = () => {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${
-                      theme === "dark" 
-                        ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60" 
+                    className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${theme === "dark"
+                        ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
                         : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
-                    }`}
+                      }`}
                     required
                   />
                 </div>
@@ -209,11 +218,10 @@ const Login = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${
-                      theme === "dark" 
-                        ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60" 
+                    className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${theme === "dark"
+                        ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
                         : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
-                    }`}
+                      }`}
                     required
                   />
                 </div>
@@ -228,17 +236,16 @@ const Login = () => {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className={`h-4 w-4 rounded border transition-all duration-300 accent-brand-primary focus:ring-0 ${
-                      theme === "dark" 
-                        ? "border-brand-dark-grey bg-brand-dark-grey" 
+                    className={`h-4 w-4 rounded border transition-all duration-300 accent-brand-primary focus:ring-0 ${theme === "dark"
+                        ? "border-brand-dark-grey bg-brand-dark-grey"
                         : "border-brand-beige bg-brand-white"
-                    }`}
+                      }`}
                   />
                   <span className={`ml-2 font-medium ${theme === "dark" ? "text-brand-offwhite" : "text-brand-dark-grey"}`}>
                     Remember Me
                   </span>
                 </label>
-                
+
                 <button
                   type="button"
                   onClick={() => setShowForgotModal(true)}
@@ -252,11 +259,10 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full font-bold py-3.5 px-4 rounded-xl text-brand-white shadow-lg transition-all duration-300 transform active:scale-95 cursor-pointer ${
-                  loading 
-                    ? "bg-brand-primary/50 cursor-not-allowed shadow-none" 
+                className={`w-full font-bold py-3.5 px-4 rounded-xl text-brand-white shadow-lg transition-all duration-300 transform active:scale-95 cursor-pointer ${loading
+                    ? "bg-brand-primary/50 cursor-not-allowed shadow-none"
                     : "bg-brand-primary hover:bg-brand-secondary hover:shadow-brand-primary/30 shadow-brand-primary/20 hover:-translate-y-0.5"
-                }`}
+                  }`}
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -275,11 +281,10 @@ const Login = () => {
       {/* Forgot Password Modal */}
       {showForgotModal && (
         <div className="fixed inset-0 bg-brand-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4 animate-fade-in">
-          <div className={`p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full relative border transition-all duration-300 ${
-            theme === "dark" 
-              ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite" 
+          <div className={`p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full relative border transition-all duration-300 ${theme === "dark"
+              ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite"
               : "bg-brand-white border-brand-beige text-brand-charcoal"
-          }`}>
+            }`}>
             <button
               onClick={() => setShowForgotModal(false)}
               className="absolute top-4 right-5 text-2xl font-semibold text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-white transition-colors cursor-pointer"
@@ -295,11 +300,10 @@ const Login = () => {
                 <input
                   type="email"
                   placeholder="Email Address"
-                  className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${
-                    theme === "dark" 
-                      ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60" 
+                  className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${theme === "dark"
+                      ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
                       : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
-                  }`}
+                    }`}
                   required
                 />
               </div>

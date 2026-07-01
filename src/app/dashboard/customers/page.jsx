@@ -77,6 +77,78 @@ const CustomersPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Webcam states and ref
+  const videoRef = React.useRef(null);
+  const [webcamActive, setWebcamActive] = useState(false);
+  const [webcamStream, setWebcamStream] = useState(null);
+
+  const startWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      setWebcamStream(stream);
+      setWebcamActive(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (err) {
+      console.error("Webcam access error:", err);
+      Swal.fire("Camera Error", "Could not access camera device.", "error");
+    }
+  };
+
+  const stopWebcam = () => {
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(track => track.stop());
+      setWebcamStream(null);
+    }
+    setWebcamActive(false);
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current) return;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg");
+
+      // Stop webcam immediately
+      stopWebcam();
+
+      // Show loader
+      Swal.fire({
+        title: "Uploading capture...",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], "captured_guest.jpg", { type: "image/jpeg" });
+
+      const uploadData = new FormData();
+      uploadData.append("image", file);
+
+      const uploadRes = await axiosSecure.post("/upload", uploadData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+
+      if (uploadRes.data?.url) {
+        setFormData(prev => ({ ...prev, customerPhoto: uploadRes.data.url }));
+        Swal.fire("Photo Set", "Webcam photo successfully updated.", "success");
+      }
+    } catch (err) {
+      console.error("Capture upload error:", err);
+      Swal.fire("Upload Failed", "Failed to upload captured photo.", "error");
+    }
+  };
+
   const loadCustomers = async () => {
     setPageLoading(true);
     try {
@@ -139,6 +211,7 @@ const CustomersPage = () => {
   };
 
   const closeModal = () => {
+    stopWebcam();
     setIsModalOpen(false);
     setEditId(null);
   };
@@ -954,19 +1027,39 @@ const CustomersPage = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Customer Photo Upload */}
+                     {/* Customer Photo Upload */}
                     <div className="p-6 bg-brand-offwhite dark:bg-brand-charcoal/50 rounded-2xl border border-brand-beige dark:border-brand-beige/20">
                       <span className="block text-xs font-bold text-brand-sage uppercase tracking-widest mb-4">Customer Photo</span>
                       {formData.customerPhoto && (
-                        <div className="flex justify-center mb-6">
+                        <div className="flex justify-center mb-4">
                           <div className="avatar">
-                            <div className="w-24 rounded-full ring-4 ring-brand-primary ring-offset-4 ring-offset-white dark:ring-offset-brand-charcoal shadow-lg">
-                              <img src={formData.customerPhoto} alt="Customer Preview" />
+                            <div className="w-24 h-24 rounded-full ring-4 ring-brand-primary ring-offset-4 ring-offset-white dark:ring-offset-brand-charcoal shadow-lg overflow-hidden">
+                              <img src={formData.customerPhoto} alt="Customer Preview" className="object-cover w-full h-full" />
                             </div>
                           </div>
                         </div>
                       )}
-                      <ImageUpload setImageUrl={(url) => setFormData(prev => ({ ...prev, customerPhoto: url }))} label="Upload Photo" />
+
+                      {webcamActive ? (
+                        <div className="flex flex-col items-center gap-2 mb-4">
+                          <video ref={videoRef} autoPlay playsInline className="w-full max-w-[200px] h-auto rounded-xl border border-brand-primary shadow-inner" />
+                          <div className="flex gap-2">
+                            <button type="button" onClick={capturePhoto} className="btn btn-xs bg-brand-primary text-white border-none rounded px-3 py-1.5 h-auto uppercase tracking-wider font-bold">Snap</button>
+                            <button type="button" onClick={stopWebcam} className="btn btn-xs btn-outline border-red-500 text-red-500 rounded px-3 py-1.5 h-auto uppercase tracking-wider font-bold">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          <ImageUpload setImageUrl={(url) => setFormData(prev => ({ ...prev, customerPhoto: url }))} label="Upload Photo" />
+                          <button
+                            type="button"
+                            onClick={startWebcam}
+                            className="btn btn-outline border-brand-primary text-brand-primary btn-xs rounded h-9 w-full flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider mt-1 cursor-pointer"
+                          >
+                            Capture via Webcam
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* ID Copy Upload */}

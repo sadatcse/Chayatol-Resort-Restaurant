@@ -520,68 +520,70 @@ const StaysPage = () => {
       <SectionHeader
         title="Stay & Folio Management"
         subtitle="Track active in-house guests, update folios with food & service charges, extend stays, and settle checkout balances."
-      >
-        <div className="flex flex-col xl:flex-row gap-3 w-full xl:w-auto items-center">
-          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-            {/* Monthly Selector */}
-            <select
-              value={selectedMonth}
-              onChange={handleMonthChange}
-              className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-44 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
-            >
-              <option value="all">All Months</option>
-              {monthOptions.map((opt) => (
-                <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
-                  {opt.label}
-                </option>
-              ))}
-              <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
-            </select>
+      />
 
-            <DatePicker selected={fromDate} onChange={(d) => { setFromDate(d); setCurrentPage(1); setSelectedStay(null); }}
-              dateFormat="dd/MM/yyyy" placeholderText="From Date" isClearable 
-              wrapperClassName="!w-auto inline-block shrink-0"
-              className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0" />
-            <DatePicker selected={toDate} onChange={(d) => { setToDate(d); setCurrentPage(1); setSelectedStay(null); }}
-              dateFormat="dd/MM/yyyy" placeholderText="To Date" isClearable 
-              wrapperClassName="!w-auto inline-block shrink-0"
-              className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0" />
-          </div>
+      {/* Filter controls panel */}
+      <div className="bg-white dark:bg-brand-charcoal p-5 rounded-2xl border border-brand-beige dark:border-brand-beige/20 shadow-sm mb-6 flex flex-wrap items-center gap-4 justify-between">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Monthly Selector */}
+          <select
+            value={selectedMonth}
+            onChange={handleMonthChange}
+            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-11 text-xs font-semibold px-4 w-full sm:w-44 text-brand-charcoal dark:text-brand-offwhite border-brand-beige shadow-sm"
+          >
+            <option value="all">All Months</option>
+            {monthOptions.map((opt) => (
+              <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
+                {opt.label}
+              </option>
+            ))}
+            <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
+          </select>
 
-          <div className="flex items-center gap-2 w-full xl:w-auto">
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
+          <DatePicker selected={fromDate} onChange={(d) => { setFromDate(d); setCurrentPage(1); setSelectedStay(null); }}
+            dateFormat="dd/MM/yyyy" placeholderText="From Date" isClearable 
+            wrapperClassName="!w-auto inline-block"
+            className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-11 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite border-brand-beige shadow-sm" />
+
+          <DatePicker selected={toDate} onChange={(d) => { setToDate(d); setCurrentPage(1); setSelectedStay(null); }}
+            dateFormat="dd/MM/yyyy" placeholderText="To Date" isClearable 
+            wrapperClassName="!w-auto inline-block"
+            className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-11 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite border-brand-beige shadow-sm" />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+              setSelectedStay(null);
+            }}
+            className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite rounded-full px-5 h-11 text-xs font-semibold w-full sm:w-40 border-brand-beige shadow-sm"
+          >
+            <option value="In House">In House</option>
+            <option value="Checked Out">Checked Out</option>
+            <option value="Extended">Extended</option>
+            <option value="Cancelled">Cancelled</option>
+            <option value="">All Statuses</option>
+          </select>
+
+          <label className="input input-bordered border-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 border-brand-beige dark:border-brand-beige/20 w-full sm:w-64 h-11 shadow-sm">
+            <FiSearch className="text-brand-sage text-lg shrink-0" />
+            <input
+              type="text"
+              className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none text-xs font-semibold"
+              placeholder="Search Stay/Room/Guest..."
+              value={searchTerm}
+              onChange={e => {
+                setSearchTerm(e.target.value);
                 setCurrentPage(1);
                 setSelectedStay(null);
               }}
-              className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite rounded-full px-5 h-12 outline-none focus:outline-none w-full sm:w-40 shrink-0"
-            >
-              <option value="In House">In House</option>
-              <option value="Checked Out">Checked Out</option>
-              <option value="Extended">Extended</option>
-              <option value="Cancelled">Cancelled</option>
-              <option value="">All Statuses</option>
-            </select>
-
-            <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full sm:w-64 h-12">
-              <FiSearch className="text-brand-sage text-lg shrink-0" />
-              <input
-                type="text"
-                className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none text-sm"
-                placeholder="Search Stay/Room/Guest..."
-                value={searchTerm}
-                onChange={e => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                  setSelectedStay(null);
-                }}
-              />
-            </label>
-          </div>
+            />
+          </label>
         </div>
-      </SectionHeader>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
@@ -1423,7 +1425,7 @@ const StaysPage = () => {
               </tr>
             </thead>
             <tbody>
-              {exportStays.map((row, idx) => (
+              {exportStays && exportStays.map((row, idx) => (
                 <tr key={row._id}>
                   <td>{idx + 1}</td>
                   <td style={{ fontWeight: "bold" }}>{row.stayNo}</td>

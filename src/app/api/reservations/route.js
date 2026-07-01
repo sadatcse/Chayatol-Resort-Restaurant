@@ -96,6 +96,17 @@ export async function POST(req) {
       return NextResponse.json({ message: "Please provide check-in date, check-out date, customer and room details" }, { status: 400 });
     }
 
+    // Deduplication check: check if a reservation for the same customer with the same check-in date was created in the last 10 seconds
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const potentialDuplicate = await Reservation.findOne({
+      customer,
+      checkInDate: new Date(checkInDate),
+      createdAt: { $gte: tenSecondsAgo }
+    });
+    if (potentialDuplicate) {
+      return NextResponse.json({ message: "Duplicate reservation detected. Please wait a moment." }, { status: 409 });
+    }
+
     if (new Date(checkInDate) >= new Date(checkOutDate)) {
       return NextResponse.json({ message: "Check-out date must be after check-in date" }, { status: 400 });
     }

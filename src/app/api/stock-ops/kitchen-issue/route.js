@@ -172,6 +172,18 @@ export async function POST(req) {
       return NextResponse.json({ message: "Kitchen name is required." }, { status: 400 });
     }
 
+    // Deduplication check: check if a kitchen issue of the same kitchenName was created by the same user in the last 10 seconds
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const potentialDuplicate = await StockMovement.findOne({
+      type: "kitchen_issue",
+      kitchenName: kitchenName.trim(),
+      createdBy: userId,
+      createdAt: { $gte: tenSecondsAgo }
+    });
+    if (potentialDuplicate) {
+      return NextResponse.json({ message: "Duplicate kitchen issue submission detected. Please wait a moment." }, { status: 409 });
+    }
+
     const items = isBulk ? body.items : [body];
 
     if (items.length === 0) {

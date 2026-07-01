@@ -7,6 +7,10 @@ import { motion } from "framer-motion";
 
 import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
+import OrderTimingChart from "@/components/Dashboard/OrderTimingChart";
+import RoomBookingChart from "@/components/Dashboard/RoomBookingChart";
+import FavouriteCharts from "@/components/Dashboard/FavouriteCharts";
+import TrendingOrders from "@/components/Dashboard/TrendingOrders";
 
 const HomePage = () => {
   const axiosSecure = useAxiosSecure();
@@ -226,6 +230,21 @@ const HomePage = () => {
               <FiArrowRight />
             </Link>
           </div>
+        </div>
+      </div>
+
+      {/* Operational & Booking Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 my-8">
+        <OrderTimingChart />
+        <RoomBookingChart />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 my-8">
+        <div className="lg:col-span-1">
+          <FavouriteCharts />
+        </div>
+        <div className="lg:col-span-2">
+          <TrendingOrders />
         </div>
       </div>
     </div>

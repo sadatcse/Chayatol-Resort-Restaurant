@@ -7,6 +7,7 @@ const PaymentTypeSchema = Schema(
       type: String,
       required: [true, "Please provide the payment type name"],
       trim: true,
+      unique: true,
     },
     image: {
       type: String,
