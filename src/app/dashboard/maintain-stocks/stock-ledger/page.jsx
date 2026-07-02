@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
+import React, { useState, useEffect, useCallback, useContext, useRef, useMemo } from "react";
 import { FiSearch, FiBook } from "react-icons/fi";
 import { MdInventory2, MdTrendingDown, MdTrendingUp, MdSwapHoriz } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
@@ -36,8 +36,82 @@ const StockLedgerPage = () => {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIngredient, setSelectedIngredient] = useState(null);
-  const [fromDate, setFromDate] = useState(null);
-  const [toDate, setToDate] = useState(null);
+
+  // Generate list of the last 12 months dynamically
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const date = new Date();
+    date.setDate(1); // Set to day 1 to avoid rollover bugs when subtracting months
+    for (let i = 0; i < 12; i++) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const label = date.toLocaleDateString("default", { month: "long", year: "numeric" });
+      options.push({ label, year, month });
+      date.setMonth(date.getMonth() - 1);
+    }
+    return options;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth()}`;
+  });
+
+  const [fromDate, setFromDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  });
+
+  const [toDate, setToDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  });
+
+  // Sync selectedMonth dropdown with fromDate/toDate changes
+  useEffect(() => {
+    if (fromDate === null && toDate === null) {
+      if (selectedMonth !== "all") setSelectedMonth("all");
+      return;
+    }
+
+    if (fromDate && toDate) {
+      const startYear = fromDate.getFullYear();
+      const startMonth = fromDate.getMonth();
+      const startDay = fromDate.getDate();
+
+      const endYear = toDate.getFullYear();
+      const endMonth = toDate.getMonth();
+      const lastDayOfStartMonth = new Date(startYear, startMonth + 1, 0).getDate();
+      const endDay = toDate.getDate();
+
+      if (startYear === endYear && startMonth === endMonth && startDay === 1 && endDay === lastDayOfStartMonth) {
+        const value = `${startYear}-${startMonth}`;
+        if (selectedMonth !== value) setSelectedMonth(value);
+        return;
+      }
+    }
+
+    if (selectedMonth !== "custom") {
+      setSelectedMonth("custom");
+    }
+  }, [fromDate, toDate, selectedMonth]);
+
+  // Handle month selection change
+  const handleMonthChange = (e) => {
+    const val = e.target.value;
+    setSelectedMonth(val);
+
+    if (val === "all") {
+      setFromDate(null);
+      setToDate(null);
+    } else if (val !== "custom") {
+      const [year, month] = val.split("-").map(Number);
+      const start = new Date(year, month, 1, 0, 0, 0, 0);
+      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      setFromDate(start);
+      setToDate(end);
+    }
+  };
 
   const [ledger, setLedger] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -232,6 +306,21 @@ const StockLedgerPage = () => {
 
         {/* Row 2: Date filters */}
         <div className="flex flex-wrap items-center gap-3 mb-1">
+          <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Month:</span>
+          <select
+            value={selectedMonth}
+            onChange={handleMonthChange}
+            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-xl h-12 text-xs font-semibold px-4 w-36 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
+          >
+            <option value="all">All Months</option>
+            {monthOptions.map((opt) => (
+              <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
+                {opt.label}
+              </option>
+            ))}
+            <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
+          </select>
+
           <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Date Range:</span>
           <div className="flex-shrink-0">
             <DatePicker

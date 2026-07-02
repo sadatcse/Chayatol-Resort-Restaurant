@@ -428,7 +428,7 @@ const WastagePage = () => {
             isLoading={isExporting}
           />
           {canPerformAction && (
-            <button onClick={openModal} className="btn bg-red-600 text-white hover:bg-red-700 border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
+            <button onClick={openModal} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer animate-scale-in">
               <MdDeleteForever className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">Record Wastage</span>
             </button>
@@ -444,7 +444,7 @@ const WastagePage = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="table w-full">
-              <thead className="bg-red-600 text-white font-bold uppercase tracking-widest text-[10px]">
+              <thead className="bg-brand-primary text-white font-bold uppercase tracking-widest text-[10px]">
                 <tr>
                   <th className="pl-8 py-5 w-12"></th>
                   <th className="py-5">Date</th>
@@ -472,7 +472,7 @@ const WastagePage = () => {
                       return (
                         <React.Fragment key={r._id}>
                           <motion.tr layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="hover:bg-red-50/20 dark:hover:bg-red-950/10 transition-colors border-b border-brand-beige dark:border-brand-beige/10 last:border-none bg-white dark:bg-brand-charcoal text-sm cursor-pointer"
+                            className="hover:bg-brand-primary/5 dark:hover:bg-brand-primary/10 transition-colors border-b border-brand-beige dark:border-brand-beige/10 last:border-none bg-white dark:bg-brand-charcoal text-sm cursor-pointer"
                             onClick={() => toggleBatch(r._id)}>
                             <td className="pl-8 py-4 text-center">
                               <button className="btn btn-ghost btn-xs p-0 min-h-0 h-auto text-brand-sage hover:bg-transparent">
@@ -488,22 +488,22 @@ const WastagePage = () => {
                             <td className="py-4 font-bold uppercase tracking-wide">
                               {firstIngredientName}
                               {hasMultiple && (
-                                <span className="ml-2 text-xs font-normal text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 rounded-full lowercase">
+                                <span className="ml-2 text-xs font-normal text-brand-primary dark:text-brand-sage bg-brand-primary/5 dark:bg-brand-primary/10 px-2 py-0.5 rounded-full lowercase">
                                   + {r.items.length - 1} more items
                                 </span>
                               )}
                             </td>
-                            <td className="py-4 text-right font-mono font-black text-red-600 dark:text-red-400 text-base pr-8">−{totalQty}</td>
+                            <td className="py-4 text-right font-mono font-black text-red-650 dark:text-red-400 text-base pr-8">−{totalQty}</td>
                             <td className="py-4 text-brand-sage text-xs max-w-xs truncate">{firstNote}</td>
                             <td className="pr-8 py-4 font-semibold text-brand-primary dark:text-brand-sage text-xs">{r.createdBy?.name || "System"}</td>
                           </motion.tr>
                           {isExpanded && (
-                            <tr className="bg-red-50/10 dark:bg-red-950/5">
+                            <tr className="bg-brand-primary/5 dark:bg-brand-primary/5">
                               <td colSpan="7" className="pl-12 pr-8 py-3">
                                 <div className="border border-brand-beige dark:border-brand-beige/20 rounded-xl overflow-hidden shadow-inner bg-white dark:bg-brand-charcoal/50 p-4">
                                   <h4 className="text-xs font-bold text-brand-sage uppercase tracking-wider mb-3">Batch Wastage Details</h4>
                                   <table className="table table-compact w-full text-xs">
-                                    <thead className="bg-red-50 dark:bg-red-950/20 text-brand-sage uppercase tracking-wider text-[9px]">
+                                    <thead className="bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-sage uppercase tracking-wider text-[9px]">
                                       <tr>
                                         <th className="pl-4 py-2">Ingredient</th>
                                         <th className="py-2">Category</th>
@@ -518,7 +518,7 @@ const WastagePage = () => {
                                         <tr key={item._id} className="border-b border-brand-beige/10 last:border-none">
                                           <td className="pl-4 py-2.5 font-bold uppercase">{item.ingredient?.name} <span className="text-brand-sage font-normal normal-case text-[10px] ml-1">({item.ingredient?.unit})</span></td>
                                           <td className="py-2.5 font-semibold text-brand-sage">{item.ingredient?.category?.categoryName || "—"}</td>
-                                          <td className="py-2.5 text-right font-mono font-bold text-red-600 dark:text-red-400">−{Math.abs(item.adjustment)}</td>
+                                          <td className="py-2.5 text-right font-mono font-bold text-red-655 dark:text-red-400">−{Math.abs(item.adjustment)}</td>
                                           <td className="py-2.5 text-right font-mono text-brand-sage">{item.stock?.quantityInStock} {item.ingredient?.unit}</td>
                                           <td className="py-2.5">
                                             <span className={`badge border-none font-bold text-[8px] px-2 py-1 uppercase tracking-wider ${REASON_STYLES[item.reason || r.reason] || REASON_STYLES.Other}`}>
@@ -553,9 +553,9 @@ const WastagePage = () => {
         {isModalOpen && (
           <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
             <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-2xl rounded-2xl shadow-2xl border border-brand-beige/20 animate-scale-in">
-              <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-red-50 dark:bg-red-950/20">
+              <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-primary/10 dark:bg-brand-primary/20">
                 <div className="flex items-center gap-3">
-                  <MdWarning className="text-red-500 text-2xl" />
+                  <MdWarning className="text-brand-primary dark:text-brand-sage text-2xl" />
                   <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">Record Wastage</h3>
                 </div>
                 <button onClick={closeModal} className="btn btn-sm btn-circle btn-ghost text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-beige dark:hover:bg-brand-offwhite/10"><FiX size={20} /></button>
@@ -624,7 +624,7 @@ const WastagePage = () => {
                   </div>
 
                   <div className="flex justify-end">
-                    <button type="button" onClick={handleAddItem} className="btn bg-red-600 hover:bg-red-700 text-white border-none btn-sm rounded-full px-6 shadow-sm">
+                    <button type="button" onClick={handleAddItem} className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none btn-sm rounded-full px-6 shadow-sm animate-scale-in">
                       Add to Batch List
                     </button>
                   </div>
@@ -673,7 +673,7 @@ const WastagePage = () => {
 
               <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
                 <button onClick={closeModal} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
-                <button onClick={handleSubmit} disabled={isSubmitting || batchItems.length === 0} className="btn bg-red-600 text-white hover:bg-red-700 border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">
+                <button onClick={handleSubmit} disabled={isSubmitting || batchItems.length === 0} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md animate-scale-in">
                   {isSubmitting ? <><span className="loading loading-spinner loading-sm"></span> Saving...</> : `Record ${batchItems.length} Wastage Item${batchItems.length === 1 ? "" : "s"}`}
                 </button>
               </div>

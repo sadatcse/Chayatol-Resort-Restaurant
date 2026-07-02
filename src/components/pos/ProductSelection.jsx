@@ -106,7 +106,7 @@ const ProductSelection = ({
                             <input
                                 type="text"
                                 placeholder="Search active products..."
-                                className="input input-bordered w-full pl-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                                className="input input-bordered w-full pl-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
@@ -131,7 +131,7 @@ const ProductSelection = ({
                                 }}
                                 className={`btn btn-sm rounded-full shadow-sm transition-colors duration-300 ${
                                     selectedCategory === "All" && searchQuery === ""
-                                    ? "bg-blue-600 hover:bg-blue-700 text-white border-none" 
+                                    ? "bg-brand-primary hover:bg-brand-secondary text-white border-none" 
                                     : "btn-ghost dark:text-zinc-300 dark:hover:bg-zinc-800"
                                 }`}
                                 whileHover={{ scale: 1.05 }}
@@ -150,7 +150,7 @@ const ProductSelection = ({
                                         }}
                                         className={`btn btn-sm rounded-full shadow-sm transition-colors duration-300 ${
                                             selectedCategory === catName && searchQuery === ""
-                                            ? "bg-blue-600 hover:bg-blue-700 text-white border-none" 
+                                            ? "bg-brand-primary hover:bg-brand-secondary text-white border-none" 
                                             : "btn-ghost dark:text-zinc-300 dark:hover:bg-zinc-800"
                                         }`}
                                         whileHover={{ scale: 1.05 }}
@@ -167,7 +167,7 @@ const ProductSelection = ({
                     <div className="h-[55vh] overflow-y-auto custom-scrollbar">
                         {loading && !searchQuery ? (
                             <div className="flex justify-center items-center h-full">
-                                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+                                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-brand-primary"></div>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
@@ -220,7 +220,7 @@ const ProductSelection = ({
                                                         <td className="text-center p-2 sm:px-4">
                                                             <motion.button
                                                                 onClick={() => addProduct(product)}
-                                                                className="btn btn-sm rounded-full flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white border-none cursor-pointer"
+                                                                className="btn btn-sm rounded-full flex items-center gap-2 bg-brand-primary hover:bg-brand-secondary text-white border-none cursor-pointer"
                                                                 whileHover={{ scale: 1.1 }}
                                                                 whileTap={{ scale: 0.9 }}
                                                             >
@@ -252,7 +252,7 @@ const ProductSelection = ({
                     <div className="p-2 rounded-xl">
                         <div className="flex justify-center flex-wrap gap-3">
                             {["Cash", "Card", "Mobile", "Bank"].map((method) => (
-                                <button key={method} onClick={() => handleMainPaymentButtonClick(method)} className={`btn btn-md min-w-[110px] cursor-pointer ${selectedPaymentMethod === method || (selectedSubMethod && cardOptions.some(o => o.name === selectedSubMethod) && method === 'Card') || (selectedSubMethod && mobileOptions.some(o => o.name === selectedSubMethod) && method === 'Mobile') || (selectedPaymentMethod === 'Bank' && method === 'Bank') ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-600" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}>
+                                <button key={method} onClick={() => handleMainPaymentButtonClick(method)} className={`btn btn-md min-w-[110px] cursor-pointer ${selectedPaymentMethod === method || (selectedSubMethod && cardOptions.some(o => o.name === selectedSubMethod) && method === 'Card') || (selectedSubMethod && mobileOptions.some(o => o.name === selectedSubMethod) && method === 'Mobile') || (selectedPaymentMethod === 'Bank' && method === 'Bank') ? "bg-brand-primary hover:bg-brand-secondary text-white border-brand-secondary" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}>
                                     {method === "Cash" && <FaMoneyBillWave />}
                                     {method === "Card" && (selectedCardIcon || <FaCreditCard />)}
                                     {method === "Mobile" && <MdOutlineSendToMobile />}
@@ -261,8 +261,8 @@ const ProductSelection = ({
                                 </button>
                             ))}
                         </div>
-                        {selectedPaymentMethod === 'Card' && (<div className="mt-4 flex flex-wrap justify-center gap-3">{cardOptions.map((card) => (<button key={card.name} onClick={() => handleSubPaymentButtonClick(card.name, card.icon)} className={`btn btn-sm cursor-pointer ${selectedSubMethod === card.name ? "bg-blue-500 hover:bg-blue-600 text-white" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}>{card.icon}<span>{card.name}</span></button>))}</div>)}
-                        {selectedPaymentMethod === 'Mobile' && (<div className="mt-4 flex flex-wrap justify-center gap-3">{mobileOptions.map((mobile) => (<button key={mobile.name} onClick={() => handleSubPaymentButtonClick(mobile.name)} className={`btn btn-sm cursor-pointer ${selectedSubMethod === mobile.name ? "bg-blue-500 hover:bg-blue-600 text-white" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}><span>{mobile.name}</span></button>))}</div>)}
+                        {selectedPaymentMethod === 'Card' && (<div className="mt-4 flex flex-wrap justify-center gap-3">{cardOptions.map((card) => (<button key={card.name} onClick={() => handleSubPaymentButtonClick(card.name, card.icon)} className={`btn btn-sm cursor-pointer ${selectedSubMethod === card.name ? "bg-brand-primary hover:bg-brand-secondary text-white" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}>{card.icon}<span>{card.name}</span></button>))}</div>)}
+                        {selectedPaymentMethod === 'Mobile' && (<div className="mt-4 flex flex-wrap justify-center gap-3">{mobileOptions.map((mobile) => (<button key={mobile.name} onClick={() => handleSubPaymentButtonClick(mobile.name)} className={`btn btn-sm cursor-pointer ${selectedSubMethod === mobile.name ? "bg-brand-primary hover:bg-brand-secondary text-white" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}><span>{mobile.name}</span></button>))}</div>)}
                     </div>
 
                 </div>

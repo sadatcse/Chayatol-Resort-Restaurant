@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
+import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from "react";
 import { FiX, FiSearch, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { MdBedroomParent, MdHotel } from "react-icons/md";
 import Swal from "sweetalert2";
@@ -28,8 +28,83 @@ const RoomIssuePage = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
-  const [fromDate, setFromDate] = useState(null);
-  const [toDate, setToDate] = useState(null);
+  // Generate list of the last 12 months dynamically
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const date = new Date();
+    date.setDate(1); // Set to day 1 to avoid rollover bugs when subtracting months
+    for (let i = 0; i < 12; i++) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const label = date.toLocaleDateString("default", { month: "long", year: "numeric" });
+      options.push({ label, year, month });
+      date.setMonth(date.getMonth() - 1);
+    }
+    return options;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth()}`;
+  });
+
+  const [fromDate, setFromDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  });
+
+  const [toDate, setToDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  });
+
+  // Sync selectedMonth dropdown with fromDate/toDate changes
+  useEffect(() => {
+    if (fromDate === null && toDate === null) {
+      if (selectedMonth !== "all") setSelectedMonth("all");
+      return;
+    }
+
+    if (fromDate && toDate) {
+      const startYear = fromDate.getFullYear();
+      const startMonth = fromDate.getMonth();
+      const startDay = fromDate.getDate();
+
+      const endYear = toDate.getFullYear();
+      const endMonth = toDate.getMonth();
+      const lastDayOfStartMonth = new Date(startYear, startMonth + 1, 0).getDate();
+      const endDay = toDate.getDate();
+
+      if (startYear === endYear && startMonth === endMonth && startDay === 1 && endDay === lastDayOfStartMonth) {
+        const value = `${startYear}-${startMonth}`;
+        if (selectedMonth !== value) setSelectedMonth(value);
+        return;
+      }
+    }
+
+    if (selectedMonth !== "custom") {
+      setSelectedMonth("custom");
+    }
+  }, [fromDate, toDate, selectedMonth]);
+
+  // Handle month selection change
+  const handleMonthChange = (e) => {
+    const val = e.target.value;
+    setSelectedMonth(val);
+    setCurrentPage(1);
+
+    if (val === "all") {
+      setFromDate(null);
+      setToDate(null);
+    } else if (val !== "custom") {
+      const [year, month] = val.split("-").map(Number);
+      const start = new Date(year, month, 1, 0, 0, 0, 0);
+      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      setFromDate(start);
+      setToDate(end);
+    }
+  };
+
   const [isExporting, setIsExporting] = useState(false);
   const [expandedBatches, setExpandedBatches] = useState({});
 
@@ -293,7 +368,22 @@ const RoomIssuePage = () => {
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
       <SectionHeader title="Room Consumable Issue" subtitle="Issue amenities and consumables to hotel rooms. Stock is automatically deducted upon recording.">
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
+          {/* Month selector dropdown */}
+          <select
+            value={selectedMonth}
+            onChange={handleMonthChange}
+            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
+          >
+            <option value="all">All Months</option>
+            {monthOptions.map((opt) => (
+              <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
+                {opt.label}
+              </option>
+            ))}
+            <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
+          </select>
+
           <DatePicker selected={fromDate} onChange={(d) => { setFromDate(d); setCurrentPage(1); }} dateFormat="dd/MM/yyyy" placeholderText="From Date" isClearable wrapperClassName="block"
             className="input input-bordered border-brand-primary focus:outline-none bg-white dark:bg-brand-charcoal/50 rounded-full h-12 text-xs font-semibold px-4 w-full sm:w-36 text-center text-brand-charcoal dark:text-brand-offwhite shadow-sm" />
           <DatePicker selected={toDate} onChange={(d) => { setToDate(d); setCurrentPage(1); }} dateFormat="dd/MM/yyyy" placeholderText="To Date" isClearable wrapperClassName="block"
@@ -323,7 +413,7 @@ const RoomIssuePage = () => {
             isLoading={isExporting}
           />
           {canPerformAction && (
-            <button onClick={openModal} className="btn bg-blue-600 text-white hover:bg-blue-700 border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+            <button onClick={openModal} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
               <MdHotel className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">Issue to Room</span>
             </button>
@@ -338,7 +428,7 @@ const RoomIssuePage = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="table w-full">
-              <thead className="bg-blue-600 text-white font-bold uppercase tracking-widest text-[10px]">
+              <thead className="bg-brand-primary text-white font-bold uppercase tracking-widest text-[10px]">
                 <tr>
                   <th className="pl-8 py-5 w-12"></th>
                   <th className="py-5">Date</th>
@@ -366,7 +456,7 @@ const RoomIssuePage = () => {
                       return (
                         <React.Fragment key={r._id}>
                           <motion.tr layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="hover:bg-blue-50/20 dark:hover:bg-blue-950/10 transition-colors border-b border-brand-beige dark:border-brand-beige/10 last:border-none bg-white dark:bg-brand-charcoal text-sm cursor-pointer"
+                            className="hover:bg-brand-primary/5 dark:hover:bg-brand-primary/10 transition-colors border-b border-brand-beige dark:border-brand-beige/10 last:border-none bg-white dark:bg-brand-charcoal text-sm cursor-pointer"
                             onClick={() => toggleBatch(r._id)}>
                             <td className="pl-8 py-4 text-center">
                               <button className="btn btn-ghost btn-xs p-0 min-h-0 h-auto text-brand-sage hover:bg-transparent">
@@ -375,7 +465,7 @@ const RoomIssuePage = () => {
                             </td>
                             <td className="py-4 font-mono text-xs">{new Date(r.createdAt).toLocaleDateString("en-GB")}</td>
                             <td className="py-4">
-                              <span className="badge bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400 border-none font-bold text-[9px] px-3 py-2.5 uppercase tracking-wider">
+                              <span className="badge bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage border-none font-bold text-[9px] px-3 py-2.5 uppercase tracking-wider">
                                 Room {r.roomNumber}
                               </span>
                             </td>
@@ -383,22 +473,22 @@ const RoomIssuePage = () => {
                             <td className="py-4 font-bold uppercase tracking-wide">
                               {firstIngredientName}
                               {hasMultiple && (
-                                <span className="ml-2 text-xs font-normal text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 px-2 py-0.5 rounded-full lowercase">
+                                <span className="ml-2 text-xs font-normal text-brand-primary dark:text-brand-sage bg-brand-primary/5 dark:bg-brand-primary/10 px-2 py-0.5 rounded-full lowercase">
                                   + {r.items.length - 1} more items
                                 </span>
                               )}
                             </td>
-                            <td className="py-4 text-right font-mono font-black text-blue-600 dark:text-blue-400 text-base pr-8">−{totalQty}</td>
+                            <td className="py-4 text-right font-mono font-black text-brand-primary dark:text-brand-sage text-base pr-8">−{totalQty}</td>
                             <td className="py-4 text-brand-sage text-xs max-w-xs truncate">{firstNote}</td>
                             <td className="pr-8 py-4 font-semibold text-brand-primary dark:text-brand-sage text-xs">{r.createdBy?.name || "System"}</td>
                           </motion.tr>
                           {isExpanded && (
-                            <tr className="bg-blue-50/10 dark:bg-blue-950/5">
+                            <tr className="bg-brand-primary/5 dark:bg-brand-primary/5">
                               <td colSpan="8" className="pl-12 pr-8 py-3">
                                 <div className="border border-brand-beige dark:border-brand-beige/20 rounded-xl overflow-hidden shadow-inner bg-white dark:bg-brand-charcoal/50 p-4">
                                   <h4 className="text-xs font-bold text-brand-sage uppercase tracking-wider mb-3">Batch Consumables Details</h4>
                                   <table className="table table-compact w-full text-xs">
-                                    <thead className="bg-blue-50 dark:bg-blue-950/20 text-brand-sage uppercase tracking-wider text-[9px]">
+                                    <thead className="bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-sage uppercase tracking-wider text-[9px]">
                                       <tr>
                                         <th className="pl-4 py-2">Item</th>
                                         <th className="py-2">Category</th>
@@ -412,7 +502,7 @@ const RoomIssuePage = () => {
                                         <tr key={item._id} className="border-b border-brand-beige/10 last:border-none">
                                           <td className="pl-4 py-2.5 font-bold uppercase">{item.ingredient?.name} <span className="text-brand-sage font-normal normal-case text-[10px] ml-1">({item.ingredient?.unit})</span></td>
                                           <td className="py-2.5 font-semibold text-brand-sage">{item.ingredient?.category?.categoryName || "—"}</td>
-                                          <td className="py-2.5 text-right font-mono font-bold text-blue-600 dark:text-blue-400">−{Math.abs(item.adjustment)}</td>
+                                          <td className="py-2.5 text-right font-mono font-bold text-brand-primary dark:text-brand-sage">−{Math.abs(item.adjustment)}</td>
                                           <td className="py-2.5 text-right font-mono text-brand-sage">{item.stock?.quantityInStock} {item.ingredient?.unit}</td>
                                           <td className="pr-4 py-2.5 text-brand-sage italic">{item.note || "—"}</td>
                                         </tr>
@@ -442,9 +532,9 @@ const RoomIssuePage = () => {
         {isModalOpen && (
           <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
             <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-2xl rounded-2xl shadow-2xl border border-brand-beige/20 animate-scale-in">
-              <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-blue-50 dark:bg-blue-950/20">
+              <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-primary/10 dark:bg-brand-primary/20">
                 <div className="flex items-center gap-3">
-                  <MdBedroomParent className="text-blue-600 text-2xl" />
+                  <MdBedroomParent className="text-brand-primary dark:text-brand-sage text-2xl" />
                   <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">Issue to Room</h3>
                 </div>
                 <button onClick={() => setIsModalOpen(false)} className="btn btn-sm btn-circle btn-ghost"><FiX size={20} /></button>
@@ -511,7 +601,7 @@ const RoomIssuePage = () => {
                   </div>
 
                   <div className="flex justify-end">
-                    <button type="button" onClick={handleAddItem} className="btn bg-blue-600 hover:bg-blue-700 text-white border-none btn-sm rounded-full px-6 shadow-sm">
+                    <button type="button" onClick={handleAddItem} className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none btn-sm rounded-full px-6 shadow-sm">
                       Add to Batch List
                     </button>
                   </div>
@@ -556,7 +646,7 @@ const RoomIssuePage = () => {
               </div>
               <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
                 <button onClick={() => setIsModalOpen(false)} className="btn btn-ghost font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
-                <button onClick={handleSubmit} disabled={isSubmitting || batchItems.length === 0} className="btn bg-blue-600 text-white hover:bg-blue-700 border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">
+                <button onClick={handleSubmit} disabled={isSubmitting || batchItems.length === 0} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">
                   {isSubmitting ? <><span className="loading loading-spinner loading-sm"></span> Saving...</> : `Record ${batchItems.length} Issue Item${batchItems.length === 1 ? "" : "s"}`}
                 </button>
               </div>
@@ -595,7 +685,7 @@ const RoomIssuePage = () => {
                     <td>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "N/A"}</td>
                     <td style={{ fontWeight: "bold" }}>{r.ingredient?.name} ({r.ingredient?.unit})</td>
                     <td>{r.ingredient?.category?.categoryName || "—"}</td>
-                    <td style={{ textAlign: "right", color: "#2563eb", fontWeight: "bold" }}>−{Math.abs(r.adjustment)}</td>
+                    <td style={{ textAlign: "right", color: "#346E36", fontWeight: "bold" }}>−{Math.abs(r.adjustment)}</td>
                     <td>Room {r.roomNumber}</td>
                     <td>{r.guestName || "—"}</td>
                     <td>{r.createdBy?.name || "System"}</td>

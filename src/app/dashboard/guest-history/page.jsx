@@ -30,7 +30,10 @@ function GuestHistoryContent() {
     const [isFolioLoading, setIsFolioLoading] = useState(false);
 
     // Month filter and export states
-    const [selectedMonth, setSelectedMonth] = useState("all");
+    const [selectedMonth, setSelectedMonth] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${now.getMonth()}`;
+    });
     const [fromDate, setFromDate] = useState(null);
     const [toDate, setToDate] = useState(null);
     const [isExporting, setIsExporting] = useState(false);

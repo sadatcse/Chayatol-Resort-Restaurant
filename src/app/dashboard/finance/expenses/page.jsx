@@ -37,11 +37,26 @@ const ExpensesPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
 
+  const getInitialStartDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}-01`;
+  };
+
+  const getInitialEndDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    return `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
+  };
+
   // Filters
   const [filterCategory, setFilterCategory] = useState("");
   const [filterPaymentMethod, setFilterPaymentMethod] = useState("");
-  const [filterStartDate, setFilterStartDate] = useState("");
-  const [filterEndDate, setFilterEndDate] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState(getInitialStartDate);
+  const [filterEndDate, setFilterEndDate] = useState(getInitialEndDate);
 
   const [categories, setCategories] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
@@ -293,8 +308,8 @@ const ExpensesPage = () => {
   const clearFilters = () => {
     setFilterCategory("");
     setFilterPaymentMethod("");
-    setFilterStartDate("");
-    setFilterEndDate("");
+    setFilterStartDate(getInitialStartDate());
+    setFilterEndDate(getInitialEndDate());
     setSearchTerm("");
     setCurrentPage(1);
   };

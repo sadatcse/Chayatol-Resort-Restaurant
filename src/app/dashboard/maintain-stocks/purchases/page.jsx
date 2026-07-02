@@ -41,6 +41,7 @@ const PurchasesPage = () => {
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [isExporting, setIsExporting] = useState(false);
+  const [viewingPurchase, setViewingPurchase] = useState(null);
   // Standardize Print hook integrations
   const {
     printData: printListData,
@@ -230,7 +231,6 @@ const PurchasesPage = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [viewingPurchase, setViewingPurchase] = useState(null);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
 
   // Prerequisites state
