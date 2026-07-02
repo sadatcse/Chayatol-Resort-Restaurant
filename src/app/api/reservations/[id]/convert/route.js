@@ -5,6 +5,7 @@ import ReservationPayment from "@/models/ReservationPayment";
 import Stay from "@/models/Stay";
 import Room from "@/models/Room";
 import Customer from "@/models/Customer";
+import ControlSettings from "@/models/ControlSettings";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
@@ -60,6 +61,17 @@ export async function POST(req, { params }) {
         }, { status: 400 });
       }
 
+      // Check if there is an active stay (Checked-In / In House guest) currently in this room
+      const activeStay = await Stay.findOne({
+        "rooms.room": room._id,
+        status: { $in: ["In House", "Extended"] }
+      }).populate("customer");
+      if (activeStay) {
+        return NextResponse.json({
+          message: `Room ${room.roomNumber} is currently occupied by active guest: ${activeStay.customer?.fullName || "Unknown"} (Stay: ${activeStay.stayNo}). Please check out the previous guest first.`
+        }, { status: 400 });
+      }
+
       stayRooms.push({
         room: room._id,
         mealPlan: resRoom.mealPlan,
@@ -76,6 +88,12 @@ export async function POST(req, { params }) {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const stayNo = `STY-${dateStr}-${(stayCount + 1).toString().padStart(4, "0")}`;
 
+    // Get resort settings check-out time
+    const settings = await ControlSettings.findOne() || { checkOutTime: "12:00" };
+    const [coHours, coMinutes] = (settings.checkOutTime || "12:00").split(":").map(Number);
+    const expectedCO = new Date(reservation.checkOutDate);
+    expectedCO.setHours(coHours || 12, coMinutes || 0, 0, 0);
+
     // Create Stay record
     const stay = await Stay.create({
       stayNo,
@@ -83,7 +101,7 @@ export async function POST(req, { params }) {
       reservationId: reservation._id,
       rooms: stayRooms,
       checkInDate: new Date(),
-      expectedCheckOutDate: reservation.checkOutDate,
+      expectedCheckOutDate: expectedCO,
       status: "In House"
     });
 

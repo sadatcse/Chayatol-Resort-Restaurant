@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Stay from "@/models/Stay";
 import Room from "@/models/Room";
+import Reservation from "@/models/Reservation";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
@@ -16,7 +17,7 @@ export async function POST(req, { params }) {
     await dbConnect();
     const { id } = await params;
     const body = await req.json();
-    const { payments, notes } = body; // Array of { paymentType, amount, transactionRef }
+    const { payments, notes, makeRoomsAvailable } = body; // Array of { paymentType, amount, transactionRef }, plus immediate release flag
 
     const stay = await Stay.findById(id).populate("rooms.room");
     if (!stay) {
@@ -70,11 +71,16 @@ export async function POST(req, { params }) {
     }
     await stay.save();
 
-    // Transition all rooms to Cleaning
+    // If there is an associated reservation, mark it as Completed
+    if (stay.reservationId) {
+      await Reservation.findByIdAndUpdate(stay.reservationId, { status: "Completed" });
+    }
+
+    // Transition all rooms to Cleaning or Available
     for (const r of stay.rooms) {
       const room = await Room.findById(r.room._id);
       if (room) {
-        room.status = "Cleaning";
+        room.status = makeRoomsAvailable ? "Available" : "Cleaning";
         await room.save();
       }
     }

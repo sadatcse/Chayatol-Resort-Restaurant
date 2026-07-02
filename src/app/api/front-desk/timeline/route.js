@@ -36,7 +36,7 @@ export async function GET(req) {
     const reservations = await Reservation.find({
       checkInDate: { $lte: endDate },
       checkOutDate: { $gte: startDate },
-      status: { $nin: ["Cancelled"] }
+      status: { $nin: ["Cancelled", "Checked-In", "Completed"] }
     })
       .populate("customer")
       .populate("rooms.room");

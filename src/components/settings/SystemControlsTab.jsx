@@ -16,7 +16,9 @@ export default function ControlsSettingsPage() {
     printKOT: false,
     sendOnlineOrderSMS: false,
     sendInvoiceSMS: false,
-    timeZone: "Asia/Dhaka"
+    timeZone: "Asia/Dhaka",
+    checkInTime: "14:00",
+    checkOutTime: "12:00"
   });
 
   const timeZones = [
@@ -45,7 +47,9 @@ export default function ControlsSettingsPage() {
            printKOT: Boolean(res.data.printKOT),
            sendOnlineOrderSMS: Boolean(res.data.sendOnlineOrderSMS),
            sendInvoiceSMS: Boolean(res.data.sendInvoiceSMS),
-           timeZone: res.data.timeZone || "Asia/Dhaka"
+           timeZone: res.data.timeZone || "Asia/Dhaka",
+           checkInTime: res.data.checkInTime || "14:00",
+           checkOutTime: res.data.checkOutTime || "12:00"
         });
       }
     } catch (error) {
@@ -178,6 +182,42 @@ export default function ControlsSettingsPage() {
                    <option key={tz} value={tz}>{tz}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Resort Check-In Time */}
+          <div className="card bg-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4 flex flex-row justify-between items-center transition-all hover:shadow-md col-span-1 md:col-span-2">
+            <div className="flex items-center gap-2 w-1/3">
+              <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">Resort Check-In Time</span>
+              <div className="tooltip tooltip-right text-left" data-tip="Configure standard resort check-in time.">
+                 <MdInfoOutline className="text-gray-400 cursor-pointer" />
+              </div>
+            </div>
+            <div className="w-2/3 max-w-sm">
+              <input 
+                type="time" 
+                className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm focus:outline-none focus:border-brand-primary"
+                value={settings.checkInTime}
+                onChange={(e) => updateSetting("checkInTime", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Resort Check-Out Time */}
+          <div className="card bg-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4 flex flex-row justify-between items-center transition-all hover:shadow-md col-span-1 md:col-span-2">
+            <div className="flex items-center gap-2 w-1/3">
+              <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">Resort Check-Out Time</span>
+              <div className="tooltip tooltip-right text-left" data-tip="Configure standard resort check-out time.">
+                 <MdInfoOutline className="text-gray-400 cursor-pointer" />
+              </div>
+            </div>
+            <div className="w-2/3 max-w-sm">
+              <input 
+                type="time" 
+                className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm focus:outline-none focus:border-brand-primary"
+                value={settings.checkOutTime}
+                onChange={(e) => updateSetting("checkOutTime", e.target.value)}
+              />
             </div>
           </div>
 

@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import Stay from "@/models/Stay";
 import Room from "@/models/Room";
 import Customer from "@/models/Customer";
+import ControlSettings from "@/models/ControlSettings";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
@@ -115,6 +116,17 @@ export async function POST(req) {
         return NextResponse.json({ message: `Room ${room.roomNumber} is currently occupied or unavailable.` }, { status: 400 });
       }
 
+      // Check if there is an active stay (Checked-In / In House guest) currently in this room
+      const activeStay = await Stay.findOne({
+        "rooms.room": room._id,
+        status: { $in: ["In House", "Extended"] }
+      }).populate("customer");
+      if (activeStay) {
+        return NextResponse.json({
+          message: `Room ${room.roomNumber} is currently occupied by active guest: ${activeStay.customer?.fullName || "Unknown"} (Stay: ${activeStay.stayNo}). Please check out the previous guest first.`
+        }, { status: 400 });
+      }
+
       const mealPlan = r.mealPlan || "Room Only";
       let nightlyRate = Number(r.nightlyRate);
       if (isNaN(nightlyRate) || r.nightlyRate === undefined || r.nightlyRate === null) {
@@ -143,13 +155,19 @@ export async function POST(req) {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const stayNo = `STY-${dateStr}-${(stayCount + 1).toString().padStart(4, "0")}`;
 
+    // Get resort settings check-out time
+    const settings = await ControlSettings.findOne() || { checkOutTime: "12:00" };
+    const [coHours, coMinutes] = (settings.checkOutTime || "12:00").split(":").map(Number);
+    const expectedCO = new Date(expectedCheckOutDate);
+    expectedCO.setHours(coHours || 12, coMinutes || 0, 0, 0);
+
     // Create Stay record
     const stay = await Stay.create({
       stayNo,
       customer,
       rooms: stayRooms,
       checkInDate: new Date(),
-      expectedCheckOutDate: new Date(expectedCheckOutDate),
+      expectedCheckOutDate: expectedCO,
       status: "In House",
       notes: notes || ""
     });

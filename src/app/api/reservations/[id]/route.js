@@ -3,6 +3,8 @@ import dbConnect from "@/lib/db";
 import Reservation from "@/models/Reservation";
 import ReservationPayment from "@/models/ReservationPayment";
 import Customer from "@/models/Customer";
+import Stay from "@/models/Stay";
+import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
@@ -19,7 +21,53 @@ export async function GET(req, { params }) {
       return NextResponse.json({ message: "Reservation not found" }, { status: 404 });
     }
 
-    return NextResponse.json(reservation, { status: 200 });
+    // Retrieve prepayments
+    const resPayments = await ReservationPayment.find({ reservationId: id });
+    const resPaymentsTotal = resPayments.reduce((sum, p) => sum + p.amount, 0);
+
+    // Retrieve stay & folio payments
+    const associatedStay = await Stay.findOne({ reservationId: id });
+    const stayFolioPayments = associatedStay
+      ? await FolioEntry.find({ stayId: associatedStay._id, type: "Payment" })
+      : [];
+    const stayPaymentsTotal = stayFolioPayments.reduce((sum, f) => sum + f.credit, 0);
+
+    const totalPaid = resPaymentsTotal + stayPaymentsTotal;
+
+    const combinedPayments = [
+      ...resPayments.map(p => ({
+        _id: p._id,
+        paymentType: p.paymentType,
+        amount: p.amount,
+        paymentDate: p.paymentDate || p.createdAt,
+        transactionRef: p.transactionRef,
+        notes: p.notes
+      })),
+      ...stayFolioPayments.map(f => {
+        let paymentType = "Folio Payment";
+        if (f.description.includes("Direct Payment")) {
+          paymentType = f.description.split("(")[1]?.split(")")[0] || "Folio Payment";
+        } else if (f.description.includes("Settlement")) {
+          paymentType = f.description.split("Settlement (")[1]?.split(")")[0] || "Folio Payment";
+        }
+        return {
+          _id: f._id,
+          paymentType,
+          amount: f.credit,
+          paymentDate: f.createdAt,
+          transactionRef: f.description.includes("Ref:") ? f.description.split("Ref: ")[1]?.split(" ")[0] || "" : "",
+          notes: f.description
+        };
+      })
+    ];
+
+    const result = {
+      ...reservation.toObject(),
+      totalPaid,
+      payments: combinedPayments
+    };
+
+    return NextResponse.json(result, { status: 200 });
   } catch (err) {
     console.error("GET Reservation by ID error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

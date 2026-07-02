@@ -3,6 +3,8 @@ import dbConnect from "@/lib/db";
 import Reservation from "@/models/Reservation";
 import ReservationPayment from "@/models/ReservationPayment";
 import Customer from "@/models/Customer";
+import Stay from "@/models/Stay";
+import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
@@ -15,6 +17,8 @@ export async function GET(req) {
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
     const month = searchParams.get("month") || "";
+    const startDate = searchParams.get("startDate") || "";
+    const endDate = searchParams.get("endDate") || "";
 
     const skip = (page - 1) * limit;
 
@@ -23,7 +27,16 @@ export async function GET(req) {
       query.status = status;
     }
 
-    if (month) {
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      query.checkInDate = {
+        $gte: start,
+        $lte: end
+      };
+    } else if (month) {
       const [year, m] = month.split("-").map(Number);
       const start = new Date(Date.UTC(year, m - 1, 1, 0, 0, 0, 0));
       const end = new Date(Date.UTC(year, m, 1, 0, 0, 0, 0));
@@ -59,13 +72,58 @@ export async function GET(req) {
     const reservationIds = reservations.map(r => r._id);
     const payments = await ReservationPayment.find({ reservationId: { $in: reservationIds } });
 
+    // Retrieve associated stays and folio payments
+    const stays = await Stay.find({ reservationId: { $in: reservationIds } });
+    const stayIds = stays.map(s => s._id);
+    const folioPayments = await FolioEntry.find({
+      stayId: { $in: stayIds },
+      type: "Payment"
+    });
+
     const data = reservations.map(r => {
       const resPayments = payments.filter(p => p.reservationId.toString() === r._id.toString());
-      const totalPaid = resPayments.reduce((sum, p) => sum + p.amount, 0);
+      const resPaymentsTotal = resPayments.reduce((sum, p) => sum + p.amount, 0);
+
+      const associatedStay = stays.find(s => s.reservationId.toString() === r._id.toString());
+      const stayFolioPayments = associatedStay
+        ? folioPayments.filter(f => f.stayId.toString() === associatedStay._id.toString())
+        : [];
+      const stayPaymentsTotal = stayFolioPayments.reduce((sum, f) => sum + f.credit, 0);
+
+      const totalPaid = resPaymentsTotal + stayPaymentsTotal;
+
+      // Combine list of payments for listing
+      const combinedPayments = [
+        ...resPayments.map(p => ({
+          _id: p._id,
+          paymentType: p.paymentType,
+          amount: p.amount,
+          paymentDate: p.paymentDate || p.createdAt,
+          transactionRef: p.transactionRef,
+          notes: p.notes
+        })),
+        ...stayFolioPayments.map(f => {
+          let paymentType = "Folio Payment";
+          if (f.description.includes("Direct Payment")) {
+            paymentType = f.description.split("(")[1]?.split(")")[0] || "Folio Payment";
+          } else if (f.description.includes("Settlement")) {
+            paymentType = f.description.split("Settlement (")[1]?.split(")")[0] || "Folio Payment";
+          }
+          return {
+            _id: f._id,
+            paymentType,
+            amount: f.credit,
+            paymentDate: f.createdAt,
+            transactionRef: f.description.includes("Ref:") ? f.description.split("Ref: ")[1]?.split(" ")[0] || "" : "",
+            notes: f.description
+          };
+        })
+      ];
+
       return {
         ...r.toObject(),
         totalPaid,
-        payments: resPayments
+        payments: combinedPayments
       };
     });
 

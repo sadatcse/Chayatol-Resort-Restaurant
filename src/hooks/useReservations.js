@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useContext } from "react";
 import { AuthContext } from "../providers/AuthProvider";
 import useAxiosSecure from "./useAxiosSecure";
 
-const useReservations = (currentPage = 1, itemsPerPage = 10, searchTerm = "", status = "", month = "") => {
+const useReservations = (currentPage = 1, itemsPerPage = 10, searchTerm = "", status = "", month = "", startDate = "", endDate = "") => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
   const [reservations, setReservations] = useState([]);
@@ -17,7 +17,7 @@ const useReservations = (currentPage = 1, itemsPerPage = 10, searchTerm = "", st
     setIsLoading(true);
     try {
       const response = await axiosSecure.get(
-        `/reservations?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}&status=${status}&month=${month}`
+        `/reservations?page=${currentPage}&limit=${itemsPerPage}&search=${searchTerm}&status=${status}&month=${month}&startDate=${startDate}&endDate=${endDate}`
       );
       setReservations(response.data.data || []);
       setTotalPages(response.data.totalPages || 1);
@@ -27,7 +27,7 @@ const useReservations = (currentPage = 1, itemsPerPage = 10, searchTerm = "", st
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, status, month, user]);
+  }, [axiosSecure, currentPage, itemsPerPage, searchTerm, status, month, startDate, endDate, user]);
 
   useEffect(() => {
     fetchReservations();

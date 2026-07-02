@@ -32,6 +32,34 @@ const ReservationsPage = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [quickFilter, setQuickFilter] = useState("");
+
+  const handleQuickFilterChange = (filterType) => {
+    setQuickFilter(filterType);
+    setCurrentPage(1);
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    
+    if (filterType === "today") {
+      const todayStr = new Date(now - tzOffset).toISOString().split("T")[0];
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+      setMonthFilter("");
+    } else if (filterType === "7days") {
+      const todayStr = new Date(now - tzOffset).toISOString().split("T")[0];
+      const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const nextWeekStr = new Date(nextWeek - tzOffset).toISOString().split("T")[0];
+      setStartDate(todayStr);
+      setEndDate(nextWeekStr);
+      setMonthFilter("");
+    } else if (filterType === "all") {
+      setQuickFilter("");
+      setStartDate("");
+      setEndDate("");
+    }
+  };
 
   const monthOptions = useMemo(() => {
     const options = [];
@@ -53,7 +81,9 @@ const ReservationsPage = () => {
     itemsPerPage,
     debouncedSearchTerm,
     statusFilter,
-    monthFilter
+    monthFilter,
+    startDate,
+    endDate
   );
 
   // Printing states & Ref
@@ -63,6 +93,63 @@ const ReservationsPage = () => {
     printRef
   } = useStandardPrint();
   const [company, setCompany] = useState(null);
+  const [settings, setSettings] = useState({ checkInTime: "14:00", checkOutTime: "12:00" });
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data } = await axiosSecure.get("/settings/controls");
+        if (data) setSettings(data);
+      } catch (err) {
+        console.error("Failed to load settings:", err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const formatReservationDateTime = (dateVal, isCheckOut = false) => {
+    if (!dateVal) return "N/A";
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return "N/A";
+    const timeStr = isCheckOut ? settings.checkOutTime || "12:00" : settings.checkInTime || "14:00";
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    d.setHours(hours || 0, minutes || 0, 0, 0);
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    });
+  };
+
+  const formatDateTime = (dateVal) => {
+    if (!dateVal) return "N/A";
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return "N/A";
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    });
+  };
+
+  const getRoomStatusLabel = (status) => {
+    switch (status) {
+      case "Available":
+        return "Free";
+      case "Reserved":
+        return "Booking";
+      case "Occupied":
+        return "In House";
+      default:
+        return status;
+    }
+  };
 
   // Fetch company details for letterhead print
   useEffect(() => {
@@ -656,6 +743,9 @@ const ReservationsPage = () => {
             value={monthFilter}
             onChange={(e) => {
               setMonthFilter(e.target.value);
+              setStartDate("");
+              setEndDate("");
+              setQuickFilter("");
               setCurrentPage(1);
             }}
             className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite rounded-full px-5 h-12 outline-none focus:outline-none font-bold"
@@ -680,6 +770,7 @@ const ReservationsPage = () => {
             <option value="Partially Paid">Partially Paid</option>
             <option value="Fully Paid">Fully Paid</option>
             <option value="Checked-In">Checked-In</option>
+            <option value="Completed">Completed</option>
             <option value="Cancelled">Cancelled</option>
           </select>
 
@@ -698,6 +789,91 @@ const ReservationsPage = () => {
           </label>
         </div>
       </SectionHeader>
+
+      {/* Smart Date Filter Panel */}
+      <div className="bg-white dark:bg-brand-charcoal p-4 rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        {/* Smart Buttons */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <span className="text-xs font-bold text-brand-sage uppercase tracking-widest mr-2">Quick Dates:</span>
+          <button
+            type="button"
+            onClick={() => handleQuickFilterChange("all")}
+            className={`btn btn-xs rounded-full px-4 h-8 uppercase tracking-wider font-bold text-[10px] transition-all duration-200 ${
+              !quickFilter
+                ? "bg-brand-primary text-white border-none shadow-sm"
+                : "btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white"
+            }`}
+          >
+            Clear / All
+          </button>
+          <button
+            type="button"
+            onClick={() => handleQuickFilterChange("today")}
+            className={`btn btn-xs rounded-full px-4 h-8 uppercase tracking-wider font-bold text-[10px] transition-all duration-200 ${
+              quickFilter === "today"
+                ? "bg-brand-primary text-white border-none shadow-sm"
+                : "btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white"
+            }`}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => handleQuickFilterChange("7days")}
+            className={`btn btn-xs rounded-full px-4 h-8 uppercase tracking-wider font-bold text-[10px] transition-all duration-200 ${
+              quickFilter === "7days"
+                ? "bg-brand-primary text-white border-none shadow-sm"
+                : "btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white"
+            }`}
+          >
+            Next 7 Days
+          </button>
+        </div>
+
+        {/* Date Range Inputs */}
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+          <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Date Range:</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setQuickFilter("custom");
+                setMonthFilter("");
+                setCurrentPage(1);
+              }}
+              className="input input-bordered input-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-8 text-xs font-bold w-36 px-2 focus:outline-none focus:border-brand-primary"
+            />
+            <span className="text-brand-sage text-xs font-bold">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setQuickFilter("custom");
+                setMonthFilter("");
+                setCurrentPage(1);
+              }}
+              className="input input-bordered input-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-8 text-xs font-bold w-36 px-2 focus:outline-none focus:border-brand-primary"
+            />
+          </div>
+          {(startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate("");
+                setEndDate("");
+                setQuickFilter("");
+                setCurrentPage(1);
+              }}
+              className="btn btn-xs btn-ghost text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold uppercase tracking-wider text-[10px]"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="flex flex-wrap justify-between items-center bg-white dark:bg-brand-charcoal p-4 rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 mb-6 gap-4">
         <div className="flex items-center gap-3 text-xs font-bold text-brand-sage uppercase tracking-widest">
@@ -769,6 +945,7 @@ const ReservationsPage = () => {
                           "Partially Paid": "bg-yellow-100 text-yellow-700",
                           "Fully Paid": "bg-indigo-100 text-indigo-700",
                           "Checked-In": "bg-green-100 text-green-700",
+                          Completed: "bg-teal-100 text-teal-700",
                           Cancelled: "bg-red-100 text-red-700"
                         };
 
@@ -789,7 +966,7 @@ const ReservationsPage = () => {
                               <div className="text-xs text-brand-sage">{res.customer?.phoneNumber}</div>
                             </td>
                             <td className="py-4 text-xs font-bold text-brand-sage">
-                              {new Date(res.checkInDate).toLocaleDateString()} → {new Date(res.checkOutDate).toLocaleDateString()}
+                              {formatReservationDateTime(res.checkInDate, false)} → {formatReservationDateTime(res.checkOutDate, true)}
                               <div className="text-[10px] font-normal uppercase tracking-wider text-brand-secondary">Source: {res.bookingSource}</div>
                             </td>
                             <td className="py-4 text-xs font-bold">
@@ -815,19 +992,19 @@ const ReservationsPage = () => {
                             </td>
                             <td className="pr-8 py-4">
                               <div className="flex justify-center items-center gap-2">
-                                {res.status !== "Checked-In" && res.status !== "Cancelled" && (
+                                {res.status !== "Checked-In" && res.status !== "Completed" && res.status !== "Cancelled" && (
                                   <button onClick={() => openCheckinModal(res)} className="btn btn-xs bg-green-600 hover:bg-green-700 text-white border-none rounded-full cursor-pointer gap-1 px-3 shadow" title="Check-In Guest">
                                     <FiCheck /> Check-In
                                   </button>
                                 )}
                                 
-                                {res.status !== "Checked-In" && (
+                                {res.status !== "Checked-In" && res.status !== "Completed" && (
                                   <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openPaymentsModal(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-secondary hover:bg-brand-secondary/10 transition-colors shadow-none cursor-pointer" title="Manage Payments/Deposits">
                                     <FiCreditCard size={16} />
                                   </motion.button>
                                 )}
                                 
-                                {res.status !== "Checked-In" && res.status !== "Cancelled" && (
+                                {res.status !== "Checked-In" && res.status !== "Completed" && res.status !== "Cancelled" && (
                                   <>
                                     <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openFormModal(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Reservation">
                                       <FiEdit size={16} />
@@ -850,7 +1027,7 @@ const ReservationsPage = () => {
                                 <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setPrintRes(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-blue-500 hover:bg-blue-50 transition-colors shadow-none cursor-pointer" title="Print Invoice">
                                   <FiPrinter size={16} />
                                 </motion.button>
-                                {(currentUser?.role === "admin" || currentUser?.role === "superadmin") && (!res.payments || res.payments.length === 0) && (
+                                {(currentUser?.role === "admin" || currentUser?.role === "superadmin") && res.status !== "Checked-In" && res.status !== "Completed" && (!res.payments || res.payments.length === 0) && (
                                   <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(res._id, res.reservationNo)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Reservation">
                                     <FiTrash2 size={16} />
                                   </motion.button>
@@ -1102,7 +1279,9 @@ const ReservationsPage = () => {
                       >
                         <option value="">Select Room</option>
                         {availableRooms.map(rm => (
-                          <option key={rm._id} value={rm._id}>{rm.roomNumber} ({rm.roomType})</option>
+                          <option key={rm._id} value={rm._id}>
+                            Room {rm.roomNumber} ({getRoomStatusLabel(rm.status)}) - {rm.roomType}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -1300,19 +1479,28 @@ const ReservationsPage = () => {
               <span className="text-xs font-bold text-brand-sage uppercase tracking-widest block mb-2">Assign Room Numbers</span>
               <div className="space-y-4">
                 {checkinAssignments.map((a, idx) => {
-                  const matchingRooms = availableRooms.filter(r => r.roomType === a.roomType && (r.status === "Available" || r.status === "Reserved" || r._id === a.roomId));
+                  const filteredRooms = availableRooms.filter(r => r.status === "Available" || r.status === "Reserved" || r._id === a.roomId);
+                  const matchingRooms = [
+                    ...filteredRooms.filter(r => r.roomType === a.roomType),
+                    ...filteredRooms.filter(r => r.roomType !== a.roomType)
+                  ];
 
                   return (
-                    <div key={idx} className="flex justify-between items-center p-3 bg-brand-offwhite/40 dark:bg-brand-charcoal/30 border border-brand-beige/10 rounded-xl">
-                      <span className="font-bold text-sm text-brand-charcoal dark:text-brand-offwhite uppercase tracking-wider">{a.roomType}</span>
+                    <div key={idx} className="flex flex-col gap-2 p-3 bg-brand-offwhite/40 dark:bg-brand-charcoal/30 border border-brand-beige/10 rounded-xl text-brand-charcoal dark:text-brand-offwhite">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-brand-sage uppercase tracking-wider">Booked Room Type:</span>
+                        <span className="font-extrabold text-sm uppercase tracking-wider text-brand-primary">{a.roomType}</span>
+                      </div>
                       <select
                         value={a.roomId}
                         onChange={(e) => handleCheckinAssignmentChange(idx, e.target.value)}
-                        className="select select-bordered select-sm border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-8 text-xs select-xs"
+                        className="select select-bordered select-sm border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-9 text-xs font-bold w-full"
                       >
                         <option value="">Select Room</option>
                         {matchingRooms.map(rm => (
-                          <option key={rm._id} value={rm._id}>{rm.roomNumber}</option>
+                          <option key={rm._id} value={rm._id}>
+                            Room {rm.roomNumber} ({getRoomStatusLabel(rm.status)}) - {rm.roomType} {rm.roomType === a.roomType ? "★" : ""}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -1370,8 +1558,8 @@ const ReservationsPage = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900 border-b pb-1 uppercase tracking-wider mb-2">Reservation Info</h3>
-                  <p><span className="font-semibold">Check-In Date:</span> {new Date(printRes.checkInDate).toLocaleDateString()}</p>
-                  <p><span className="font-semibold">Check-Out Date:</span> {new Date(printRes.checkOutDate).toLocaleDateString()}</p>
+                  <p><span className="font-semibold">Check-In Date:</span> {formatReservationDateTime(printRes.checkInDate, false)}</p>
+                  <p><span className="font-semibold">Check-Out Date:</span> {formatReservationDateTime(printRes.checkOutDate, true)}</p>
                   <p><span className="font-semibold">Booking Source:</span> {printRes.bookingSource}</p>
                   <p><span className="font-semibold">Status:</span> {printRes.status}</p>
                 </div>

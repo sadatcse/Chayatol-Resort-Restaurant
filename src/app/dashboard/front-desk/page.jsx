@@ -70,8 +70,10 @@ const FrontDeskTimelinePage = () => {
   const [serviceFormData, setServiceFormData] = useState({ serviceId: "", isChargeable: true });
   const [paymentFormData, setPaymentFormData] = useState({ paymentType: "", amount: "", transactionRef: "", notes: "" });
   const [discountFormData, setDiscountFormData] = useState({ discountType: "percentage", value: "", applyTo: "all", reason: "" });
-  const [extendFormData, setExtendFormData] = useState({ newCheckOutDate: "" });
+  const [extendFormData, setExtendFormData] = useState({ newCheckOutDate: "", roomAssignments: [] });
   const [checkoutPayment, setCheckoutPayment] = useState({ paymentType: "", amount: "", transactionRef: "" });
+  const [makeRoomsAvailable, setMakeRoomsAvailable] = useState(false);
+  const [settings, setSettings] = useState({ checkInTime: "14:00", checkOutTime: "12:00" });
 
   // Standardize Print hook integration
   const {
@@ -156,6 +158,50 @@ const FrontDeskTimelinePage = () => {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth(); // 0-indexed
 
+  const getRoomStatusLabel = (status) => {
+    switch (status) {
+      case "Available":
+        return "Free";
+      case "Reserved":
+        return "Booking";
+      case "Occupied":
+        return "In House";
+      default:
+        return status;
+    }
+  };
+
+  const formatDateTime = (dateVal) => {
+    if (!dateVal) return "N/A";
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return "N/A";
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    });
+  };
+
+  const formatReservationDateTime = (dateVal, isCheckOut = false) => {
+    if (!dateVal) return "N/A";
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return "N/A";
+    const timeStr = isCheckOut ? settings.checkOutTime || "12:00" : settings.checkInTime || "14:00";
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    d.setHours(hours || 0, minutes || 0, 0, 0);
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    });
+  };
+
   // Calendar setup - Always start 3 days back from reference date, showing 30 days
   const timelineDays = useMemo(() => {
     const days = [];
@@ -209,7 +255,7 @@ const FrontDeskTimelinePage = () => {
   useEffect(() => {
     const fetchPrerequisites = async () => {
       try {
-        const [foodRes, serviceRes, payRes, foodCatRes, serviceCatRes, roomsRes, companyRes, roomTypesRes] = await Promise.all([
+        const [foodRes, serviceRes, payRes, foodCatRes, serviceCatRes, roomsRes, companyRes, roomTypesRes, settingsRes] = await Promise.all([
           axiosSecure.get("/food/get?limit=10000"),
           axiosSecure.get("/resort-service/get"),
           axiosSecure.get("/paymenttype"),
@@ -217,7 +263,8 @@ const FrontDeskTimelinePage = () => {
           axiosSecure.get("/resort-service-category/get"),
           axiosSecure.get("/room?all=true"),
           axiosSecure.get("/company"),
-          axiosSecure.get("/room-type?all=true")
+          axiosSecure.get("/room-type?all=true"),
+          axiosSecure.get("/settings/controls")
         ]);
         setFoodMenu(foodRes.data?.data || foodRes.data || []);
         setServices(serviceRes.data?.data || serviceRes.data || []);
@@ -228,6 +275,9 @@ const FrontDeskTimelinePage = () => {
         setRoomTypes(roomTypesRes.data || []);
         if (companyRes.data && companyRes.data.length > 0) {
           setCompany(companyRes.data[0]);
+        }
+        if (settingsRes.data) {
+          setSettings(settingsRes.data);
         }
       } catch (err) {
         console.error("Error loading timelines prerequisites details:", err);
@@ -806,12 +856,16 @@ const FrontDeskTimelinePage = () => {
     }
     try {
       const { data } = await axiosSecure.post(`/stays/${selectedStay._id}/extend`, {
-        newCheckOutDate: extendFormData.newCheckOutDate
+        newCheckOutDate: extendFormData.newCheckOutDate,
+        roomAssignments: extendFormData.roomAssignments.map(ra => ({
+          oldRoomId: ra.oldRoomId,
+          newRoomId: ra.newRoomId
+        }))
       });
       setSelectedStay(data);
       await fetchFolio(selectedStay._id);
       setIsExtendModalOpen(false);
-      setExtendFormData({ newCheckOutDate: "" });
+      setExtendFormData({ newCheckOutDate: "", roomAssignments: [] });
       fetchTimelineData();
       Swal.fire("Stay Extended", "Stay extended and additional night charges posted.", "success");
     } catch (err) {
@@ -830,7 +884,8 @@ const FrontDeskTimelinePage = () => {
     }
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/checkout`, {
-        payments: checkPaymentList
+        payments: checkPaymentList,
+        makeRoomsAvailable
       });
 
       // Fetch latest folio entries to reflect checkout settlement payment on the final printed bill
@@ -1212,6 +1267,8 @@ const FrontDeskTimelinePage = () => {
             <span className="font-bold text-brand-sage">Reservation</span>
             <span className="w-3.5 h-3.5 rounded bg-green-100 dark:bg-green-900 border border-green-300 block ml-3"></span>
             <span className="font-bold text-brand-sage">In House</span>
+            <span className="w-3.5 h-3.5 rounded bg-gray-100 dark:bg-gray-800 border border-gray-300 block ml-3"></span>
+            <span className="font-bold text-brand-sage">Checked Out</span>
           </div>
 
           <button
@@ -1255,7 +1312,7 @@ const FrontDeskTimelinePage = () => {
             className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none btn-sm rounded-full shadow gap-2 px-5"
           >
             <FiPlus />
-            <span className="uppercase tracking-widest text-[10px] font-bold">Add Booking</span>
+            <span className="uppercase tracking-widest text-[10px] font-bold">Check-In</span>
           </button>
         </div>
       </div>
@@ -1343,9 +1400,12 @@ const FrontDeskTimelinePage = () => {
 
                                 // Style definitions
                                 const isStay = block.type === "stay";
-                                const bgStyle = isStay
-                                  ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-300 dark:border-green-800"
-                                  : "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800";
+                                const isCheckedOut = isStay && block.data.status === "Checked Out";
+                                const bgStyle = isCheckedOut
+                                  ? "bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-800"
+                                  : isStay
+                                    ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-300 dark:border-green-800"
+                                    : "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800";
 
                                 cells.push(
                                   <td
@@ -1355,7 +1415,7 @@ const FrontDeskTimelinePage = () => {
                                     onClick={(e) => handleBlockClick(e, block)}
                                   >
                                     <div className={`p-1.5 rounded-lg border text-[10px] font-bold truncate cursor-pointer shadow-sm hover:brightness-95 transition-all text-center uppercase tracking-wider ${bgStyle}`}>
-                                      {isStay ? "Stay" : "Res"}: {block.data.customer?.fullName || "Guest"}
+                                      {isCheckedOut ? "Out" : isStay ? "Stay" : "Res"}: {block.data.customer?.fullName || "Guest"}
                                     </div>
                                   </td>
                                 );
@@ -1440,6 +1500,18 @@ const FrontDeskTimelinePage = () => {
                     {selectedStay.rooms?.map(r => r.room?.roomNumber).join(", ") || "N/A"}
                   </div>
                 </div>
+                <div className="sm:col-span-2 pt-2 border-t border-brand-beige/20 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] font-bold">
+                  <div>
+                    <span className="text-brand-sage text-[9px] uppercase tracking-wider block">Checked In:</span>
+                    <span className="text-brand-charcoal dark:text-brand-offwhite">{formatDateTime(selectedStay.checkInDate)}</span>
+                  </div>
+                  <div>
+                    <span className="text-brand-sage text-[9px] uppercase tracking-wider block">Expected/Actual Check-Out:</span>
+                    <span className="text-brand-charcoal dark:text-brand-offwhite">
+                      {selectedStay.actualCheckOutDate ? formatDateTime(selectedStay.actualCheckOutDate) : formatDateTime(selectedStay.expectedCheckOutDate)}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Folio Ledger Entries List */}
@@ -1464,7 +1536,7 @@ const FrontDeskTimelinePage = () => {
                         <tbody>
                           {folioEntries.map(entry => (
                             <tr key={entry._id} className="border-b border-brand-beige/10 last:border-none text-brand-charcoal dark:text-brand-offwhite">
-                              <td className="text-brand-sage text-[10px]">{new Date(entry.date).toLocaleDateString()}</td>
+                              <td className="text-brand-sage text-[10px]">{formatDateTime(entry.date)}</td>
                               <td className="font-bold">{entry.description}</td>
                               <td className="text-right font-bold text-red-600">{entry.debit > 0 ? `৳${entry.debit}` : "-"}</td>
                               <td className="text-right font-bold text-green-600">{entry.credit > 0 ? `৳${entry.credit}` : "-"}</td>
@@ -1504,12 +1576,27 @@ const FrontDeskTimelinePage = () => {
                   <button onClick={() => setIsDiscountModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                     <span>৳</span> Post Discount
                   </button>
-                  <button onClick={() => setIsExtendModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 sm:col-span-2">
+                  <button
+                    onClick={() => {
+                      setExtendFormData({
+                        newCheckOutDate: "",
+                        roomAssignments: selectedStay.rooms.map(r => ({
+                          oldRoomId: r.room?._id || r.room,
+                          newRoomId: r.room?._id || r.room,
+                          roomNumber: r.room?.roomNumber,
+                          roomType: r.room?.roomType
+                        }))
+                      });
+                      setIsExtendModalOpen(true);
+                    }}
+                    className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 sm:col-span-2"
+                  >
                     <FiClock /> Extend Stay
                   </button>
                   <button
                     onClick={() => {
                       setCheckoutPayment({ paymentType: "", amount: outstandingDue > 0 ? outstandingDue : "", transactionRef: "" });
+                      setMakeRoomsAvailable(false);
                       setIsCheckoutModalOpen(true);
                     }}
                     className="btn btn-sm bg-brand-primary text-white border-none w-full sm:col-span-2 rounded-full cursor-pointer font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow"
@@ -1581,7 +1668,7 @@ const FrontDeskTimelinePage = () => {
                 <div>
                   <span className="text-[10px] block text-brand-sage/65 uppercase tracking-wider">Timeline Dates</span>
                   <span className="text-brand-charcoal dark:text-brand-offwhite text-sm block mt-1">
-                    {new Date(selectedRes.checkInDate).toLocaleDateString()} → {new Date(selectedRes.checkOutDate).toLocaleDateString()}
+                    {formatReservationDateTime(selectedRes.checkInDate, false)} → {formatReservationDateTime(selectedRes.checkOutDate, true)}
                   </span>
                 </div>
                 <div>
@@ -1870,23 +1957,52 @@ const FrontDeskTimelinePage = () => {
       {/* Extend Stay Modal */}
       {isExtendModalOpen && (
         <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
-          <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-sm rounded-2xl border animate-scale-in">
+          <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-md rounded-2xl border animate-scale-in">
             <div className="p-6 border-b border-brand-beige bg-brand-offwhite">
-              <span className="font-bold text-sm uppercase tracking-widest text-brand-charcoal">Extend Expected Check-Out</span>
+              <span className="font-bold text-sm uppercase tracking-widest text-brand-charcoal">Extend Expected Check-Out & Change Rooms</span>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="form-control">
-                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">New Expected Check-Out Date</span></label>
+            <div className="p-8 space-y-4 text-xs font-bold text-brand-sage">
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">New Expected Check-Out Date *</span></label>
                 <input
                   type="date"
                   value={extendFormData.newCheckOutDate}
-                  onChange={(e) => setExtendFormData({ newCheckOutDate: e.target.value })}
-                  className="input input-bordered border-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
+                  onChange={(e) => setExtendFormData({ ...extendFormData, newCheckOutDate: e.target.value })}
+                  className="input input-bordered border-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-9"
                 />
               </div>
-              <div className="pt-4 flex justify-end gap-3">
-                <button onClick={() => setIsExtendModalOpen(false)} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handleExtendStay} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6">Extend Date</button>
+
+              {/* Room Assignments Reassignment option */}
+              <div className="space-y-3 pt-3 border-t border-brand-beige/50">
+                <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest block mb-1">Room Allocation (Optional Room Change)</span>
+                {extendFormData.roomAssignments?.map((assignment, idx) => (
+                  <div key={idx} className="flex flex-col gap-1.5 p-3 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige dark:border-brand-beige/15 rounded-xl">
+                    <div className="flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite text-[11px]">
+                      <span>Current: <strong>Room {assignment.roomNumber}</strong> ({assignment.roomType})</span>
+                    </div>
+                    <select
+                      value={assignment.newRoomId}
+                      onChange={(e) => {
+                        const updated = [...extendFormData.roomAssignments];
+                        updated[idx].newRoomId = e.target.value;
+                        setExtendFormData({ ...extendFormData, roomAssignments: updated });
+                      }}
+                      className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-8"
+                    >
+                      <option value={assignment.oldRoomId}>Keep Room {assignment.roomNumber}</option>
+                      {availableRooms
+                        .filter(rm => rm.roomType === assignment.roomType && rm._id !== assignment.oldRoomId)
+                        .map(rm => (
+                          <option key={rm._id} value={rm._id}>Change to Room {rm.roomNumber} ({getRoomStatusLabel(rm.status)})</option>
+                        ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-brand-beige/10">
+                <button onClick={() => { setIsExtendModalOpen(false); setExtendFormData({ newCheckOutDate: "", roomAssignments: [] }); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
+                <button onClick={handleExtendStay} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6">Confirm Extension</button>
               </div>
             </div>
           </div>
@@ -1978,6 +2094,20 @@ const FrontDeskTimelinePage = () => {
               ) : (
                 <div className="p-4 bg-green-50 text-green-700 text-xs font-bold rounded-xl text-center">Ledger Account is fully settled. Guest can check-out.</div>
               )}
+
+              {/* Option to make room available immediately */}
+              <div className="form-control p-4 bg-brand-offwhite/50 dark:bg-brand-charcoal/20 border border-brand-beige/25 rounded-2xl flex flex-row items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-brand-charcoal dark:text-brand-offwhite block">Make Room(s) Available Immediately</span>
+                  <span className="text-[10px] text-brand-sage font-normal block mt-0.5">Skip Cleaning status (recommended for very short stays/quick checkout)</span>
+                </div>
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-primary checkbox-sm border-brand-primary"
+                  checked={makeRoomsAvailable}
+                  onChange={(e) => setMakeRoomsAvailable(e.target.checked)}
+                />
+              </div>
 
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsCheckoutModalOpen(false)} className="btn btn-ghost hover:bg-brand-beige text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
@@ -2316,19 +2446,28 @@ const FrontDeskTimelinePage = () => {
               <span className="text-xs font-bold text-brand-sage uppercase tracking-widest block mb-2">Assign Room Numbers</span>
               <div className="space-y-4">
                 {checkinAssignments.map((a, idx) => {
-                  const matchingRooms = availableRooms.filter(r => r.roomType === a.roomType && (r.status === "Available" || r.status === "Reserved" || r._id === a.roomId));
+                  const filteredRooms = availableRooms.filter(r => r.status === "Available" || r.status === "Reserved" || r._id === a.roomId);
+                  const matchingRooms = [
+                    ...filteredRooms.filter(r => r.roomType === a.roomType),
+                    ...filteredRooms.filter(r => r.roomType !== a.roomType)
+                  ];
 
                   return (
-                    <div key={idx} className="flex justify-between items-center p-3 bg-brand-offwhite/40 dark:bg-brand-charcoal/30 border border-brand-beige/10 rounded-xl text-brand-charcoal dark:text-brand-offwhite">
-                      <span className="font-bold text-sm uppercase tracking-wider">{a.roomType}</span>
+                    <div key={idx} className="flex flex-col gap-2 p-3 bg-brand-offwhite/40 dark:bg-brand-charcoal/30 border border-brand-beige/10 rounded-xl text-brand-charcoal dark:text-brand-offwhite">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-brand-sage uppercase tracking-wider">Booked Room Type:</span>
+                        <span className="font-extrabold text-sm uppercase tracking-wider text-brand-primary">{a.roomType}</span>
+                      </div>
                       <select
                         value={a.roomId}
                         onChange={(e) => handleCheckinAssignmentChange(idx, e.target.value)}
-                        className="select select-bordered select-sm border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-8 text-xs select-xs font-bold"
+                        className="select select-bordered select-sm border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-9 text-xs font-bold w-full"
                       >
                         <option value="">Select Room</option>
                         {matchingRooms.map(rm => (
-                          <option key={rm._id} value={rm._id}>{rm.roomNumber}</option>
+                          <option key={rm._id} value={rm._id}>
+                            Room {rm.roomNumber} ({getRoomStatusLabel(rm.status)}) - {rm.roomType} {rm.roomType === a.roomType ? "★" : ""}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -2424,7 +2563,7 @@ const FrontDeskTimelinePage = () => {
             ref={folioPrintRef}
             title={`Guest Folio Ledger - ${folioPrintData.stayNo}`}
             subtitle={`Folio account details for guest ${folioPrintData.customer?.fullName || "Guest"}`}
-            dateRange={`Check-in: ${new Date(folioPrintData.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(folioPrintData.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
+            dateRange={`Check-in: ${formatDateTime(folioPrintData.checkInDate)} to Expected Check-out: ${formatDateTime(folioPrintData.expectedCheckOutDate)}`}
           >
             <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px", color: "#000" }}>
               <strong>Customer Name:</strong> {folioPrintData.customer?.fullName} &nbsp;|&nbsp;
@@ -2445,7 +2584,7 @@ const FrontDeskTimelinePage = () => {
               <tbody>
                 {folioEntries.map((row) => (
                   <tr key={row._id}>
-                    <td>{new Date(row.date).toLocaleDateString("en-GB")}</td>
+                    <td>{formatDateTime(row.date)}</td>
                     <td>{row.type}</td>
                     <td style={{ fontWeight: "bold" }}>{row.description}</td>
                     <td style={{ textAlign: "right", color: "red", fontWeight: "bold" }}>
@@ -2493,8 +2632,8 @@ const FrontDeskTimelinePage = () => {
               </div>
               <div>
                 <h3 style={{ fontWeight: "bold", borderBottom: "1px solid #ccc", paddingBottom: "4px", textTransform: "uppercase", margin: "0 0 8px 0" }}>Reservation Info</h3>
-                <p style={{ margin: "3px 0" }}><strong>Check-In Date:</strong> {new Date(resPrintData.checkInDate).toLocaleDateString("en-GB")}</p>
-                <p style={{ margin: "3px 0" }}><strong>Check-Out Date:</strong> {new Date(resPrintData.checkOutDate).toLocaleDateString("en-GB")}</p>
+                <p style={{ margin: "3px 0" }}><strong>Check-In Date:</strong> {formatReservationDateTime(resPrintData.checkInDate, false)}</p>
+                <p style={{ margin: "3px 0" }}><strong>Check-Out Date:</strong> {formatReservationDateTime(resPrintData.checkOutDate, true)}</p>
                 <p style={{ margin: "3px 0" }}><strong>Booking Source:</strong> {resPrintData.bookingSource}</p>
                 <p style={{ margin: "3px 0" }}><strong>Status:</strong> {resPrintData.status}</p>
               </div>
@@ -2773,7 +2912,7 @@ const FrontDeskTimelinePage = () => {
                       >
                         <option value="">Select Room</option>
                         {availableRooms.map(rm => (
-                          <option key={rm._id} value={rm._id}>{rm.roomNumber} ({rm.roomType})</option>
+                          <option key={rm._id} value={rm._id}>{rm.roomNumber} ({getRoomStatusLabel(rm.status)}) ({rm.roomType})</option>
                         ))}
                       </select>
                     </div>
@@ -3169,7 +3308,7 @@ const FrontDeskTimelinePage = () => {
                         {availableRooms
                           .filter(rm => !r.roomType || rm.roomType === r.roomType)
                           .map(rm => (
-                            <option key={rm._id} value={rm._id}>{rm.roomNumber} ({rm.roomType})</option>
+                            <option key={rm._id} value={rm._id}>{rm.roomNumber} ({getRoomStatusLabel(rm.status)}) ({rm.roomType})</option>
                           ))}
                       </select>
                     </div>

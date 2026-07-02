@@ -75,11 +75,11 @@ const menuItems = () => {
           path: "/dashboard/reservations",
           icon: <MdAssignment className="text-base" />,
         },
-        {
-          title: "Walk-in Check-in",
-          path: "/dashboard/check-in",
-          icon: <MdAddCircle className="text-base" />,
-        },
+        // {
+        //   title: "Walk-in Check-in",
+        //   path: "/dashboard/check-in",
+        //   icon: <MdAddCircle className="text-base" />,
+        // },
         {
           title: "Guest Stay & Folio",
           path: "/dashboard/stays",

@@ -63,6 +63,20 @@ const StaysPage = () => {
     return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
   });
 
+  const formatDateTime = (dateVal) => {
+    if (!dateVal) return "N/A";
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return "N/A";
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    });
+  };
+
   // Sync selectedMonth dropdown with fromDate/toDate changes
   useEffect(() => {
     if (fromDate === null && toDate === null) {
@@ -652,7 +666,7 @@ const StaysPage = () => {
                               {stay.rooms?.map(r => r.room?.roomNumber).join(", ")}
                             </td>
                             <td className="py-4 text-xs font-bold text-brand-sage">
-                              {new Date(stay.checkInDate).toLocaleDateString()} → {new Date(stay.expectedCheckOutDate).toLocaleDateString()}
+                              {formatDateTime(stay.checkInDate)} → {formatDateTime(stay.expectedCheckOutDate)}
                             </td>
                             <td className="py-4">
                               <span className={`badge badge-sm font-bold tracking-wider uppercase text-[10px] border-none ${statusColors[stay.status]}`}>
