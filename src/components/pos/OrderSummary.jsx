@@ -24,7 +24,13 @@ const OrderSummary = ({
     tables, // list of table objects
     rooms,  // list of room objects
     TableNameState, setTableNameState,
-    deliveryProviderState, setDeliveryProviderState
+    deliveryProviderState, setDeliveryProviderState,
+    sc = 0,
+    custSearchResults = [],
+    setCustSearchResults,
+    custSearchLoading = false,
+    setIsCustomerModalOpen,
+    setCustomer
 }) => {
     const [activeTab, setActiveTab] = useState('invoiceDetails');
 
@@ -40,6 +46,10 @@ const OrderSummary = ({
     ];
 
     const validateOrder = () => {
+        if (!orderType) {
+            Swal.fire({ icon: 'error', title: 'No Order Type Selected', text: 'Please select an order type for this transaction.' });
+            return false;
+        }
         if (addedProducts.length === 0) {
             Swal.fire({ icon: 'error', title: 'No Products Added', text: 'Please add at least one product to the invoice.' });
             return false;
@@ -77,17 +87,17 @@ const OrderSummary = ({
     return (
         <div className="w-full lg:w-2/6 p-1 md:p-2 font-inter text-gray-800 dark:text-zinc-100">
             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-3 md:p-6 mb-6 border border-gray-150 dark:border-zinc-800">
-                <div className="flex border-b border-gray-250 dark:border-zinc-800 mb-4">
+                <div className="flex border-b border-brand-beige dark:border-zinc-800 mb-4">
                     <button
                         className={`flex-1 py-3 text-center text-sm md:text-base font-semibold rounded-tl-xl rounded-tr-xl transition-colors duration-300 cursor-pointer
-                            ${activeTab === 'invoiceDetails' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'}`}
+                            ${activeTab === 'invoiceDetails' ? 'bg-brand-primary text-white shadow-md' : 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'}`}
                         onClick={() => setActiveTab('invoiceDetails')}
                     >
                         Invoice Details
                     </button>
                     <button
                         className={`flex-1 py-3 text-center text-sm md:text-base font-semibold rounded-tl-xl rounded-tr-xl transition-colors duration-300 cursor-pointer
-                            ${activeTab === 'customerInfo' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'}`}
+                            ${activeTab === 'customerInfo' ? 'bg-brand-primary text-white shadow-md' : 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'}`}
                         onClick={() => setActiveTab('customerInfo')}
                     >
                         Other Info
@@ -167,12 +177,87 @@ const OrderSummary = ({
                             </AnimatePresence>
                         </div>
 
+                        {/* Order Type & Conditional Destination (Inline on Main Tab) */}
+                        <div className="mb-4 grid grid-cols-2 gap-2 text-xs font-semibold">
+                            <div>
+                                <label className="block text-gray-500 mb-1">Order Type</label>
+                                <select
+                                    value={orderType || ''}
+                                    onChange={(e) => handleOrderTypeChange(e.target.value)}
+                                    className="select select-bordered select-sm w-full dark:bg-zinc-800 dark:border-zinc-700 bg-white"
+                                >
+                                    <option value="dine-in">Dine In</option>
+                                    <option value="takeaway">Takeaway</option>
+                                    <option value="delivery">Delivery</option>
+                                    <option value="room service">Room Service</option>
+                                </select>
+                            </div>
+
+                            {/* Dine-in Table Selection */}
+                            {orderType?.toLowerCase() === 'dine-in' && (
+                                <div>
+                                    <label className="block text-gray-500 mb-1">Dine-in Table</label>
+                                    <select
+                                        value={TableName || ''}
+                                        onChange={(e) => setTableNameState(e.target.value)}
+                                        className="select select-bordered select-sm w-full dark:bg-zinc-800 dark:border-zinc-700 bg-white"
+                                    >
+                                        <option value="">Select Table</option>
+                                        {tables.map(t => (
+                                            <option key={t._id} value={t.tableName}>{t.tableName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Room Service Room Selection */}
+                            {orderType?.toLowerCase() === 'room service' && (
+                                <div>
+                                    <label className="block text-gray-500 mb-1">Guest Room</label>
+                                    <select
+                                        value={roomNo || ''}
+                                        onChange={(e) => setRoomNo(e.target.value)}
+                                        className="select select-bordered select-sm w-full dark:bg-zinc-800 dark:border-zinc-700 bg-white"
+                                    >
+                                        <option value="">Select Room</option>
+                                        {rooms.map(r => (
+                                            <option key={r._id} value={r.roomNumber}>Room {r.roomNumber}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Delivery Provider */}
+                            {orderType?.toLowerCase() === 'delivery' && (
+                                <div>
+                                    <label className="block text-gray-500 mb-1">Provider</label>
+                                    <select
+                                        value={deliveryProvider || ''}
+                                        onChange={(e) => setDeliveryProviderState(e.target.value)}
+                                        className="select select-bordered select-sm w-full dark:bg-zinc-800 dark:border-zinc-700 bg-white"
+                                    >
+                                        <option value="">Select Provider</option>
+                                        <option value="Foodpanda">Foodpanda</option>
+                                        <option value="Foodi">Foodi</option>
+                                        <option value="Pathao">Pathao</option>
+                                        <option value="Self Delivery">Self Delivery</option>
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Charges breakdown */}
                         <div className="p-3 bg-gray-50 dark:bg-zinc-850 rounded-xl space-y-2 mb-4 text-xs font-semibold">
                             <div className="flex justify-between">
                                 <span>Subtotal:</span>
                                 <span>TK {subtotal.toFixed(0)}</span>
                             </div>
+                            {sc > 0 && (
+                                <div className="flex justify-between">
+                                    <span>SC (Service Charge):</span>
+                                    <span>TK {sc.toFixed(0)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between">
                                 <span>VAT:</span>
                                 <span>TK {vat.toFixed(0)}</span>
@@ -209,9 +294,27 @@ const OrderSummary = ({
                                 </div>
                             </div>
 
-                            <div className="flex justify-between text-sm font-bold border-t border-gray-250 dark:border-zinc-800 pt-2 text-blue-600 dark:text-blue-400">
+                            <div className="flex justify-between text-sm font-bold border-t border-gray-250 dark:border-zinc-800 pt-2 text-brand-primary dark:text-brand-sage">
                                 <span>Payable:</span>
                                 <span>TK {payable.toFixed(0)}</span>
+                            </div>
+
+                            <div className="border-t border-gray-200 dark:border-zinc-800 pt-2">
+                                <div className="flex items-center justify-between">
+                                    <span>Paid Amount:</span>
+                                    <input
+                                        type="number"
+                                        value={invoiceSummary.paid || ""}
+                                        onChange={(e) => setInvoiceSummary({ ...invoiceSummary, paid: parseFloat(e.target.value) || 0 })}
+                                        className="w-24 px-1.5 py-0.5 border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-right text-xs rounded-md"
+                                        placeholder="0"
+                                        min="0"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-between text-xs font-bold text-green-600 dark:text-green-400">
+                                <span>Change Return:</span>
+                                <span>TK {change.toFixed(0)}</span>
                             </div>
                         </div>
 
@@ -219,21 +322,21 @@ const OrderSummary = ({
                         <div className="grid grid-cols-2 gap-3 mt-4">
                             <button
                                 onClick={() => handleFinalizeOrder((p) => printInvoice(p), false)}
-                                className="bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-emerald-700 flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
+                                className="bg-[#346E36] hover:bg-[#346E36]/90 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
                                 disabled={isProcessing}
                             >
                                 <FaSave /> Save Due
                             </button>
                             <button
                                 onClick={() => handleFinalizeOrder((p) => printInvoice(p), true)}
-                                className="bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
+                                className="bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
                                 disabled={isProcessing}
                             >
                                 <FaPrint /> Pay & Print
                             </button>
                             <button
                                 onClick={() => handleFinalizeOrder(handleKitchenClick)}
-                                className="col-span-2 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
+                                className="col-span-2 bg-[#1e293b] hover:bg-[#1e293b]/90 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
                                 disabled={isProcessing}
                             >
                                 <FaUtensils /> Send to Kitchen (KOT)
@@ -249,117 +352,91 @@ const OrderSummary = ({
                 )}
 
                 {activeTab === 'customerInfo' && (
-                    <div className="space-y-4">
-                        <h2 className="text-lg font-bold">Order Information</h2>
-                        
-                        {/* Order Type */}
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1">Order Type</label>
-                            <select
-                                value={orderType || ''}
-                                onChange={(e) => handleOrderTypeChange(e.target.value)}
-                                className="select select-bordered w-full dark:bg-zinc-800 dark:border-zinc-700"
-                            >
-                                <option value="" disabled>Select Order Type</option>
-                                <option value="dine-in">Dine In</option>
-                                <option value="takeaway">Takeaway</option>
-                                <option value="delivery">Delivery</option>
-                                <option value="room service">Room Service</option>
-                            </select>
-                        </div>
-
-                        {/* Dine-in Table Selection */}
-                        {orderType?.toLowerCase() === 'dine-in' && (
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 mb-1">Dine-in Table</label>
-                                <select
-                                    value={TableName || ''}
-                                    onChange={(e) => setTableNameState(e.target.value)}
-                                    className="select select-bordered w-full dark:bg-zinc-800 dark:border-zinc-700"
-                                >
-                                    <option value="">Select Table</option>
-                                    {tables.map(t => (
-                                        <option key={t._id} value={t.tableName}>{t.tableName}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
-                        {/* Room Service Room Selection */}
-                        {orderType?.toLowerCase() === 'room service' && (
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 mb-1">Guest Room</label>
-                                <select
-                                    value={roomNo || ''}
-                                    onChange={(e) => setRoomNo(e.target.value)}
-                                    className="select select-bordered w-full dark:bg-zinc-800 dark:border-zinc-700"
-                                >
-                                    <option value="">Select Room</option>
-                                    {rooms.map(r => (
-                                        <option key={r._id} value={r.roomNumber}>Room {r.roomNumber} ({r.type || "Standard"})</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
-                        {/* Delivery Provider */}
-                        {orderType?.toLowerCase() === 'delivery' && (
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 mb-1">Delivery Provider</label>
-                                <select
-                                    value={deliveryProvider || ''}
-                                    onChange={(e) => setDeliveryProviderState(e.target.value)}
-                                    className="select select-bordered w-full dark:bg-zinc-800 dark:border-zinc-700"
-                                >
-                                    <option value="">Select Provider</option>
-                                    <option value="Foodpanda">Foodpanda</option>
-                                    <option value="Foodi">Foodi</option>
-                                    <option value="Pathao">Pathao</option>
-                                    <option value="Self Delivery">Self Delivery</option>
-                                </select>
-                            </div>
-                        )}
-
-                        <div className="divider">Guest Details</div>
+                    <div className="space-y-4 animate-fade-in">
+                        <h2 className="text-lg font-bold">Additional Settings</h2>
 
                         {/* Search / Set Customer Phone */}
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1">Customer Mobile</label>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1">Customer Search</label>
                             <div className="flex gap-2">
                                 <input
                                     type="text"
                                     value={mobile}
-                                    onChange={(e) => setMobile(e.target.value)}
+                                    onChange={(e) => {
+                                        setMobile(e.target.value);
+                                        setCustSearchResults([]);
+                                    }}
                                     className="input input-bordered flex-1 dark:bg-zinc-800 dark:border-zinc-700"
-                                    placeholder="Enter 11 digit mobile"
+                                    placeholder="Search by phone/mobile"
                                 />
                                 <button
                                     onClick={handleCustomerSearch}
-                                    className="btn bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                                    disabled={custSearchLoading}
+                                    className="btn bg-brand-primary hover:bg-brand-secondary text-white cursor-pointer"
                                 >
-                                    <FaSearch />
+                                    {custSearchLoading ? "..." : <FaSearch />}
                                 </button>
                             </div>
                         </div>
 
+                        {custSearchResults && custSearchResults.length > 0 && (
+                            <div className="flex flex-col gap-2 mt-2 p-3 bg-gray-50 dark:bg-zinc-850 border border-gray-200 dark:border-zinc-800 rounded-lg max-h-60 overflow-y-auto">
+                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Search Results</div>
+                                {custSearchResults.map((cust) => (
+                                    <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-zinc-900 p-2 rounded-lg border border-gray-100 dark:border-zinc-800">
+                                        <div className="flex flex-col text-xs">
+                                            <span className="font-bold text-gray-800 dark:text-zinc-200">{cust.fullName}</span>
+                                            <span className="text-gray-400 font-mono">{cust.phoneNumber}</span>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                setCustomer(cust);
+                                                setMobile(cust.fullName || cust.name || "");
+                                                setCustSearchResults([]);
+                                            }} 
+                                            className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
+                                        >
+                                            Select
+                                        </button>
+                                    </div>
+                                ))}
+                                <button 
+                                    type="button" 
+                                    onClick={() => { setCustSearchResults([]); setIsCustomerModalOpen(true); }} 
+                                    className="text-xs text-blue-500 font-bold hover:underline self-start mt-1"
+                                >
+                                    + Add New Customer
+                                </button>
+                            </div>
+                        )}
+
                         {/* Display / Update Customer Name */}
                         {customer && (
-                            <div className="p-3 bg-gray-50 dark:bg-zinc-850 rounded-xl text-xs space-y-1">
+                            <div className="p-3 bg-gray-50 dark:bg-zinc-850 rounded-xl text-xs space-y-1 relative">
                                 <p><strong>Name:</strong> {customer.fullName || customer.name}</p>
                                 <p><strong>Phone:</strong> {customer.phoneNumber || customer.mobile || customer.phone}</p>
-                                <p><strong>Marital Status:</strong> {customer.maritalStatus || "Single"}</p>
+                                <button
+                                    onClick={() => {
+                                        setCustomer(null);
+                                        setMobile("");
+                                    }}
+                                    className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-xs"
+                                >
+                                    Clear
+                                </button>
                             </div>
                         )}
 
                         {/* Custom Date-Time for past backdates (Admin only) */}
-                        {user?.role === 'admin' && (
+                        {user?.role?.toLowerCase() === 'admin' && (
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 mb-1">Custom DateTime (Backdate)</label>
                                 <input
                                     type="datetime-local"
                                     value={customDateTime}
                                     onChange={(e) => setCustomDateTime(e.target.value)}
-                                    className="input input-bordered w-full dark:bg-zinc-800 dark:border-zinc-700 text-xs"
+                                    className="input input-bordered w-full dark:bg-zinc-800 dark:border-zinc-700 text-xs bg-white"
                                 />
                                 <span className="text-[10px] text-gray-400">Allows posting sales into past date/time logs.</span>
                             </div>

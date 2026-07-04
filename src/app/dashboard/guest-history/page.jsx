@@ -12,6 +12,46 @@ import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
+const getInvoiceSummary = (entries) => {
+    let roomTotal = 0;
+    let foodTotal = 0;
+    let serviceTotal = 0;
+    let discountTotal = 0;
+    let paidTotal = 0;
+    
+    entries.forEach(e => {
+        const desc = e.description.toLowerCase();
+        if (e.debit > 0) {
+            if (desc.includes("food")) {
+                foodTotal += e.debit;
+            } else if (desc.includes("service") || desc.includes("pickup") || desc.includes("laundry") || desc.includes("tax")) {
+                serviceTotal += e.debit;
+            } else {
+                roomTotal += e.debit;
+            }
+        } else if (e.credit > 0) {
+            if (desc.includes("discount")) {
+                discountTotal += e.credit;
+            } else {
+                paidTotal += e.credit;
+            }
+        }
+    });
+
+    const netPayable = roomTotal + foodTotal + serviceTotal - discountTotal;
+    const dueAmount = netPayable - paidTotal;
+    
+    return {
+        roomTotal,
+        foodTotal,
+        serviceTotal,
+        discountTotal,
+        paidTotal,
+        netPayable,
+        dueAmount
+    };
+};
+
 function GuestHistoryContent() {
     const axiosSecure = useAxiosSecure();
 
@@ -43,6 +83,37 @@ function GuestHistoryContent() {
     const [fromDate, setFromDate] = useState(null);
     const [toDate, setToDate] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [quickFilter, setQuickFilter] = useState("this-month");
+
+    const handleQuickFilterChange = (filterType) => {
+        setQuickFilter(filterType);
+        setCurrentPage(1);
+        const today = new Date();
+        if (filterType === "1day") {
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+            const lastDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+            setFromDate(firstDay);
+            setToDate(lastDay);
+            setSelectedMonth("");
+        } else if (filterType === "7days") {
+            const past7 = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const firstDay = new Date(past7.getFullYear(), past7.getMonth(), past7.getDate(), 0, 0, 0, 0);
+            const lastDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+            setFromDate(firstDay);
+            setToDate(lastDay);
+            setSelectedMonth("");
+        } else if (filterType === "this-month") {
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+            setFromDate(firstDay);
+            setToDate(lastDay);
+            setSelectedMonth(`${today.getFullYear()}-${today.getMonth()}`);
+        } else if (filterType === "all") {
+            setFromDate(null);
+            setToDate(null);
+            setSelectedMonth("all");
+        }
+    };
 
     // Generate list of the last 12 months dynamically
     const monthOptions = useMemo(() => {
@@ -93,6 +164,15 @@ function GuestHistoryContent() {
     const [detailedFoodOrders, setDetailedFoodOrders] = useState([]);
     const [detailedServiceOrders, setDetailedServiceOrders] = useState([]);
 
+    // Final Invoice print setup
+    const {
+        printData: finalInvoiceRes,
+        setPrintData: setFinalInvoiceRes,
+        printRef: finalInvoicePrintRef
+    } = useStandardPrint({
+        documentTitle: `Final_Invoice_${selectedStay?.stayNo || "Report"}`,
+    });
+
     const {
         printRef: foodServicePrintRef,
         handlePrint: handleFoodServicePrint
@@ -106,12 +186,20 @@ function GuestHistoryContent() {
         if (selectedMonth === "all") {
             setFromDate(null);
             setToDate(null);
-        } else {
+            setQuickFilter("all");
+        } else if (selectedMonth) {
             const [y, m] = selectedMonth.split("-").map(Number);
             const firstDay = new Date(y, m, 1, 0, 0, 0, 0);
             const lastDay = new Date(y, m + 1, 0, 23, 59, 59, 999);
             setFromDate(firstDay);
             setToDate(lastDay);
+            
+            const now = new Date();
+            if (y === now.getFullYear() && m === now.getMonth()) {
+                setQuickFilter("this-month");
+            } else {
+                setQuickFilter("");
+            }
         }
         setCurrentPage(1);
     }, [selectedMonth]);
@@ -293,6 +381,54 @@ function GuestHistoryContent() {
                                         setCurrentPage(1);
                                     }}
                                 />
+                            </div>
+
+                            {/* Quick Date Filter Buttons */}
+                            <div className="flex flex-wrap items-center gap-1.5 border border-brand-beige/50 dark:border-brand-dark-grey/50 rounded-lg p-1 bg-brand-offwhite/50 dark:bg-brand-charcoal/50">
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickFilterChange("1day")}
+                                    className={`px-3 py-1.5 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 cursor-pointer ${
+                                        quickFilter === "1day"
+                                            ? "bg-brand-primary text-white shadow-sm"
+                                            : "text-brand-sage hover:bg-brand-beige/35 dark:hover:bg-brand-dark-grey"
+                                    }`}
+                                >
+                                    1 Day
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickFilterChange("7days")}
+                                    className={`px-3 py-1.5 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 cursor-pointer ${
+                                        quickFilter === "7days"
+                                            ? "bg-brand-primary text-white shadow-sm"
+                                            : "text-brand-sage hover:bg-brand-beige/35 dark:hover:bg-brand-dark-grey"
+                                    }`}
+                                >
+                                    7 Days
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickFilterChange("this-month")}
+                                    className={`px-3 py-1.5 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 cursor-pointer ${
+                                        quickFilter === "this-month"
+                                            ? "bg-brand-primary text-white shadow-sm"
+                                            : "text-brand-sage hover:bg-brand-beige/35 dark:hover:bg-brand-dark-grey"
+                                    }`}
+                                >
+                                    This Month
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickFilterChange("all")}
+                                    className={`px-3 py-1.5 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 cursor-pointer ${
+                                        quickFilter === "all"
+                                            ? "bg-brand-primary text-white shadow-sm"
+                                            : "text-brand-sage hover:bg-brand-beige/35 dark:hover:bg-brand-dark-grey"
+                                    }`}
+                                >
+                                    All
+                                </button>
                             </div>
 
                             {/* Monthly Selector */}
@@ -496,7 +632,13 @@ function GuestHistoryContent() {
                                 onClick={() => setFolioPrintRes(selectedStay)}
                                 className="px-4 py-2 bg-brand-primary hover:bg-brand-secondary text-white rounded-lg text-xs font-bold cursor-pointer shadow-md animate-scale-in"
                             >
-                                Print Invoice
+                                Print Ledger
+                            </button>
+                            <button
+                                onClick={() => setFinalInvoiceRes(selectedStay)}
+                                className="px-4 py-2 bg-[#1e293b] hover:bg-[#1e293b]/90 text-white rounded-lg text-xs font-bold cursor-pointer shadow-md animate-scale-in"
+                            >
+                                Final Invoice
                             </button>
                         </div>
                     </div>
@@ -934,6 +1076,176 @@ function GuestHistoryContent() {
                         )}
                     </PrintReportTemplate>
                 )}
+            </div>
+            <div style={{ display: "none" }}>
+                {finalInvoiceRes && (() => {
+                    const summary = getInvoiceSummary(folioEntries);
+                    const isDue = summary.dueAmount > 0;
+                    return (
+                        <PrintReportTemplate
+                            ref={finalInvoicePrintRef}
+                            title="FINAL GUEST INVOICE"
+                            subtitle="Thank you for staying with us"
+                            dateRange=""
+                        >
+                            {/* Invoice Meta Header Grid */}
+                            <div style={{ 
+                                display: "grid", 
+                                gridTemplateColumns: "1fr 1fr", 
+                                gap: "20px", 
+                                marginBottom: "30px", 
+                                borderBottom: "2px solid #1e293b", 
+                                paddingBottom: "15px",
+                                fontSize: "11px"
+                            }}>
+                                <div>
+                                    <span style={{ textTransform: "uppercase", fontSize: "9px", fontWeight: "bold", color: "#1e293b", tracking: "widest" }}>Billing Info</span>
+                                    <p style={{ margin: "4px 0 2px 0", fontWeight: "bold", fontSize: "13px" }}>{finalInvoiceRes.customer?.fullName}</p>
+                                    <p style={{ margin: "2px 0", color: "#555" }}>Phone: {finalInvoiceRes.customer?.phoneNumber || "N/A"}</p>
+                                    <p style={{ margin: "2px 0", color: "#555" }}>Email: {finalInvoiceRes.customer?.emailAddress || finalInvoiceRes.customer?.email || "N/A"}</p>
+                                </div>
+                                <div style={{ textAlign: "right" }}>
+                                    <span style={{ textTransform: "uppercase", fontSize: "9px", fontWeight: "bold", color: "#1e293b", tracking: "widest" }}>Invoice Info</span>
+                                    <p style={{ margin: "4px 0 2px 0" }}><strong>Invoice Ref:</strong> INV-{finalInvoiceRes.stayNo.replace("STY-", "")}</p>
+                                    <p style={{ margin: "2px 0" }}><strong>Booking ID:</strong> {finalInvoiceRes.reservationNo || finalInvoiceRes.stayNo}</p>
+                                    <p style={{ margin: "2px 0" }}><strong>Check-In:</strong> {new Date(finalInvoiceRes.checkInDate).toLocaleDateString("en-GB")} 14:00</p>
+                                    <p style={{ margin: "2px 0" }}><strong>Check-Out:</strong> {finalInvoiceRes.actualCheckOutDate ? new Date(finalInvoiceRes.actualCheckOutDate).toLocaleDateString("en-GB") : new Date(finalInvoiceRes.expectedCheckOutDate).toLocaleDateString("en-GB")} 12:00</p>
+                                    <p style={{ margin: "2px 0" }}><strong>Payment Mode:</strong> {finalInvoiceRes.bookingSource || "Walk-in"}</p>
+                                </div>
+                            </div>
+
+                            {/* Booking Item Details */}
+                            <div style={{ marginBottom: "25px" }}>
+                                <h4 style={{ fontSize: "11px", fontWeight: "bold", color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>Room & Reservation Details</h4>
+                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                                    <thead>
+                                        <tr style={{ background: "#f8fafc", textAlign: "left", fontWeight: "bold", color: "#475569" }}>
+                                            <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1" }}>Stay Allocation</th>
+                                            <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1" }}>Meal Option</th>
+                                            <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1", textAlign: "right" }}>Nights</th>
+                                            <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1", textAlign: "right" }}>Total Rate (BDT)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {finalInvoiceRes.rooms?.map((rm, index) => {
+                                            const roomNo = rm.room?.roomNumber || rm.roomNo || "Unassigned";
+                                            return (
+                                                <tr key={index} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                    <td style={{ padding: "10px" }}>
+                                                        <div style={{ fontWeight: "bold", fontSize: "11px" }}>Room {roomNo}</div>
+                                                        <div style={{ color: "#64748b", fontSize: "10px" }}>{rm.roomType || "Resort Room"}</div>
+                                                    </td>
+                                                    <td style={{ padding: "10px", color: "#475569" }}>{rm.mealPlan || "Room Only"}</td>
+                                                    <td style={{ padding: "10px", textAlign: "right", color: "#475569" }}>{rm.nights || 1}</td>
+                                                    <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold" }}>৳ {(rm.nightlyRate * (rm.nights || 1)).toLocaleString()}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Payment Summary & Financials */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "30px", marginBottom: "30px" }}>
+                                {/* Collected Payments ledger */}
+                                <div>
+                                    <h4 style={{ fontSize: "11px", fontWeight: "bold", color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>Payments Ledger</h4>
+                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: "1px solid #cbd5e1", color: "#64748b", fontWeight: "bold", textAlign: "left" }}>
+                                                <th style={{ padding: "6px 0" }}>Payment Particulars</th>
+                                                <th style={{ padding: "6px 0" }}>Method</th>
+                                                <th style={{ padding: "6px 0", textAlign: "right" }}>Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).map((e, idx) => (
+                                                <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                    <td style={{ padding: "6px 0", color: "#475569" }}>{e.description}</td>
+                                                    <td style={{ padding: "6px 0", color: "#475569" }}>{e.type || "Cash/Online"}</td>
+                                                    <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "bold", color: "green" }}>৳ {e.credit.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                            {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).length === 0 && (
+                                                <tr>
+                                                    <td colSpan="3" style={{ padding: "10px 0", color: "#94a3b8", fontStyle: "italic" }}>No payments collected yet.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Bill calculation summary card */}
+                                <div style={{ 
+                                    background: "#f8fafc", 
+                                    border: "1px solid #e2e8f0", 
+                                    borderRadius: "12px", 
+                                    padding: "16px",
+                                    fontSize: "11px"
+                                }}>
+                                    <h4 style={{ fontSize: "11px", fontWeight: "black", color: "#1e293b", margin: "0 0 12px 0", textTransform: "uppercase", letterSpacing: "0.5px" }}>Bill Summary</h4>
+                                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                                        <span>Total Room Charges:</span>
+                                        <span>৳ {summary.roomTotal.toLocaleString()}</span>
+                                    </div>
+                                    {summary.serviceTotal > 0 && (
+                                        <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                                            <span>Resort Add-ons:</span>
+                                            <span>৳ {summary.serviceTotal.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {summary.foodTotal > 0 && (
+                                        <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                                            <span>Restaurant Orders:</span>
+                                            <span>৳ {summary.foodTotal.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {summary.discountTotal > 0 && (
+                                        <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "green", fontWeight: "bold" }}>
+                                            <span>Discount:</span>
+                                            <span>(-) ৳ {summary.discountTotal.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div style={{ borderTop: "1px solid #cbd5e1", margin: "8px 0" }}></div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", fontWeight: "bold", fontSize: "12px" }}>
+                                        <span>Total Net Bill:</span>
+                                        <span style={{ color: "#1e293b" }}>৳ {summary.netPayable.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                                        <span>Total Paid:</span>
+                                        <span style={{ color: "green", fontWeight: "bold" }}>৳ {summary.paidTotal.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ borderTop: "1px solid #cbd5e1", margin: "8px 0" }}></div>
+                                    
+                                    <div style={{ 
+                                        display: "flex", 
+                                        justifyContent: "space-between", 
+                                        margin: "4px 0 0 0", 
+                                        fontWeight: "black", 
+                                        fontSize: "13px",
+                                        color: isDue ? "#ef4444" : "#22c55e"
+                                    }}>
+                                        <span>{isDue ? "Outstanding Due:" : "Invoice Settled:"}</span>
+                                        <span>৳ {summary.dueAmount.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Terms & Thank You Message Footer */}
+                            <div style={{ 
+                                marginTop: "50px", 
+                                borderTop: "1px dashed #cbd5e1", 
+                                paddingTop: "15px", 
+                                textAlign: "center",
+                                fontSize: "10px",
+                                color: "#64748b"
+                            }}>
+                                <p style={{ margin: "2px 0" }}>This is a computer-generated guest invoice from Chayatol Resort & Restaurant PMS.</p>
+                                <p style={{ margin: "2px 0", fontWeight: "bold", color: "#1e293b" }}>We hope you enjoyed your stay! See you again soon.</p>
+                            </div>
+                        </PrintReportTemplate>
+                    );
+                })()}
             </div>
         </div>
     );

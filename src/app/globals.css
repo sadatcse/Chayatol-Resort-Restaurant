@@ -16,6 +16,7 @@
   --color-brand-beige: #EAE3D9;
   --color-brand-sage: #8EAB8F;
   --color-brand-bronze: #8C5A35;
+  --color-zinc-850: #202023;
 }
 
 /* Custom animations for Tailwind CSS v4 */
@@ -89,4 +90,13 @@ body {
 
 .react-datepicker-popper {
   z-index: 9999 !important;
+}
+
+/* SweetAlert and general HTML select option dark mode contrast fixes */
+.dark select,
+.dark select option,
+.dark .swal2-select,
+.dark .swal2-select option {
+  background-color: #202023 !important;
+  color: #f5f7f5 !important;
 }

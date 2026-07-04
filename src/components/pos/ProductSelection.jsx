@@ -21,7 +21,8 @@ const ProductSelection = ({
     selectedSubMethod,
     selectedCardIcon,
     handleMainPaymentButtonClick,
-    handleSubPaymentButtonClick
+    handleSubPaymentButtonClick,
+    paymentTypes = []
 }) => {
     const { user } = useContext(AuthContext);
     const axiosSecure = useAxiosSecure();
@@ -171,7 +172,7 @@ const ProductSelection = ({
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="table table-pin-rows table-zebra min-w-full">
+                                <table className="table table-pin-rows min-w-full">
                                     <thead>
                                         <tr>
                                             <th className="bg-slate-50 dark:bg-zinc-800 dark:text-zinc-200 p-2 sm:p-4 rounded-tl-lg">Picture</th>
@@ -192,7 +193,7 @@ const ProductSelection = ({
                                                         initial="hidden"
                                                         animate="visible"
                                                         exit="exit"
-                                                        className="hover dark:hover:bg-zinc-800/40 border-b dark:border-zinc-800"
+                                                        className="even:bg-slate-50/10 dark:even:bg-zinc-800/20 hover:bg-slate-100/40 dark:hover:bg-zinc-800/40 border-b dark:border-zinc-800"
                                                     >
                                                         <td className="p-2 sm:px-4">
                                                             <div className="avatar">
@@ -247,22 +248,89 @@ const ProductSelection = ({
                         )}
                     </div>
 
-                    {/* --- PAYMENT METHOD SECTION --- */}
                     <div className="divider mt-2 mb-2 dark:text-zinc-400">Payment Options</div>
                     <div className="p-2 rounded-xl">
                         <div className="flex justify-center flex-wrap gap-3">
-                            {["Cash", "Card", "Mobile", "Bank"].map((method) => (
-                                <button key={method} onClick={() => handleMainPaymentButtonClick(method)} className={`btn btn-md min-w-[110px] cursor-pointer ${selectedPaymentMethod === method || (selectedSubMethod && cardOptions.some(o => o.name === selectedSubMethod) && method === 'Card') || (selectedSubMethod && mobileOptions.some(o => o.name === selectedSubMethod) && method === 'Mobile') || (selectedPaymentMethod === 'Bank' && method === 'Bank') ? "bg-brand-primary hover:bg-brand-secondary text-white border-brand-secondary" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}>
-                                    {method === "Cash" && <FaMoneyBillWave />}
-                                    {method === "Card" && (selectedCardIcon || <FaCreditCard />)}
-                                    {method === "Mobile" && <MdOutlineSendToMobile />}
-                                    {method === "Bank" && <FaUniversity />}
-                                    {method}
-                                </button>
-                            ))}
+                            {paymentTypes && paymentTypes.length > 0 ? (
+                                paymentTypes.map((pt) => {
+                                    const method = pt.name;
+                                    const isSelected = selectedPaymentMethod === method;
+                                    const getPaymentIcon = (name) => {
+                                        const lower = name.toLowerCase();
+                                        if (lower.includes("cash")) return <FaMoneyBillWave />;
+                                        if (lower.includes("card") || lower.includes("visa") || lower.includes("master") || lower.includes("amex")) return <FaCreditCard />;
+                                        if (lower.includes("bkash") || lower.includes("nagad") || lower.includes("rocket") || lower.includes("mobile") || lower.includes(" nogod")) return <MdOutlineSendToMobile />;
+                                        return <FaUniversity />;
+                                    };
+                                    return (
+                                        <button 
+                                            key={pt._id} 
+                                            onClick={() => handleMainPaymentButtonClick(method)} 
+                                            className={`btn btn-md min-w-[110px] cursor-pointer ${
+                                                isSelected 
+                                                ? "bg-brand-primary hover:bg-brand-secondary text-white border-brand-secondary" 
+                                                : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"
+                                            }`} 
+                                            disabled={isProcessing}
+                                        >
+                                            {getPaymentIcon(method)}
+                                            {method}
+                                        </button>
+                                    );
+                                })
+                            ) : (
+                                ["Cash", "Card", "Mobile", "Bank"].map((method) => (
+                                    <button 
+                                        key={method} 
+                                        onClick={() => handleMainPaymentButtonClick(method)} 
+                                        className={`btn btn-md min-w-[110px] cursor-pointer ${
+                                            selectedPaymentMethod === method || 
+                                            (selectedSubMethod && cardOptions.some(o => o.name === selectedSubMethod) && method === 'Card') || 
+                                            (selectedSubMethod && mobileOptions.some(o => o.name === selectedSubMethod) && method === 'Mobile') || 
+                                            (selectedPaymentMethod === 'Bank' && method === 'Bank') 
+                                            ? "bg-brand-primary hover:bg-brand-secondary text-white border-brand-secondary" 
+                                            : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"
+                                        }`} 
+                                        disabled={isProcessing}
+                                    >
+                                        {method === "Cash" && <FaMoneyBillWave />}
+                                        {method === "Card" && (selectedCardIcon || <FaCreditCard />)}
+                                        {method === "Mobile" && <MdOutlineSendToMobile />}
+                                        {method === "Bank" && <FaUniversity />}
+                                        {method}
+                                    </button>
+                                ))
+                            )}
                         </div>
-                        {selectedPaymentMethod === 'Card' && (<div className="mt-4 flex flex-wrap justify-center gap-3">{cardOptions.map((card) => (<button key={card.name} onClick={() => handleSubPaymentButtonClick(card.name, card.icon)} className={`btn btn-sm cursor-pointer ${selectedSubMethod === card.name ? "bg-brand-primary hover:bg-brand-secondary text-white" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}>{card.icon}<span>{card.name}</span></button>))}</div>)}
-                        {selectedPaymentMethod === 'Mobile' && (<div className="mt-4 flex flex-wrap justify-center gap-3">{mobileOptions.map((mobile) => (<button key={mobile.name} onClick={() => handleSubPaymentButtonClick(mobile.name)} className={`btn btn-sm cursor-pointer ${selectedSubMethod === mobile.name ? "bg-brand-primary hover:bg-brand-secondary text-white" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} disabled={isProcessing}><span>{mobile.name}</span></button>))}</div>)}
+                        {selectedPaymentMethod === 'Card' && (
+                            <div className="mt-4 flex flex-wrap justify-center gap-3">
+                                {cardOptions.map((card) => (
+                                    <button 
+                                        key={card.name} 
+                                        onClick={() => handleSubPaymentButtonClick(card.name, card.icon)} 
+                                        className={`btn btn-sm cursor-pointer ${selectedSubMethod === card.name ? "bg-brand-primary hover:bg-brand-secondary text-white" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} 
+                                        disabled={isProcessing}
+                                    >
+                                        {card.icon}
+                                        <span>{card.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {selectedPaymentMethod === 'Mobile' && (
+                            <div className="mt-4 flex flex-wrap justify-center gap-3">
+                                {mobileOptions.map((mobile) => (
+                                    <button 
+                                        key={mobile.name} 
+                                        onClick={() => handleSubPaymentButtonClick(mobile.name)} 
+                                        className={`btn btn-sm cursor-pointer ${selectedSubMethod === mobile.name ? "bg-brand-primary hover:bg-brand-secondary text-white" : "btn-ghost dark:text-zinc-350 dark:hover:bg-zinc-800 border dark:border-zinc-800/60"}`} 
+                                        disabled={isProcessing}
+                                    >
+                                        <span>{mobile.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                 </div>

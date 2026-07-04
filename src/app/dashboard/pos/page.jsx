@@ -14,6 +14,7 @@ import OrderSummary from "@/components/pos/OrderSummary";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import KitchenReceiptTemplate from "@/components/Receipt/KitchenReceiptTemplate";
 import BarReceiptTemplate from "@/components/Receipt/BarReceiptTemplate";
+import { FaUtensils, FaGift, FaTruck, FaHotel } from "react-icons/fa";
 
 function POSContent() {
     const searchParams = useSearchParams();
@@ -32,7 +33,7 @@ function POSContent() {
     // POS States
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [addedProducts, setAddedProducts] = useState([]);
-    const [orderType, setOrderType] = useState("dine-in");
+    const [orderType, setOrderType] = useState("");
     const [TableName, setTableName] = useState("");
     const [roomNo, setRoomNo] = useState("");
     const [deliveryProvider, setDeliveryProvider] = useState("");
@@ -44,6 +45,17 @@ function POSContent() {
     const [selectedSubMethod, setSelectedSubMethod] = useState('');
     const [selectedCardIcon, setSelectedCardIcon] = useState(null);
     const [customDateTime, setCustomDateTime] = useState("");
+
+    // Dynamic POS settings & customers states
+    const [chargeSettings, setChargeSettings] = useState(null);
+    const [paymentTypes, setPaymentTypes] = useState([]);
+    const [custSearchResults, setCustSearchResults] = useState([]);
+    const [custSearchLoading, setCustSearchLoading] = useState(false);
+    const [isOrderTypeModalOpen, setIsOrderTypeModalOpen] = useState(false);
+    const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+    const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+    const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+    const [activeStays, setActiveStays] = useState([]);
 
     // Auxiliary Data (Tables, Rooms, Company info)
     const [tables, setTables] = useState([]);
@@ -69,10 +81,13 @@ function POSContent() {
     useEffect(() => {
         const fetchAuxData = async () => {
             try {
-                const [tablesRes, roomsRes, companyRes] = await Promise.all([
+                const [tablesRes, roomsRes, companyRes, paymentRes, chargesRes, staysRes] = await Promise.all([
                     axiosSecure.get("/restauranttable").catch(() => ({ data: [] })),
                     axiosSecure.get("/room").catch(() => ({ data: [] })),
-                    axiosSecure.get("/company").catch(() => ({ data: [] }))
+                    axiosSecure.get("/company").catch(() => ({ data: [] })),
+                    axiosSecure.get("/paymenttype").catch(() => ({ data: [] })),
+                    axiosSecure.get("/settings/charges").catch(() => ({ data: null })),
+                    axiosSecure.get("/stays?status=In House&limit=1000").catch(() => ({ data: { data: [] } }))
                 ]);
                 if (tablesRes.data) setTables(tablesRes.data);
                 if (roomsRes.data) {
@@ -80,6 +95,15 @@ function POSContent() {
                 }
                 if (companyRes.data && companyRes.data.length > 0) {
                     setCompanyInfo(companyRes.data[0]);
+                }
+                if (paymentRes.data) {
+                    setPaymentTypes(paymentRes.data);
+                }
+                if (chargesRes && chargesRes.data) {
+                    setChargeSettings(chargesRes.data);
+                }
+                if (staysRes.data && staysRes.data.data) {
+                    setActiveStays(staysRes.data.data);
                 }
             } catch (e) {
                 console.error("Auxiliary fetch failed", e);
@@ -177,36 +201,49 @@ function POSContent() {
         setTableName("");
         setRoomNo("");
         setDeliveryProvider("");
+        if (type === 'dine-in') {
+            setIsTableModalOpen(true);
+        } else if (type === 'delivery') {
+            setIsDeliveryModalOpen(true);
+        } else if (type === 'room service') {
+            setIsRoomModalOpen(true);
+        }
     };
 
-    const handleCustomerSearch = async () => {
-        if (!mobile) {
-            Swal.fire("Error", "Please enter a mobile number.", "error");
-            return;
+    // Prompt for Order Type Modal on Mount / Reset
+    useEffect(() => {
+        if (!orderType && !invoiceId) {
+            setIsOrderTypeModalOpen(true);
+        } else {
+            setIsOrderTypeModalOpen(false);
         }
-        if (!/^\d{11}$/.test(mobile)) {
-            Swal.fire("Invalid Number", "Mobile number must be exactly 11 digits.", "warning");
-            return;
-        }
+    }, [orderType, invoiceId]);
 
+    const handleCustomerSearch = async () => {
+        if (!mobile || mobile.trim().length < 3) {
+            Swal.fire("Error", "Please enter at least 3 digits to search.", "warning");
+            return;
+        }
+        setCustSearchLoading(true);
+        setCustSearchResults([]);
         try {
-            const res = await axiosSecure.get(`/customer/paginated?search=${mobile}`);
+            const res = await axiosSecure.get(`/customer/paginated?search=${encodeURIComponent(mobile)}&limit=5`);
             if (res.data?.customers && res.data.customers.length > 0) {
-                setCustomer(res.data.customers[0]);
-                toast.success("Guest found!");
+                setCustSearchResults(res.data.customers);
             } else {
-                setCustomer(null);
+                setCustSearchResults([]);
                 setIsCustomerModalOpen(true);
             }
         } catch (e) {
-            console.error(e);
-            setIsCustomerModalOpen(true);
+            console.error("Search customer error:", e);
+        } finally {
+            setCustSearchLoading(false);
         }
     };
 
     const selectCustomer = (cust) => {
         setCustomer(cust);
-        setMobile(cust.phoneNumber || cust.phone || "");
+        setMobile(cust.fullName || cust.name || "");
     };
 
     const addProduct = (food) => {
@@ -228,6 +265,7 @@ function POSContent() {
                 price: food.price,
                 vat: food.vat || 0,
                 sd: food.sd || 0,
+                sc: food.sc || 0,
                 cookStatus: 'PENDING',
                 isComplimentary: false,
                 drinkBar: food.category?.toLowerCase() === "drinks" || food.category?.toLowerCase() === "beverage" || food.drinkBar === true,
@@ -264,26 +302,87 @@ function POSContent() {
     const totals = useMemo(() => {
         const nonComplimentary = addedProducts.filter(p => !p.isComplimentary);
         const subtotal = nonComplimentary.reduce((acc, p) => acc + p.price * p.quantity, 0);
-        const vatVal = nonComplimentary.reduce((acc, p) => acc + (p.vat * p.quantity), 0);
-        const sdVal = nonComplimentary.reduce((acc, p) => acc + (p.sd * p.quantity), 0);
         
+        const getApplicabilityKey = (type, provider) => {
+            if (!type) return "Dine In";
+            const t = type.toLowerCase();
+            if (t === "dine-in") return "Dine In";
+            if (t === "takeaway") return "Takeaway";
+            if (t === "room service") return "Room Service";
+            if (t === "delivery") {
+                if (provider) {
+                    const p = provider.toLowerCase();
+                    if (p.includes("foodpanda")) return "Foodpanda";
+                    if (p.includes("foodi")) return "Foodi";
+                    if (p.includes("pathao")) return "Pathao";
+                }
+                return "Delivery";
+            }
+            return "Dine In";
+        };
+
+        const appKey = getApplicabilityKey(orderType, deliveryProvider);
+
+        let vatVal = 0;
+        let sdVal = 0;
+        let scVal = 0;
+
+        nonComplimentary.forEach(p => {
+            // VAT
+            let vatPercent = p.vat !== undefined ? p.vat : 0;
+            if (vatPercent === 0 && chargeSettings?.vat?.enabled) {
+                const isApplicable = chargeSettings.vat.customApplicability 
+                    ? !!chargeSettings.vat.applicability?.[appKey]
+                    : true;
+                if (isApplicable) {
+                    vatPercent = chargeSettings.vat.value || 0;
+                }
+            }
+            vatVal += (p.price * p.quantity * vatPercent) / 100;
+
+            // SD
+            let sdPercent = p.sd !== undefined ? p.sd : 0;
+            if (sdPercent === 0 && chargeSettings?.sd?.enabled) {
+                const isApplicable = chargeSettings.sd.customApplicability 
+                    ? !!chargeSettings.sd.applicability?.[appKey]
+                    : true;
+                if (isApplicable) {
+                    sdPercent = chargeSettings.sd.value || 0;
+                }
+            }
+            sdVal += (p.price * p.quantity * sdPercent) / 100;
+
+            // SC
+            let scPercent = p.sc !== undefined ? p.sc : 0;
+            if (scPercent === 0 && chargeSettings?.sc?.enabled) {
+                const isApplicable = chargeSettings.sc.customApplicability 
+                    ? !!chargeSettings.sc.applicability?.[appKey]
+                    : true;
+                if (isApplicable) {
+                    scPercent = chargeSettings.sc.value || 0;
+                }
+            }
+            scVal += (p.price * p.quantity * scPercent) / 100;
+        });
+
         let discountAmount = 0;
         const discountInput = parseFloat(invoiceSummary.discount || 0);
         if (discountType === 'Percent') {
-            discountAmount = ((subtotal + vatVal + sdVal) * discountInput) / 100;
+            discountAmount = ((subtotal + vatVal + sdVal + scVal) * discountInput) / 100;
         } else {
             discountAmount = discountInput;
         }
 
-        const payable = subtotal + vatVal + sdVal - discountAmount;
+        const payable = subtotal + vatVal + sdVal + scVal - discountAmount;
         return {
             subtotal,
             vat: vatVal,
             sd: sdVal,
+            sc: scVal,
             discount: discountAmount,
             payable: roundAmount(payable)
         };
-    }, [addedProducts, invoiceSummary.discount, discountType]);
+    }, [addedProducts, invoiceSummary.discount, discountType, orderType, deliveryProvider, chargeSettings]);
 
     const change = (invoiceSummary.paid || 0) > totals.payable ? (invoiceSummary.paid || 0) - totals.payable : 0;
 
@@ -320,6 +419,7 @@ function POSContent() {
             discount: roundAmount(totals.discount),
             vat: roundAmount(totals.vat),
             sd: roundAmount(totals.sd),
+            sc: roundAmount(totals.sc),
             grandTotal: totals.payable,
             totalAmount: totals.payable,
             loginUserEmail,
@@ -442,6 +542,7 @@ function POSContent() {
             discount: roundAmount(totals.discount),
             vat: roundAmount(totals.vat),
             sd: roundAmount(totals.sd),
+            sc: roundAmount(totals.sc),
             grandTotal: totals.payable,
             totalAmount: totals.payable,
             loginUserEmail,
@@ -519,6 +620,10 @@ function POSContent() {
         setCurrentInvoiceId(null);
         setKotRound(1);
         setInvoiceSummary({ discount: 0, paid: 0 });
+        setOrderType("");
+        setIsTableModalOpen(false);
+        setIsDeliveryModalOpen(false);
+        setIsRoomModalOpen(false);
         toast.info("POS Order Reset!");
     };
 
@@ -538,6 +643,7 @@ function POSContent() {
                 selectedCardIcon={selectedCardIcon}
                 handleMainPaymentButtonClick={handleMainPaymentButtonClick}
                 handleSubPaymentButtonClick={handleSubPaymentButtonClick}
+                paymentTypes={paymentTypes}
             />
 
             {/* Right: Order Summary Details */}
@@ -564,6 +670,7 @@ function POSContent() {
                 subtotal={totals.subtotal}
                 vat={totals.vat}
                 sd={totals.sd}
+                sc={totals.sc}
                 payable={totals.payable}
                 paid={invoiceSummary.paid}
                 change={change}
@@ -582,6 +689,11 @@ function POSContent() {
                 setTableNameState={setTableName}
                 deliveryProviderState={deliveryProvider}
                 setDeliveryProviderState={setDeliveryProvider}
+                custSearchResults={custSearchResults}
+                setCustSearchResults={setCustSearchResults}
+                custSearchLoading={custSearchLoading}
+                setIsCustomerModalOpen={setIsCustomerModalOpen}
+                setCustomer={setCustomer}
             />
 
             {/* Customer Add Modal */}
@@ -593,6 +705,201 @@ function POSContent() {
                     setIsCustomerModalOpen(false);
                 }}
             />
+
+            {/* Order Type Selection Modal */}
+            {isOrderTypeModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 max-w-md w-full border border-brand-beige/25 dark:border-zinc-850 animate-scale-in mx-4">
+                        <h3 className="text-xl font-extrabold text-center text-gray-800 dark:text-zinc-100 uppercase tracking-widest mb-6">
+                            Select Order Type
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            {[
+                                { value: "dine-in", label: "Dine In", icon: <FaUtensils size={20} /> },
+                                { value: "takeaway", label: "Takeaway", icon: <FaGift size={20} /> },
+                                { value: "delivery", label: "Delivery", icon: <FaTruck size={20} /> },
+                                { value: "room service", label: "Room Service", icon: <FaHotel size={20} /> }
+                            ].map((option) => (
+                                <button
+                                    key={option.value}
+                                    onClick={() => {
+                                        handleOrderTypeChange(option.value);
+                                        setIsOrderTypeModalOpen(false);
+                                    }}
+                                    className="flex flex-col items-center justify-center p-5 rounded-xl border border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300 cursor-pointer transition-all hover:scale-105 group"
+                                >
+                                    <div className="text-brand-primary dark:text-brand-sage group-hover:scale-110 transition-transform duration-200 mb-2">
+                                        {option.icon}
+                                    </div>
+                                    <span className="text-sm font-bold">{option.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Table Selection Modal */}
+            {isTableModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 max-w-lg w-full border border-brand-beige/25 dark:border-zinc-850 animate-scale-in mx-4">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-extrabold text-gray-800 dark:text-zinc-100 uppercase tracking-widest">
+                                Select Dine-In Table
+                            </h3>
+                            <button
+                                onClick={() => setIsTableModalOpen(false)}
+                                className="text-gray-450 hover:text-gray-600 dark:hover:text-zinc-350 font-bold text-sm cursor-pointer"
+                            >
+                                Close
+                            </button>
+                        </div>
+                        
+                        {tables && tables.length > 0 ? (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                                {tables.map((table) => {
+                                    const isSelected = TableName === table.tableName;
+                                    return (
+                                        <button
+                                            key={table._id}
+                                            onClick={() => {
+                                                setTableName(table.tableName);
+                                                setIsTableModalOpen(false);
+                                            }}
+                                            className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105
+                                                ${isSelected 
+                                                    ? "bg-brand-primary border-brand-primary text-white" 
+                                                    : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
+                                        >
+                                            <FaUtensils size={16} className={isSelected ? "text-white" : "text-brand-primary dark:text-brand-sage"} />
+                                            <span className="text-xs font-bold text-center leading-tight">{table.tableName}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="text-center py-6 text-gray-500 dark:text-zinc-400">
+                                No restaurant tables configured.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Delivery Provider Selection Modal */}
+            {isDeliveryModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 max-w-md w-full border border-brand-beige/25 dark:border-zinc-850 animate-scale-in mx-4">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-extrabold text-gray-800 dark:text-zinc-100 uppercase tracking-widest">
+                                Select Delivery Provider
+                            </h3>
+                            <button
+                                onClick={() => setIsDeliveryModalOpen(false)}
+                                className="text-gray-450 hover:text-gray-600 dark:hover:text-zinc-350 font-bold text-sm cursor-pointer"
+                            >
+                                Close
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            {[
+                                { value: "Foodpanda", label: "Foodpanda" },
+                                { value: "Foodi", label: "Foodi" },
+                                { value: "Pathao", label: "Pathao" },
+                                { value: "Self Delivery", label: "Self Delivery" }
+                            ].map((provider) => {
+                                const isSelected = deliveryProvider === provider.value;
+                                return (
+                                    <button
+                                        key={provider.value}
+                                        onClick={() => {
+                                            setDeliveryProvider(provider.value);
+                                            setIsDeliveryModalOpen(false);
+                                        }}
+                                        className={`p-5 rounded-xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105
+                                            ${isSelected 
+                                                ? "bg-brand-primary border-brand-primary text-white" 
+                                                : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
+                                    >
+                                        <span className="text-sm font-bold text-center leading-tight">{provider.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Room Selection Modal */}
+            {isRoomModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 max-w-lg w-full border border-brand-beige/25 dark:border-zinc-850 animate-scale-in mx-4">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-extrabold text-gray-800 dark:text-zinc-100 uppercase tracking-widest">
+                                Select Guest Room
+                            </h3>
+                            <button
+                                onClick={() => setIsRoomModalOpen(false)}
+                                className="text-gray-450 hover:text-gray-600 dark:hover:text-zinc-350 font-bold text-sm cursor-pointer"
+                            >
+                                Close
+                            </button>
+                        </div>
+                        
+                        {(() => {
+                            const occupiedRoomNumbers = activeStays.map(s => s.rooms?.map(sr => sr.room?.roomNumber)).flat().filter(Boolean);
+                            const displayedRooms = orderType?.toLowerCase() === 'room service'
+                                ? rooms.filter(r => occupiedRoomNumbers.includes(r.roomNumber))
+                                : rooms;
+
+                            if (displayedRooms.length === 0) {
+                                return (
+                                    <div className="text-center py-6 text-gray-500 dark:text-zinc-400">
+                                        {orderType?.toLowerCase() === 'room service'
+                                            ? "No occupied guest rooms found for room service."
+                                            : "No guest rooms configured."}
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                                    {displayedRooms.map((r) => {
+                                        const isSelected = roomNo === r.roomNumber;
+                                        return (
+                                            <button
+                                                key={r._id}
+                                                onClick={() => {
+                                                    setRoomNo(r.roomNumber);
+                                                    setIsRoomModalOpen(false);
+                                                    
+                                                    // Automatically select the active guest staying in this room
+                                                    if (orderType?.toLowerCase() === 'room service') {
+                                                        const associatedStay = activeStays.find(s => s.rooms?.some(sr => sr.room?.roomNumber === r.roomNumber));
+                                                        if (associatedStay && associatedStay.customer) {
+                                                            selectCustomer(associatedStay.customer);
+                                                            toast.success(`Guest auto-selected: ${associatedStay.customer.fullName || associatedStay.customer.name}`);
+                                                        }
+                                                    }
+                                                }}
+                                                className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-105
+                                                    ${isSelected 
+                                                        ? "bg-brand-primary border-brand-primary text-white" 
+                                                        : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
+                                            >
+                                                <span className="text-xs font-bold text-center leading-tight">Room {r.roomNumber}</span>
+                                                <span className={`text-[10px] ${isSelected ? "text-white/80" : "text-gray-450 dark:text-gray-400"}`}>
+                                                    {r.type || "Standard"}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
 
             {/* Print Render Containers (Invisible to user) */}
             <div className="hidden">

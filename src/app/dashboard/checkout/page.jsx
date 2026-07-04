@@ -11,6 +11,46 @@ import CustomerModal from "@/components/CustomerModal";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 
+const getInvoiceSummary = (entries) => {
+    let roomTotal = 0;
+    let foodTotal = 0;
+    let serviceTotal = 0;
+    let discountTotal = 0;
+    let paidTotal = 0;
+    
+    entries.forEach(e => {
+        const desc = e.description.toLowerCase();
+        if (e.debit > 0) {
+            if (desc.includes("food")) {
+                foodTotal += e.debit;
+            } else if (desc.includes("service") || desc.includes("pickup") || desc.includes("laundry") || desc.includes("tax")) {
+                serviceTotal += e.debit;
+            } else {
+                roomTotal += e.debit;
+            }
+        } else if (e.credit > 0) {
+            if (desc.includes("discount")) {
+                discountTotal += e.credit;
+            } else {
+                paidTotal += e.credit;
+            }
+        }
+    });
+
+    const netPayable = roomTotal + foodTotal + serviceTotal - discountTotal;
+    const dueAmount = netPayable - paidTotal;
+    
+    return {
+        roomTotal,
+        foodTotal,
+        serviceTotal,
+        discountTotal,
+        paidTotal,
+        netPayable,
+        dueAmount
+    };
+};
+
 function CheckoutContent() {
     const axiosSecure = useAxiosSecure();
 
@@ -36,6 +76,15 @@ function CheckoutContent() {
         printRef: ledgerPrintRef
     } = useStandardPrint({
         documentTitle: `Folio_Ledger_${selectedStay?.stayNo || "Report"}`
+    });
+
+    // Final Invoice print setup
+    const {
+        printData: finalInvoiceRes,
+        setPrintData: setFinalInvoiceRes,
+        printRef: finalInvoicePrintRef
+    } = useStandardPrint({
+        documentTitle: `Final_Invoice_${selectedStay?.stayNo || "Report"}`,
     });
 
     // Fetch in house guests
@@ -188,7 +237,7 @@ function CheckoutContent() {
                                                 className={`p-4 rounded-xl border transition-all cursor-pointer ${
                                                     isSelected 
                                                         ? "bg-brand-primary/10 border-brand-primary dark:bg-brand-primary/20 dark:border-brand-primary" 
-                                                        : "bg-brand-offwhite border-brand-beige dark:border-brand-beige/15 hover:bg-brand-beige/25 dark:hover:bg-brand-beige/10"
+                                                        : "bg-brand-offwhite dark:bg-zinc-850 border-brand-beige dark:border-brand-beige/15 hover:bg-brand-beige/25 dark:hover:bg-brand-beige/10"
                                                 }`}
                                             >
                                                 <div className="flex justify-between items-start">
@@ -239,13 +288,22 @@ function CheckoutContent() {
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center">
                                             <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest block">Account Folio Ledger</span>
-                                            <button
-                                                onClick={() => setPrintLedgerRes(selectedStay)}
-                                                className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none rounded px-3 h-7 flex items-center gap-1 shadow-sm uppercase tracking-widest font-bold text-[9px] cursor-pointer"
-                                                title="Print Guest Ledger"
-                                            >
-                                                <FiPrinter size={11} /> Print Ledger
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setPrintLedgerRes(selectedStay)}
+                                                    className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none rounded px-3 h-7 flex items-center gap-1 shadow-sm uppercase tracking-widest font-bold text-[9px] cursor-pointer"
+                                                    title="Print Guest Ledger"
+                                                >
+                                                    <FiPrinter size={11} /> Print Ledger
+                                                </button>
+                                                <button
+                                                    onClick={() => setFinalInvoiceRes(selectedStay)}
+                                                    className="btn btn-xs bg-[#1e293b] hover:bg-[#1e293b]/90 text-white border-none rounded px-3 h-7 flex items-center gap-1 shadow-sm uppercase tracking-widest font-bold text-[9px] cursor-pointer"
+                                                    title="Print Final Invoice"
+                                                >
+                                                    <FiPrinter size={11} /> Final Invoice
+                                                </button>
+                                            </div>
                                         </div>
                                         {isFolioLoading ? <MtableLoading /> : (
                                             <div className="border border-brand-beige dark:border-brand-beige/25 rounded-xl overflow-hidden max-h-[30vh] overflow-y-auto">
@@ -568,6 +626,178 @@ function CheckoutContent() {
                         </table>
                     </PrintReportTemplate>
                 )}
+            </div>
+
+            {/* Hidden print container for Guest Final Invoice */}
+            <div style={{ display: "none" }}>
+                {finalInvoiceRes && (() => {
+                    const summary = getInvoiceSummary(folioEntries);
+                    const isDue = summary.dueAmount > 0;
+                    return (
+                        <PrintReportTemplate
+                            ref={finalInvoicePrintRef}
+                            title="FINAL GUEST INVOICE"
+                            subtitle="Thank you for staying with us"
+                            dateRange=""
+                        >
+                            {/* Invoice Meta Header Grid */}
+                            <div style={{ 
+                                display: "grid", 
+                                gridTemplateColumns: "1fr 1fr", 
+                                gap: "20px", 
+                                marginBottom: "30px", 
+                                borderBottom: "2px solid #1e293b", 
+                                paddingBottom: "15px",
+                                fontSize: "11px"
+                            }}>
+                                <div>
+                                    <span style={{ textTransform: "uppercase", fontSize: "9px", fontWeight: "bold", color: "#1e293b", tracking: "widest" }}>Billing Info</span>
+                                    <p style={{ margin: "4px 0 2px 0", fontWeight: "bold", fontSize: "13px" }}>{finalInvoiceRes.customer?.fullName}</p>
+                                    <p style={{ margin: "2px 0", color: "#555" }}>Phone: {finalInvoiceRes.customer?.phoneNumber || "N/A"}</p>
+                                    <p style={{ margin: "2px 0", color: "#555" }}>Email: {finalInvoiceRes.customer?.emailAddress || finalInvoiceRes.customer?.email || "N/A"}</p>
+                                </div>
+                                <div style={{ textAlign: "right" }}>
+                                    <span style={{ textTransform: "uppercase", fontSize: "9px", fontWeight: "bold", color: "#1e293b", tracking: "widest" }}>Invoice Info</span>
+                                    <p style={{ margin: "4px 0 2px 0" }}><strong>Invoice Ref:</strong> INV-{finalInvoiceRes.stayNo.replace("STY-", "")}</p>
+                                    <p style={{ margin: "2px 0" }}><strong>Booking ID:</strong> {finalInvoiceRes.reservationNo || finalInvoiceRes.stayNo}</p>
+                                    <p style={{ margin: "2px 0" }}><strong>Check-In:</strong> {new Date(finalInvoiceRes.checkInDate).toLocaleDateString("en-GB")} 14:00</p>
+                                    <p style={{ margin: "2px 0" }}><strong>Check-Out:</strong> {finalInvoiceRes.actualCheckOutDate ? new Date(finalInvoiceRes.actualCheckOutDate).toLocaleDateString("en-GB") : new Date(finalInvoiceRes.expectedCheckOutDate).toLocaleDateString("en-GB")} 12:00</p>
+                                    <p style={{ margin: "2px 0" }}><strong>Payment Mode:</strong> {finalInvoiceRes.bookingSource || "Walk-in"}</p>
+                                </div>
+                            </div>
+
+                            {/* Booking Item Details */}
+                            <div style={{ marginBottom: "25px" }}>
+                                <h4 style={{ fontSize: "11px", fontWeight: "bold", color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>Room & Reservation Details</h4>
+                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                                    <thead>
+                                        <tr style={{ background: "#f8fafc", textAlign: "left", fontWeight: "bold", color: "#475569" }}>
+                                            <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1" }}>Stay Allocation</th>
+                                            <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1" }}>Meal Option</th>
+                                            <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1", textAlign: "right" }}>Nights</th>
+                                            <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1", textAlign: "right" }}>Total Rate (BDT)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {finalInvoiceRes.rooms?.map((rm, index) => {
+                                            const roomNo = rm.room?.roomNumber || rm.roomNo || "Unassigned";
+                                            return (
+                                                <tr key={index} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                    <td style={{ padding: "10px" }}>
+                                                        <div style={{ fontWeight: "bold", fontSize: "11px" }}>Room {roomNo}</div>
+                                                        <div style={{ color: "#64748b", fontSize: "10px" }}>{rm.roomType || "Resort Room"}</div>
+                                                    </td>
+                                                    <td style={{ padding: "10px", color: "#475569" }}>{rm.mealPlan || "Room Only"}</td>
+                                                    <td style={{ padding: "10px", textAlign: "right", color: "#475569" }}>{rm.nights || 1}</td>
+                                                    <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold" }}>৳ {(rm.nightlyRate * (rm.nights || 1)).toLocaleString()}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Payment Summary & Financials */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "30px", marginBottom: "30px" }}>
+                                {/* Collected Payments ledger */}
+                                <div>
+                                    <h4 style={{ fontSize: "11px", fontWeight: "bold", color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>Payments Ledger</h4>
+                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: "1px solid #cbd5e1", color: "#64748b", fontWeight: "bold", textAlign: "left" }}>
+                                                <th style={{ padding: "6px 0" }}>Payment Particulars</th>
+                                                <th style={{ padding: "6px 0" }}>Method</th>
+                                                <th style={{ padding: "6px 0", textAlign: "right" }}>Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).map((e, idx) => (
+                                                <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                    <td style={{ padding: "6px 0", color: "#475569" }}>{e.description}</td>
+                                                    <td style={{ padding: "6px 0", color: "#475569" }}>{e.type || "Cash/Online"}</td>
+                                                    <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "bold", color: "green" }}>৳ {e.credit.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                            {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).length === 0 && (
+                                                <tr>
+                                                    <td colSpan="3" style={{ padding: "10px 0", color: "#94a3b8", fontStyle: "italic" }}>No payments collected yet.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Bill calculation summary card */}
+                                <div style={{ 
+                                    background: "#f8fafc", 
+                                    border: "1px solid #e2e8f0", 
+                                    borderRadius: "12px", 
+                                    padding: "16px",
+                                    fontSize: "11px"
+                                }}>
+                                    <h4 style={{ fontSize: "11px", fontWeight: "black", color: "#1e293b", margin: "0 0 12px 0", textTransform: "uppercase", letterSpacing: "0.5px" }}>Bill Summary</h4>
+                                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                                        <span>Total Room Charges:</span>
+                                        <span>৳ {summary.roomTotal.toLocaleString()}</span>
+                                    </div>
+                                    {summary.serviceTotal > 0 && (
+                                        <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                                            <span>Resort Add-ons:</span>
+                                            <span>৳ {summary.serviceTotal.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {summary.foodTotal > 0 && (
+                                        <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                                            <span>Restaurant Orders:</span>
+                                            <span>৳ {summary.foodTotal.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {summary.discountTotal > 0 && (
+                                        <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "green", fontWeight: "bold" }}>
+                                            <span>Discount:</span>
+                                            <span>(-) ৳ {summary.discountTotal.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div style={{ borderTop: "1px solid #cbd5e1", margin: "8px 0" }}></div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", fontWeight: "bold", fontSize: "12px" }}>
+                                        <span>Total Net Bill:</span>
+                                        <span style={{ color: "#1e293b" }}>৳ {summary.netPayable.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                                        <span>Total Paid:</span>
+                                        <span style={{ color: "green", fontWeight: "bold" }}>৳ {summary.paidTotal.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ borderTop: "1px solid #cbd5e1", margin: "8px 0" }}></div>
+                                    
+                                    <div style={{ 
+                                        display: "flex", 
+                                        justifyContent: "space-between", 
+                                        margin: "4px 0 0 0", 
+                                        fontWeight: "black", 
+                                        fontSize: "13px",
+                                        color: isDue ? "#ef4444" : "#22c55e"
+                                    }}>
+                                        <span>{isDue ? "Outstanding Due:" : "Invoice Settled:"}</span>
+                                        <span>৳ {summary.dueAmount.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Terms & Thank You Message Footer */}
+                            <div style={{ 
+                                marginTop: "50px", 
+                                borderTop: "1px dashed #cbd5e1", 
+                                paddingTop: "15px", 
+                                textAlign: "center",
+                                fontSize: "10px",
+                                color: "#64748b"
+                            }}>
+                                <p style={{ margin: "2px 0" }}>This is a computer-generated guest invoice from Chayatol Resort & Restaurant PMS.</p>
+                                <p style={{ margin: "2px 0", fontWeight: "bold", color: "#1e293b" }}>We hope you enjoyed your stay! See you again soon.</p>
+                            </div>
+                        </PrintReportTemplate>
+                    );
+                })()}
             </div>
         </div>
     );

@@ -175,7 +175,7 @@ function RoomTransferContent() {
                                                 className={`p-4 rounded-xl border transition-all cursor-pointer ${
                                                     isSelected 
                                                         ? "bg-brand-primary/10 border-brand-primary dark:bg-brand-primary/20 dark:border-brand-primary" 
-                                                        : "bg-brand-offwhite border-brand-beige dark:border-brand-beige/15 hover:bg-brand-beige/25 dark:hover:bg-brand-beige/10"
+                                                        : "bg-brand-offwhite dark:bg-zinc-850 border-brand-beige dark:border-brand-beige/15 hover:bg-brand-beige/25 dark:hover:bg-brand-beige/10"
                                                 }`}
                                             >
                                                 <div className="flex justify-between items-start">

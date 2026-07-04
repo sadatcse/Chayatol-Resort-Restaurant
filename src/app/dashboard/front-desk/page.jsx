@@ -17,6 +17,46 @@ import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 import CustomerModal from "@/components/CustomerModal";
 import { calculateCompleteness } from "@/lib/customerHelper";
 
+const getInvoiceSummary = (entries) => {
+  let roomTotal = 0;
+  let foodTotal = 0;
+  let serviceTotal = 0;
+  let discountTotal = 0;
+  let paidTotal = 0;
+  
+  entries.forEach(e => {
+    const desc = e.description.toLowerCase();
+    if (e.debit > 0) {
+      if (desc.includes("food")) {
+        foodTotal += e.debit;
+      } else if (desc.includes("service") || desc.includes("pickup") || desc.includes("laundry") || desc.includes("tax")) {
+        serviceTotal += e.debit;
+      } else {
+        roomTotal += e.debit;
+      }
+    } else if (e.credit > 0) {
+      if (desc.includes("discount")) {
+        discountTotal += e.credit;
+      } else {
+        paidTotal += e.credit;
+      }
+    }
+  });
+
+  const netPayable = roomTotal + foodTotal + serviceTotal - discountTotal;
+  const dueAmount = netPayable - paidTotal;
+  
+  return {
+    roomTotal,
+    foodTotal,
+    serviceTotal,
+    discountTotal,
+    paidTotal,
+    netPayable,
+    dueAmount
+  };
+};
+
 const FrontDeskTimelinePage = () => {
   const [mounted, setMounted] = useState(false);
   const axiosSecure = useAxiosSecure();
@@ -84,6 +124,15 @@ const FrontDeskTimelinePage = () => {
     handlePrint: handleFolioPrint
   } = useStandardPrint({
     documentTitle: "Folio_Ledger",
+  });
+
+  // Final Invoice print setup
+  const {
+    printData: finalInvoiceRes,
+    setPrintData: setFinalInvoiceRes,
+    printRef: finalInvoicePrintRef
+  } = useStandardPrint({
+    documentTitle: `Final_Invoice_${selectedStay?.stayNo || "Report"}`,
   });
 
   // Print Food & Service Summary states
@@ -167,6 +216,10 @@ const FrontDeskTimelinePage = () => {
   const [isNewResCustModalOpen, setIsNewResCustModalOpen] = useState(false);
   const [newResCustToEdit, setNewResCustToEdit] = useState(null);
   const [isNewResSubmitting, setIsNewResSubmitting] = useState(false);
+
+  // Status Modal states
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [selectedStatusRoom, setSelectedStatusRoom] = useState(null);
 
   // Month navigation helper
   const year = currentDate.getFullYear();
@@ -257,6 +310,52 @@ const FrontDeskTimelinePage = () => {
       Swal.fire("Error", `Failed to load timeline records: ${errMsg}`, "error");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleToggleRoomStatus = (room) => {
+    const isDark = document.documentElement.classList.contains("dark");
+    const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+
+    if (!canPerformAction) {
+      Swal.fire({
+        title: "Access Denied",
+        text: "You do not have permission to modify room statuses.",
+        icon: "error",
+        background: isDark ? '#1e1e24' : '#ffffff',
+        color: isDark ? '#f5f7f5' : '#1a1a24',
+      });
+      return;
+    }
+
+    setSelectedStatusRoom(room);
+    setIsStatusModalOpen(true);
+  };
+
+  const handleUpdateStatus = async (newStatus) => {
+    if (!selectedStatusRoom) return;
+    const isDark = document.documentElement.classList.contains("dark");
+    try {
+      await axiosSecure.patch(`/room/status/${selectedStatusRoom._id}`, { status: newStatus });
+      Swal.fire({
+        title: "Updated!",
+        text: `Room ${selectedStatusRoom.roomNumber} status is now ${newStatus}.`,
+        icon: "success",
+        background: isDark ? '#1e1e24' : '#ffffff',
+        color: isDark ? '#f5f7f5' : '#1a1a24',
+      });
+      setIsStatusModalOpen(false);
+      setSelectedStatusRoom(null);
+      fetchTimelineData();
+    } catch (err) {
+      console.error("Error updating room status:", err);
+      Swal.fire({
+        title: "Error",
+        text: err.response?.data?.message || "Failed to update status.",
+        icon: "error",
+        background: isDark ? '#1e1e24' : '#ffffff',
+        color: isDark ? '#f5f7f5' : '#1a1a24',
+      });
     }
   };
 
@@ -1430,9 +1529,13 @@ const FrontDeskTimelinePage = () => {
                       {roomsByType[roomTypeName].map(room => (
                         <tr key={room._id} className="border-b border-brand-beige/10 hover:bg-brand-offwhite/10 transition-colors">
                           {/* Room identifier sticky column */}
-                          <td className="p-3 font-bold text-sm bg-white dark:bg-brand-charcoal sticky left-0 border-r border-brand-beige/15 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10">
-                            <div>{room.roomNumber}</div>
-                            <div className="text-[9px] font-normal text-brand-sage uppercase">{room.status}</div>
+                          <td 
+                            onClick={() => handleToggleRoomStatus(room)}
+                            className="p-3 font-bold text-sm bg-white dark:bg-brand-charcoal sticky left-0 border-r border-brand-beige/15 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10 cursor-pointer hover:bg-brand-offwhite/30 dark:hover:bg-brand-offwhite/5 group transition-colors"
+                            title="Click to update room status"
+                          >
+                            <div className="group-hover:text-brand-primary transition-colors">{room.roomNumber}</div>
+                            <div className="text-[9px] font-normal text-brand-sage uppercase group-hover:scale-105 transition-transform origin-left">{room.status}</div>
                           </td>
 
                           {/* Dynamic calendar cells layout */}
@@ -1539,6 +1642,13 @@ const FrontDeskTimelinePage = () => {
                   title="Print Food & Service Summary"
                 >
                   <FiPrinter size={11} /> Food & Service Print
+                </button>
+                <button
+                  onClick={() => setFinalInvoiceRes(selectedStay)}
+                  className="btn btn-xs bg-[#1e293b] hover:bg-[#1e293b]/90 text-white border-none rounded px-3 h-7 flex items-center gap-1 shadow-sm uppercase tracking-widest font-bold text-[9px] cursor-pointer"
+                  title="Print Final Invoice"
+                >
+                  <FiPrinter size={11} /> Final Invoice
                 </button>
                 <button
                   onClick={() => {
@@ -2698,6 +2808,179 @@ const FrontDeskTimelinePage = () => {
         </div>
       )}
 
+      {finalInvoiceRes && (
+        <div style={{ display: "none" }}>
+          {(() => {
+            const summary = getInvoiceSummary(folioEntries);
+            const isDue = summary.dueAmount > 0;
+            return (
+              <PrintReportTemplate
+                ref={finalInvoicePrintRef}
+                title="FINAL GUEST INVOICE"
+                subtitle="Thank you for staying with us"
+                dateRange=""
+              >
+                {/* Invoice Meta Header Grid */}
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "1fr 1fr", 
+                  gap: "20px", 
+                  marginBottom: "30px", 
+                  borderBottom: "2px solid #1e293b", 
+                  paddingBottom: "15px",
+                  fontSize: "11px"
+                }}>
+                  <div>
+                    <span style={{ textTransform: "uppercase", fontSize: "9px", fontWeight: "bold", color: "#1e293b", tracking: "widest" }}>Billing Info</span>
+                    <p style={{ margin: "4px 0 2px 0", fontWeight: "bold", fontSize: "13px" }}>{finalInvoiceRes.customer?.fullName}</p>
+                    <p style={{ margin: "2px 0", color: "#555" }}>Phone: {finalInvoiceRes.customer?.phoneNumber || "N/A"}</p>
+                    <p style={{ margin: "2px 0", color: "#555" }}>Email: {finalInvoiceRes.customer?.emailAddress || finalInvoiceRes.customer?.email || "N/A"}</p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{ textTransform: "uppercase", fontSize: "9px", fontWeight: "bold", color: "#1e293b", tracking: "widest" }}>Invoice Info</span>
+                    <p style={{ margin: "4px 0 2px 0" }}><strong>Invoice Ref:</strong> INV-{finalInvoiceRes.stayNo.replace("STY-", "")}</p>
+                    <p style={{ margin: "2px 0" }}><strong>Booking ID:</strong> {finalInvoiceRes.reservationNo || finalInvoiceRes.stayNo}</p>
+                    <p style={{ margin: "2px 0" }}><strong>Check-In:</strong> {new Date(finalInvoiceRes.checkInDate).toLocaleDateString("en-GB")} 14:00</p>
+                    <p style={{ margin: "2px 0" }}><strong>Check-Out:</strong> {finalInvoiceRes.actualCheckOutDate ? new Date(finalInvoiceRes.actualCheckOutDate).toLocaleDateString("en-GB") : new Date(finalInvoiceRes.expectedCheckOutDate).toLocaleDateString("en-GB")} 12:00</p>
+                    <p style={{ margin: "2px 0" }}><strong>Payment Mode:</strong> {finalInvoiceRes.bookingSource || "Walk-in"}</p>
+                  </div>
+                </div>
+
+                {/* Booking Item Details */}
+                <div style={{ marginBottom: "25px" }}>
+                  <h4 style={{ fontSize: "11px", fontWeight: "bold", color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>Room & Reservation Details</h4>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", textAlign: "left", fontWeight: "bold", color: "#475569" }}>
+                        <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1" }}>Stay Allocation</th>
+                        <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1" }}>Meal Option</th>
+                        <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1", textAlign: "right" }}>Nights</th>
+                        <th style={{ padding: "10px", borderBottom: "1px solid #cbd5e1", textAlign: "right" }}>Total Rate (BDT)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {finalInvoiceRes.rooms?.map((rm, index) => {
+                        const roomNo = rm.room?.roomNumber || rm.roomNo || "Unassigned";
+                        return (
+                          <tr key={index} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "10px" }}>
+                              <div style={{ fontWeight: "bold", fontSize: "11px" }}>Room {roomNo}</div>
+                              <div style={{ color: "#64748b", fontSize: "10px" }}>{rm.roomType || "Resort Room"}</div>
+                            </td>
+                            <td style={{ padding: "10px", color: "#475569" }}>{rm.mealPlan || "Room Only"}</td>
+                            <td style={{ padding: "10px", textAlign: "right", color: "#475569" }}>{rm.nights || 1}</td>
+                            <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold" }}>৳ {(rm.nightlyRate * (rm.nights || 1)).toLocaleString()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Payment Summary & Financials */}
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "30px", marginBottom: "30px" }}>
+                  {/* Collected Payments ledger */}
+                  <div>
+                    <h4 style={{ fontSize: "11px", fontWeight: "bold", color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "6px", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>Payments Ledger</h4>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid #cbd5e1", color: "#64748b", fontWeight: "bold", textAlign: "left" }}>
+                          <th style={{ padding: "6px 0" }}>Payment Particulars</th>
+                          <th style={{ padding: "6px 0" }}>Method</th>
+                          <th style={{ padding: "6px 0", textAlign: "right" }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).map((e, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "6px 0", color: "#475569" }}>{e.description}</td>
+                            <td style={{ padding: "6px 0", color: "#475569" }}>{e.type || "Cash/Online"}</td>
+                            <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "bold", color: "green" }}>৳ {e.credit.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                        {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).length === 0 && (
+                          <tr>
+                            <td colSpan="3" style={{ padding: "10px 0", color: "#94a3b8", fontStyle: "italic" }}>No payments collected yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Bill calculation summary card */}
+                  <div style={{ 
+                    background: "#f8fafc", 
+                    border: "1px solid #e2e8f0", 
+                    borderRadius: "12px", 
+                    padding: "16px",
+                    fontSize: "11px"
+                  }}>
+                    <h4 style={{ fontSize: "11px", fontWeight: "black", color: "#1e293b", margin: "0 0 12px 0", textTransform: "uppercase", letterSpacing: "0.5px" }}>Bill Summary</h4>
+                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                      <span>Total Room Charges:</span>
+                      <span>৳ {summary.roomTotal.toLocaleString()}</span>
+                    </div>
+                    {summary.serviceTotal > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                        <span>Resort Add-ons:</span>
+                        <span>৳ {summary.serviceTotal.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {summary.foodTotal > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                        <span>Restaurant Orders:</span>
+                        <span>৳ {summary.foodTotal.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {summary.discountTotal > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "green", fontWeight: "bold" }}>
+                        <span>Discount:</span>
+                        <span>(-) ৳ {summary.discountTotal.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div style={{ borderTop: "1px solid #cbd5e1", margin: "8px 0" }}></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", fontWeight: "bold", fontSize: "12px" }}>
+                      <span>Total Net Bill:</span>
+                      <span style={{ color: "#1e293b" }}>৳ {summary.netPayable.toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0", color: "#475569" }}>
+                      <span>Total Paid:</span>
+                      <span style={{ color: "green", fontWeight: "bold" }}>৳ {summary.paidTotal.toLocaleString()}</span>
+                    </div>
+                    <div style={{ borderTop: "1px solid #cbd5e1", margin: "8px 0" }}></div>
+                    
+                    <div style={{ 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      margin: "4px 0 0 0", 
+                      fontWeight: "black", 
+                      fontSize: "13px",
+                      color: isDue ? "#ef4444" : "#22c55e"
+                    }}>
+                      <span>{isDue ? "Outstanding Due:" : "Invoice Settled:"}</span>
+                      <span>৳ {summary.dueAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Terms & Thank You Message Footer */}
+                <div style={{ 
+                  marginTop: "50px", 
+                  borderTop: "1px dashed #cbd5e1", 
+                  paddingTop: "15px", 
+                  textAlign: "center",
+                  fontSize: "10px",
+                  color: "#64748b"
+                }}>
+                  <p style={{ margin: "2px 0" }}>This is a computer-generated guest invoice from Chayatol Resort & Restaurant PMS.</p>
+                  <p style={{ margin: "2px 0", fontWeight: "bold", color: "#1e293b" }}>We hope you enjoyed your stay! See you again soon.</p>
+                </div>
+              </PrintReportTemplate>
+            );
+          })()}
+        </div>
+      )}
+
       {resPrintData && (
         <div style={{ display: "none" }}>
           <PrintReportTemplate
@@ -3616,6 +3899,45 @@ const FrontDeskTimelinePage = () => {
           </PrintReportTemplate>
         )}
       </div>
+
+      {/* Room Status Modal Selection */}
+      {isStatusModalOpen && selectedStatusRoom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-brand-beige/25 dark:border-zinc-850 animate-scale-in mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-extrabold text-gray-800 dark:text-zinc-100 uppercase tracking-wider">
+                Room {selectedStatusRoom.roomNumber} Status
+              </h3>
+              <button
+                onClick={() => {
+                  setIsStatusModalOpen(false);
+                  setSelectedStatusRoom(null);
+                }}
+                className="text-gray-450 hover:text-gray-600 dark:hover:text-zinc-350 font-bold text-sm cursor-pointer"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {["Available", "Occupied", "Reserved", "Cleaning", "Maintenance"].map((status) => {
+                const isSelected = selectedStatusRoom.status === status;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => handleUpdateStatus(status)}
+                    className={`p-3.5 rounded-xl border font-bold text-sm text-center cursor-pointer transition-all hover:scale-[1.02]
+                      ${isSelected 
+                        ? "bg-brand-primary border-brand-primary text-white" 
+                        : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
+                  >
+                    {status}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

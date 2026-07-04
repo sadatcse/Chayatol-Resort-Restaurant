@@ -49,6 +49,10 @@ const RoomAndPlansPage = () => {
   const [editRoomId, setEditRoomId] = useState(null);
   const [roomFormData, setRoomFormData] = useState({ ...INITIAL_ROOM_FORM });
 
+  // Status Modal states
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [selectedStatusRoom, setSelectedStatusRoom] = useState(null);
+
   // Load Room Types for Room Form Dropdown
   useEffect(() => {
     const fetchRoomTypesList = async () => {
@@ -160,6 +164,39 @@ const RoomAndPlansPage = () => {
         }
       }
     });
+  };
+
+  const handleToggleRoomStatus = (room) => {
+    if (!canPerformAction) return;
+    setSelectedStatusRoom(room);
+    setIsStatusModalOpen(true);
+  };
+
+  const handleUpdateStatus = async (newStatus) => {
+    if (!selectedStatusRoom) return;
+    const isDark = document.documentElement.classList.contains("dark");
+    try {
+      await axiosSecure.patch(`/room/status/${selectedStatusRoom._id}`, { status: newStatus });
+      Swal.fire({
+        title: "Updated!",
+        text: `Room ${selectedStatusRoom.roomNumber} status is now ${newStatus}.`,
+        icon: "success",
+        background: isDark ? '#1e1e24' : '#ffffff',
+        color: isDark ? '#f5f7f5' : '#1a1a24',
+      });
+      setIsStatusModalOpen(false);
+      setSelectedStatusRoom(null);
+      refetchRooms();
+    } catch (err) {
+      console.error("Error updating room status:", err);
+      Swal.fire({
+        title: "Error",
+        text: err.response?.data?.message || "Failed to update status.",
+        icon: "error",
+        background: isDark ? '#1e1e24' : '#ffffff',
+        color: isDark ? '#f5f7f5' : '#1a1a24',
+      });
+    }
   };
 
   const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
@@ -299,11 +336,15 @@ const RoomAndPlansPage = () => {
                           </td>
                           <td className="py-4 font-bold">{room.capacity} Person(s)</td>
                           <td className="py-4">
-                            <span className={`badge badge-sm font-bold tracking-wider uppercase text-[10px] border-none ${
-                              room.status === "Available" ? "bg-green-100 text-green-700" :
-                              room.status === "Occupied" ? "bg-red-100 text-red-700" :
-                              "bg-yellow-100 text-yellow-700"
-                            }`}>
+                            <span 
+                              onClick={() => handleToggleRoomStatus(room)}
+                              className={`badge badge-sm font-bold tracking-wider uppercase text-[10px] border-none cursor-pointer hover:scale-105 transition-transform ${
+                                room.status === "Available" ? "bg-green-100 text-green-700 hover:bg-green-200" :
+                                room.status === "Occupied" ? "bg-red-100 text-red-700 hover:bg-red-200" :
+                                "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                              }`}
+                              title={canPerformAction ? "Click to change status" : ""}
+                            >
                               {room.status}
                             </span>
                           </td>
@@ -456,6 +497,44 @@ const RoomAndPlansPage = () => {
             </div>
           </div>
         </dialog>
+      )}
+      {/* Room Status Modal Selection */}
+      {isStatusModalOpen && selectedStatusRoom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-brand-beige/25 dark:border-zinc-850 animate-scale-in mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-extrabold text-gray-800 dark:text-zinc-100 uppercase tracking-wider">
+                Room {selectedStatusRoom.roomNumber} Status
+              </h3>
+              <button
+                onClick={() => {
+                  setIsStatusModalOpen(false);
+                  setSelectedStatusRoom(null);
+                }}
+                className="text-gray-450 hover:text-gray-600 dark:hover:text-zinc-350 font-bold text-sm cursor-pointer"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {["Available", "Occupied", "Reserved", "Cleaning", "Maintenance"].map((status) => {
+                const isSelected = selectedStatusRoom.status === status;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => handleUpdateStatus(status)}
+                    className={`p-3.5 rounded-xl border font-bold text-sm text-center cursor-pointer transition-all hover:scale-[1.02]
+                      ${isSelected 
+                        ? "bg-brand-primary border-brand-primary text-white" 
+                        : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
+                  >
+                    {status}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
