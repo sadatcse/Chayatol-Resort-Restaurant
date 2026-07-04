@@ -27,7 +27,10 @@ export default function useStandardPrint(options = {}) {
 
   useEffect(() => {
     if (printData) {
-      handlePrint();
+      const timer = setTimeout(() => {
+        handlePrint();
+      }, 300);
+      return () => clearTimeout(timer);
     }
   }, [printData, handlePrint]);
 

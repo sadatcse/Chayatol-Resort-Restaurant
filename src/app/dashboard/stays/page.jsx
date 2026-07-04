@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useContext, useMemo, useRef } from "react";
+import React, { useState, useEffect, useContext, useMemo, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { FiEye, FiX, FiSearch, FiPlus, FiArrowRight, FiBriefcase, FiDollarSign, FiClock, FiFileText } from "react-icons/fi";
+import { FiEye, FiX, FiSearch, FiPlus, FiArrowRight, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiPrinter } from "react-icons/fi";
 import { MdRestaurant } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
@@ -152,6 +152,48 @@ const StaysPage = () => {
   // Export states
   const [isExporting, setIsExporting] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
+
+  // Print Food & Service Summary states
+  const [foodServicePrintData, setFoodServicePrintData] = useState(null);
+  const [detailedFoodOrders, setDetailedFoodOrders] = useState([]);
+  const [detailedServiceOrders, setDetailedServiceOrders] = useState([]);
+
+  const {
+    printRef: foodServicePrintRef,
+    handlePrint: handleFoodServicePrint
+  } = useStandardPrint({
+    documentTitle: `Food_Service_Summary_${selectedStay?.stayNo || "Report"}`,
+    onAfterPrint: () => setFoodServicePrintData(null)
+  });
+
+  // Status counts states
+  const [inHouseCount, setInHouseCount] = useState(0);
+  const [extendedCount, setExtendedCount] = useState(0);
+
+  const fetchCounts = useCallback(async () => {
+    try {
+      const baseParams = {};
+      if (debouncedSearchTerm) baseParams.search = debouncedSearchTerm;
+      if (fromDate) baseParams.from = fromDate.toISOString();
+      if (toDate) baseParams.to = toDate.toISOString();
+
+      const [inHouseRes, extendedRes] = await Promise.all([
+        axiosSecure.get("/stays", { params: { ...baseParams, status: "In House", limit: 1 } }),
+        axiosSecure.get("/stays", { params: { ...baseParams, status: "Extended", limit: 1 } })
+      ]);
+      setInHouseCount(inHouseRes.data?.total || 0);
+      setExtendedCount(extendedRes.data?.total || 0);
+    } catch (err) {
+      console.error("Failed to fetch stays status counts:", err);
+    }
+  }, [axiosSecure, debouncedSearchTerm, fromDate, toDate]);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchCounts();
+    }
+  }, [fetchCounts, currentUser, stays]);
 
   const {
     printData: exportStays,
@@ -388,11 +430,42 @@ const StaysPage = () => {
     setFolioPrintRes(selectedStay);
   };
 
+  const handlePrintFoodServiceSummary = async (stayObj = selectedStay) => {
+    if (!stayObj) return;
+    try {
+      Swal.fire({
+        title: "Loading summary...",
+        text: "Please wait while we retrieve the details.",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+      const [foodRes, serviceRes] = await Promise.all([
+        axiosSecure.get(`/stays/${stayObj._id}/food-order`),
+        axiosSecure.get(`/stays/${stayObj._id}/service-order`)
+      ]);
+      setDetailedFoodOrders(foodRes.data || []);
+      setDetailedServiceOrders(serviceRes.data || []);
+      setFoodServicePrintData(stayObj);
+      Swal.close();
+      
+      setTimeout(() => {
+        handleFoodServicePrint();
+      }, 300);
+    } catch (err) {
+      Swal.close();
+      Swal.fire("Error", "Failed to retrieve food and service order details.", "error");
+    }
+  };
+
   const handlePostFoodOrder = async () => {
+    if (isPosting) return;
     if (!foodFormData.foodItem || !foodFormData.quantity) {
       Swal.fire("Error", "Please select food item and quantity.", "warning");
       return;
     }
+    setIsPosting(true);
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/food-order`, {
         items: [{ foodItem: foodFormData.foodItem, quantity: Number(foodFormData.quantity) }],
@@ -405,14 +478,18 @@ const StaysPage = () => {
       Swal.fire("Food Posted", "Food charge added to guest folio ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post food charge", "error");
+    } finally {
+      setIsPosting(false);
     }
   };
 
   const handlePostService = async () => {
+    if (isPosting) return;
     if (!serviceFormData.serviceId) {
       Swal.fire("Error", "Please select a service.", "warning");
       return;
     }
+    setIsPosting(true);
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/service-order`, {
         serviceId: serviceFormData.serviceId,
@@ -425,14 +502,18 @@ const StaysPage = () => {
       Swal.fire("Service Posted", "Service charge added to guest folio ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post service charge", "error");
+    } finally {
+      setIsPosting(false);
     }
   };
 
   const handlePostPayment = async () => {
+    if (isPosting) return;
     if (!paymentFormData.paymentType || !paymentFormData.amount || isNaN(paymentFormData.amount) || Number(paymentFormData.amount) <= 0) {
       Swal.fire("Error", "Please fill in payment type and positive amount.", "warning");
       return;
     }
+    setIsPosting(true);
     try {
       const notesPart = paymentFormData.notes ? ` (${paymentFormData.notes})` : "";
       await axiosSecure.post(`/stays/${selectedStay._id}/folio`, {
@@ -447,14 +528,18 @@ const StaysPage = () => {
       Swal.fire("Payment Recorded", "Payment credited to guest ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post payment", "error");
+    } finally {
+      setIsPosting(false);
     }
   };
 
   const handleExtendStay = async () => {
+    if (isPosting) return;
     if (!extendFormData.newCheckOutDate) {
       Swal.fire("Error", "Please select a check-out date.", "warning");
       return;
     }
+    setIsPosting(true);
     try {
       const { data } = await axiosSecure.post(`/stays/${selectedStay._id}/extend`, {
         newCheckOutDate: extendFormData.newCheckOutDate
@@ -468,10 +553,13 @@ const StaysPage = () => {
       Swal.fire("Stay Extended", "Stay extended and additional night charges posted.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to extend stay", "error");
+    } finally {
+      setIsPosting(false);
     }
   };
 
   const handleCheckoutGuest = async () => {
+    if (isPosting) return;
     // Checkout payload: final payment list
     const checkPaymentList = [];
     if (checkoutPayment.amount > 0) {
@@ -482,6 +570,7 @@ const StaysPage = () => {
       checkPaymentList.push(checkoutPayment);
     }
 
+    setIsPosting(true);
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/checkout`, {
         payments: checkPaymentList
@@ -504,14 +593,18 @@ const StaysPage = () => {
       });
     } catch (err) {
       Swal.fire("Failed Checkout", err.response?.data?.message || "Failed to checkout guest.", "error");
+    } finally {
+      setIsPosting(false);
     }
   };
 
   const handlePostDiscount = async () => {
+    if (isPosting) return;
     if (!discountFormData.discountType || !discountFormData.value || isNaN(discountFormData.value) || Number(discountFormData.value) <= 0 || !discountFormData.applyTo) {
       Swal.fire("Error", "Please fill in discount type, positive value, and discount target.", "warning");
       return;
     }
+    setIsPosting(true);
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/discount`, {
         discountType: discountFormData.discountType,
@@ -525,6 +618,8 @@ const StaysPage = () => {
       Swal.fire("Discount Posted", "Discount adjustment credited to guest ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post discount", "error");
+    } finally {
+      setIsPosting(false);
     }
   };
 
@@ -609,9 +704,17 @@ const StaysPage = () => {
             className="bg-white dark:bg-brand-charcoal rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 overflow-hidden"
           >
             <div className="flex flex-wrap justify-between items-center p-5 border-b border-brand-beige dark:border-brand-beige/20 gap-4 bg-brand-offwhite/10 dark:bg-brand-charcoal/30">
-              <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">
-                Stays Directory ({totalItems} records)
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">
+                  Stays Directory ({totalItems} records)
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage">
+                  In House: {inHouseCount}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+                  Extended: {extendedCount}
+                </span>
+              </div>
               <ExportButtons
                 onExportExcel={handleExportExcel}
                 onExportCsv={handleExportCsv}
@@ -719,6 +822,13 @@ const StaysPage = () => {
                     onPrint={() => setFolioPrintRes(selectedStay)}
                     isLoading={false}
                   />
+                  <button
+                    onClick={() => handlePrintFoodServiceSummary(selectedStay)}
+                    className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none rounded px-3 h-7 flex items-center gap-1 shadow-sm uppercase tracking-widest font-bold text-[9px] cursor-pointer"
+                    title="Print Food & Service Summary"
+                  >
+                    <FiPrinter size={11} /> Food & Service Print
+                  </button>
                   <button onClick={() => setSelectedStay(null)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:bg-brand-beige">
                     <FiX size={20} />
                   </button>
@@ -875,7 +985,9 @@ const StaysPage = () => {
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => { setIsFoodModalOpen(false); setSelectedFoodCategory(""); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handlePostFoodOrder} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6">Post Charge</button>
+                <button onClick={handlePostFoodOrder} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
+                  {isPosting ? "Posting..." : "Post Charge"}
+                </button>
               </div>
             </div>
           </div>
@@ -924,7 +1036,9 @@ const StaysPage = () => {
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => { setIsServiceModalOpen(false); setSelectedServiceCategory(""); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handlePostService} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6">Post Charge</button>
+                <button onClick={handlePostService} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
+                  {isPosting ? "Posting..." : "Post Charge"}
+                </button>
               </div>
             </div>
           </div>
@@ -984,7 +1098,9 @@ const StaysPage = () => {
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsPaymentModalOpen(false)} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handlePostPayment} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6">Post Credit</button>
+                <button onClick={handlePostPayment} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
+                  {isPosting ? "Posting..." : "Post Credit"}
+                </button>
               </div>
             </div>
           </div>
@@ -1010,7 +1126,9 @@ const StaysPage = () => {
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsExtendModalOpen(false)} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handleExtendStay} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6">Extend Date</button>
+                <button onClick={handleExtendStay} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
+                  {isPosting ? "Extending..." : "Extend Date"}
+                </button>
               </div>
             </div>
           </div>
@@ -1105,8 +1223,8 @@ const StaysPage = () => {
 
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsCheckoutModalOpen(false)} className="btn btn-ghost hover:bg-brand-beige text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
-                <button onClick={handleCheckoutGuest} className="btn bg-green-600 hover:bg-green-700 text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">
-                  Confirm Checkout
+                <button onClick={handleCheckoutGuest} disabled={isPosting} className="btn bg-green-600 hover:bg-green-700 text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md disabled:opacity-50">
+                  {isPosting ? "Checking out..." : "Confirm Checkout"}
                 </button>
               </div>
             </div>
@@ -1167,7 +1285,9 @@ const StaysPage = () => {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setIsDiscountModalOpen(false)} className="btn btn-xs btn-ghost uppercase font-bold text-[10px]">Cancel</button>
-                <button onClick={handlePostDiscount} className="btn btn-xs bg-brand-primary text-white border-none rounded uppercase tracking-wider font-bold text-[10px] px-4">Apply Discount</button>
+                <button onClick={handlePostDiscount} disabled={isPosting} className="btn btn-xs bg-brand-primary text-white border-none rounded uppercase tracking-wider font-bold text-[10px] px-4 disabled:opacity-50">
+                  {isPosting ? "Applying..." : "Apply Discount"}
+                </button>
               </div>
             </div>
           </div>
@@ -1511,6 +1631,100 @@ const StaysPage = () => {
                 </tr>
               </tfoot>
             </table>
+          </PrintReportTemplate>
+        )}
+      </div>
+
+      {/* Hidden print container for Guest Food & Service Summary */}
+      <div style={{ display: "none" }}>
+        {foodServicePrintData && (
+          <PrintReportTemplate
+            ref={foodServicePrintRef}
+            title={`Food & Service Summary - ${foodServicePrintData.stayNo}`}
+            subtitle={`Summary of all room service foods and resort services received by ${foodServicePrintData.customer?.fullName || "Guest"}`}
+            dateRange={`Check-in: ${new Date(foodServicePrintData.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(foodServicePrintData.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
+          >
+            <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
+              <strong>Customer Name:</strong> {foodServicePrintData.customer?.fullName} &nbsp;|&nbsp; 
+              <strong>Email:</strong> {foodServicePrintData.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
+              <strong>Phone:</strong> {foodServicePrintData.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
+              <strong>Assigned Rooms:</strong> {foodServicePrintData.rooms?.map(r => r.room?.roomNumber).join(", ")}
+            </div>
+
+            <h3 style={{ fontSize: "14px", fontWeight: "bold", borderBottom: "2px solid #333", paddingBottom: "5px", marginBottom: "10px", marginTop: "20px" }}>
+              FOOD ORDERS RECEIVED
+            </h3>
+            {detailedFoodOrders.length === 0 ? (
+              <p style={{ fontSize: "12px", color: "#666" }}>No food orders recorded.</p>
+            ) : (
+              <table className="print-table" style={{ marginBottom: "20px" }}>
+                <thead>
+                  <tr>
+                    <th>Date/Time</th>
+                    <th>Food Item</th>
+                    <th style={{ textAlign: "right" }}>Quantity</th>
+                    <th style={{ textAlign: "right" }}>Unit Price</th>
+                    <th style={{ textAlign: "right" }}>Taxes (VAT/SC/SD)</th>
+                    <th style={{ textAlign: "right" }}>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailedFoodOrders.map((order) => 
+                    order.items?.map((item, itemIdx) => {
+                      const subtotal = item.unitPrice * item.quantity;
+                      const vat = (subtotal * (item.vat || 0)) / 100;
+                      const sc = (subtotal * (item.sc || 0)) / 100;
+                      const sd = (subtotal * (item.sd || 0)) / 100;
+                      const totalItemCost = subtotal + vat + sc + sd;
+                      return (
+                        <tr key={`${order._id}-${itemIdx}`}>
+                          <td>{new Date(order.createdAt).toLocaleString("en-GB")}</td>
+                          <td style={{ fontWeight: "bold" }}>{item.foodItem?.foodName || "Unknown Food"}</td>
+                          <td style={{ textAlign: "right" }}>{item.quantity}</td>
+                          <td style={{ textAlign: "right" }}>৳{item.unitPrice.toFixed(2)}</td>
+                          <td style={{ textAlign: "right" }}>
+                            ৳{(vat + sc + sd).toFixed(2)} ({item.vat || 0}%/{item.sc || 0}%/{item.sd || 0}%)
+                          </td>
+                          <td style={{ textAlign: "right", fontWeight: "bold" }}>৳{totalItemCost.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            <h3 style={{ fontSize: "14px", fontWeight: "bold", borderBottom: "2px solid #333", paddingBottom: "5px", marginBottom: "10px", marginTop: "20px" }}>
+              RESORT SERVICES RECEIVED
+            </h3>
+            {detailedServiceOrders.length === 0 ? (
+              <p style={{ fontSize: "12px", color: "#666" }}>No service orders recorded.</p>
+            ) : (
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>Date/Time</th>
+                    <th>Service Name</th>
+                    <th style={{ textAlign: "right" }}>Price / Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailedServiceOrders.map((order, idx) => {
+                    const vat = (order.price * (order.vat || 0)) / 100;
+                    const sc = (order.price * (order.sc || 0)) / 100;
+                    const sd = (order.price * (order.sd || 0)) / 100;
+                    const totalServiceCost = order.price + vat + sc + sd;
+                    return (
+                      <tr key={order._id || idx}>
+                        <td>{new Date(order.createdAt).toLocaleString("en-GB")}</td>
+                        <td style={{ fontWeight: "bold" }}>{order.service?.serviceName || "Unknown Service"}</td>
+                        <td style={{ textAlign: "right", fontWeight: "bold" }}>৳{totalServiceCost.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </PrintReportTemplate>
         )}
       </div>

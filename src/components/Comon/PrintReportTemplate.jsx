@@ -1,27 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useContext } from "react";
-import useAxiosSecure from "@/hooks/useAxiosSecure";
+import React, { useContext } from "react";
 import { AuthContext } from "@/providers/AuthProvider";
 
 const PrintReportTemplate = React.forwardRef(({ title, subtitle, dateRange, children }, ref) => {
-  const axiosSecure = useAxiosSecure();
-  const { user } = useContext(AuthContext);
-  const [company, setCompany] = useState(null);
-
-  useEffect(() => {
-    const fetchCompany = async () => {
-      try {
-        const { data } = await axiosSecure.get("/company");
-        if (data && data.length > 0) {
-          setCompany(data[0]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch company details for print template:", err);
-      }
-    };
-    fetchCompany();
-  }, [axiosSecure]);
+  const { user, company } = useContext(AuthContext);
 
   return (
     <div ref={ref} className="p-8 bg-white text-black font-sans w-full print-layout" style={{ color: "#000" }}>

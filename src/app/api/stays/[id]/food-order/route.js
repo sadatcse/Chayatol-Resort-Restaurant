@@ -7,6 +7,24 @@ import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
+export async function GET(req, { params }) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+  try {
+    await dbConnect();
+    const { id } = await params;
+    const orders = await FoodOrder.find({ stayId: id })
+      .populate("items.foodItem")
+      .sort({ createdAt: 1 });
+    return NextResponse.json(orders, { status: 200 });
+  } catch (err) {
+    console.error("GET Food Orders error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 export async function POST(req, { params }) {
   const auth = verifyToken(req);
   if (auth.error) {

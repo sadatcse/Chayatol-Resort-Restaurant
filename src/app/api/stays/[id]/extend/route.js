@@ -16,6 +16,7 @@ export async function POST(req, { params }) {
   try {
     await dbConnect();
     const { id } = await params;
+    const body = await req.json();
     const { newCheckOutDate, roomAssignments } = body; // roomAssignments is optional: array of { oldRoomId, newRoomId }
 
     if (!newCheckOutDate) {

@@ -16,6 +16,9 @@ import useReservations from "@/hooks/useReservations";
 import { AuthContext } from "@/providers/AuthProvider";
 import CustomerModal from "@/components/CustomerModal";
 import { calculateCompleteness } from "@/lib/customerHelper";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 const ReservationsPage = () => {
   const axiosSecure = useAxiosSecure();
@@ -92,6 +95,89 @@ const ReservationsPage = () => {
     setPrintData: setPrintRes,
     printRef
   } = useStandardPrint();
+
+  // Reservations list summary report print setup
+  const {
+    printData: printSummaryRes,
+    setPrintData: setPrintSummaryRes,
+    printRef: summaryPrintRef,
+    handlePrint: handleSummaryPrint
+  } = useStandardPrint({
+    documentTitle: "Reservations_Dashboard_Report",
+    onAfterPrint: () => setPrintSummaryRes(null)
+  });
+  const [isExporting, setIsExporting] = useState(false);
+
+  const fetchAllReservationsForExport = async () => {
+    try {
+      const response = await axiosSecure.get(
+        `/reservations?page=1&limit=99999&search=${debouncedSearchTerm}&status=${statusFilter}&month=${monthFilter}&startDate=${startDate}&endDate=${endDate}`
+      );
+      return response.data.data || [];
+    } catch (error) {
+      console.error("Failed to fetch all reservations for export:", error);
+      return [];
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllReservationsForExport();
+      const formatted = data.map((r, idx) => ({
+        "Sl": idx + 1,
+        "Reservation No": r.reservationNo,
+        "Customer Name": r.customer?.fullName || "N/A",
+        "Phone": r.customer?.phoneNumber || "N/A",
+        "Check-In Date": r.checkInDate ? new Date(r.checkInDate).toLocaleDateString("en-GB") : "N/A",
+        "Check-Out Date": r.checkOutDate ? new Date(r.checkOutDate).toLocaleDateString("en-GB") : "N/A",
+        "Rooms Count": r.rooms?.length || 0,
+        "Status": r.status,
+        "Created At": new Date(r.createdAt).toLocaleString("en-GB")
+      }));
+      exportToExcel(formatted, "Reservations_Dashboard_Report");
+    } catch (err) {
+      console.error("Excel export error:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllReservationsForExport();
+      const formatted = data.map((r, idx) => ({
+        "Sl": idx + 1,
+        "Reservation No": r.reservationNo,
+        "Customer Name": r.customer?.fullName || "N/A",
+        "Phone": r.customer?.phoneNumber || "N/A",
+        "Check-In Date": r.checkInDate ? new Date(r.checkInDate).toLocaleDateString("en-GB") : "N/A",
+        "Check-Out Date": r.checkOutDate ? new Date(r.checkOutDate).toLocaleDateString("en-GB") : "N/A",
+        "Rooms Count": r.rooms?.length || 0,
+        "Status": r.status,
+        "Created At": new Date(r.createdAt).toLocaleString("en-GB")
+      }));
+      exportToCsv(formatted, "Reservations_Dashboard_Report");
+    } catch (err) {
+      console.error("CSV export error:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePrintClick = async () => {
+    setIsExporting(true);
+    try {
+      const data = await fetchAllReservationsForExport();
+      setPrintSummaryRes(data);
+    } catch (err) {
+      console.error("Print fetch error:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const [company, setCompany] = useState(null);
   const [settings, setSettings] = useState({ checkInTime: "14:00", checkOutTime: "12:00" });
 
@@ -893,10 +979,18 @@ const ReservationsPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        <button onClick={() => openFormModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
-          <FiPlus className="text-lg" />
-          <span className="uppercase tracking-widest text-xs font-bold">New Reservation</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <ExportButtons
+            onExportExcel={handleExportExcel}
+            onExportCsv={handleExportCsv}
+            onPrint={handlePrintClick}
+            isLoading={isExporting}
+          />
+          <button onClick={() => openFormModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+            <FiPlus className="text-lg" />
+            <span className="uppercase tracking-widest text-xs font-bold">New Reservation</span>
+          </button>
+        </div>
       </div>
 
       <motion.div
@@ -1696,6 +1790,45 @@ const ReservationsPage = () => {
           setCustomerToEdit(null);
         }}
       />
+
+      {/* Hidden print container */}
+      <div style={{ display: "none" }}>
+        {printSummaryRes && (
+          <PrintReportTemplate
+            ref={summaryPrintRef}
+            title="Reservations Dashboard Report"
+            subtitle="Report of pre-bookings, expected arrivals, deposits, and status."
+            dateRange={startDate && endDate ? `Period: ${startDate} to ${endDate}` : "All Dates"}
+          >
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Reservation No</th>
+                  <th>Customer Name</th>
+                  <th>Phone</th>
+                  <th>Check-In Date</th>
+                  <th>Check-Out Date</th>
+                  <th style={{ textAlign: "right" }}>Rooms</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printSummaryRes.map((r, idx) => (
+                  <tr key={r._id || idx}>
+                    <td style={{ fontWeight: "bold" }}>{r.reservationNo}</td>
+                    <td>{r.customer?.fullName || "N/A"}</td>
+                    <td>{r.customer?.phoneNumber || "N/A"}</td>
+                    <td>{r.checkInDate ? new Date(r.checkInDate).toLocaleDateString("en-GB") : "N/A"}</td>
+                    <td>{r.checkOutDate ? new Date(r.checkOutDate).toLocaleDateString("en-GB") : "N/A"}</td>
+                    <td style={{ textAlign: "right" }}>{r.rooms?.length || 0}</td>
+                    <td style={{ fontWeight: "bold" }}>{r.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PrintReportTemplate>
+        )}
+      </div>
     </div>
   );
 };

@@ -3,10 +3,13 @@
 import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Swal from "sweetalert2";
-import { FiSearch, FiDollarSign, FiCheck, FiArrowRight, FiFileText, FiClock } from "react-icons/fi";
+import { FiSearch, FiDollarSign, FiCheck, FiArrowRight, FiFileText, FiClock, FiUser, FiPrinter, FiX } from "react-icons/fi";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import SectionHeader from "@/components/Comon/SectionHeader";
+import CustomerModal from "@/components/CustomerModal";
+import useStandardPrint from "@/hooks/useStandardPrint";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 
 function CheckoutContent() {
     const axiosSecure = useAxiosSecure();
@@ -24,6 +27,16 @@ function CheckoutContent() {
     const [paymentType, setPaymentType] = useState("");
     const [settlementAmount, setSettlementAmount] = useState(0);
     const [transactionRef, setTransactionRef] = useState("");
+
+    // Customer Profile & Print states
+    const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+    const {
+        printData: printLedgerRes,
+        setPrintData: setPrintLedgerRes,
+        printRef: ledgerPrintRef
+    } = useStandardPrint({
+        documentTitle: `Folio_Ledger_${selectedStay?.stayNo || "Report"}`
+    });
 
     // Fetch in house guests
     const fetchActiveStays = useCallback(async () => {
@@ -208,14 +221,32 @@ function CheckoutContent() {
                                 >
                                     <div className="border-b border-brand-beige dark:border-brand-beige/25 pb-4 flex justify-between items-start">
                                         <div>
-                                            <h2 className="text-xl font-black text-brand-charcoal dark:text-brand-offwhite">{selectedStay.customer?.fullName}</h2>
+                                            <div className="flex items-center gap-2">
+                                                <h2 className="text-xl font-black text-brand-charcoal dark:text-brand-offwhite">{selectedStay.customer?.fullName}</h2>
+                                                <button
+                                                    onClick={() => setIsCustomerModalOpen(true)}
+                                                    className="btn btn-xs btn-outline border-brand-primary text-brand-primary dark:border-brand-primary/50 dark:text-brand-sage hover:bg-brand-primary hover:text-white rounded-full uppercase text-[9px] h-6 min-h-0 flex items-center gap-1 cursor-pointer px-2"
+                                                    title="View Guest Profile"
+                                                >
+                                                    <FiUser size={10} /> View Profile
+                                                </button>
+                                            </div>
                                             <p className="text-xs font-semibold text-brand-sage mt-0.5">Stay Reference: {selectedStay.stayNo} • Rooms: {selectedStay.rooms?.map(r => r.room?.roomNumber).join(", ")}</p>
                                         </div>
                                     </div>
 
                                     {/* Folio Grid Table */}
                                     <div className="space-y-3">
-                                        <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest block">Account Folio Ledger</span>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest block">Account Folio Ledger</span>
+                                            <button
+                                                onClick={() => setPrintLedgerRes(selectedStay)}
+                                                className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none rounded px-3 h-7 flex items-center gap-1 shadow-sm uppercase tracking-widest font-bold text-[9px] cursor-pointer"
+                                                title="Print Guest Ledger"
+                                            >
+                                                <FiPrinter size={11} /> Print Ledger
+                                            </button>
+                                        </div>
                                         {isFolioLoading ? <MtableLoading /> : (
                                             <div className="border border-brand-beige dark:border-brand-beige/25 rounded-xl overflow-hidden max-h-[30vh] overflow-y-auto">
                                                 <table className="min-w-full text-xs font-semibold text-brand-charcoal dark:text-brand-offwhite divide-y divide-brand-beige dark:divide-brand-beige/10">
@@ -310,14 +341,16 @@ function CheckoutContent() {
                                             <button
                                                 onClick={() => setSelectedStay(null)}
                                                 className="btn btn-sm btn-ghost cursor-pointer text-xs"
+                                                disabled={isFolioLoading}
                                             >
                                                 Cancel
                                             </button>
                                             <button
                                                 onClick={handleCheckout}
-                                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1"
+                                                disabled={isFolioLoading}
+                                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1 disabled:opacity-50"
                                             >
-                                                Settle & Checkout <FiCheck />
+                                                {isFolioLoading ? "Checking out..." : "Settle & Checkout"} <FiCheck />
                                             </button>
                                         </div>
                                     </div>
@@ -337,6 +370,204 @@ function CheckoutContent() {
                         </AnimatePresence>
                     </div>
                 </div>
+            </div>
+
+            {/* Guest Profile Viewer Modal */}
+            <AnimatePresence>
+                {isCustomerModalOpen && selectedStay?.customer && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="bg-white dark:bg-brand-charcoal border border-brand-beige dark:border-brand-beige/25 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+                        >
+                            {/* Header */}
+                            <div className="bg-brand-primary p-6 text-white flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-xl font-black uppercase tracking-wider">Guest Profile Details</h2>
+                                    <p className="text-xs text-brand-offwhite/85 font-semibold mt-0.5">Stay Reference: {selectedStay.stayNo}</p>
+                                </div>
+                                <button
+                                    onClick={() => setIsCustomerModalOpen(false)}
+                                    className="btn btn-sm btn-circle btn-ghost text-white hover:bg-brand-secondary/40"
+                                >
+                                    <FiX size={20} />
+                                </button>
+                            </div>
+
+                            {/* Body (Scrollable) */}
+                            <div className="p-6 overflow-y-auto space-y-6 text-xs text-brand-charcoal dark:text-brand-offwhite">
+                                {/* Top Section: Photo and Basic Info */}
+                                <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start border-b border-brand-beige/35 dark:border-brand-beige/10 pb-6">
+                                    {/* Guest Photo */}
+                                    <div className="w-24 h-24 rounded-full border border-brand-beige bg-brand-offwhite overflow-hidden flex items-center justify-center shadow-sm">
+                                        {selectedStay.customer.customerPhoto ? (
+                                            <img
+                                                src={selectedStay.customer.customerPhoto}
+                                                alt={selectedStay.customer.fullName}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <FiUser size={36} className="text-brand-sage" />
+                                        )}
+                                    </div>
+                                    {/* Summary Details */}
+                                    <div className="flex-1 text-center sm:text-left space-y-1">
+                                        <h3 className="text-lg font-bold text-brand-primary dark:text-brand-sage">{selectedStay.customer.fullName}</h3>
+                                        <p className="font-semibold text-brand-sage">Phone: {selectedStay.customer.phoneNumber}</p>
+                                        <p className="font-semibold text-brand-sage">Email: {selectedStay.customer.emailAddress || "N/A"}</p>
+                                        <p className="font-semibold text-brand-sage">Occupation: {selectedStay.customer.occupation || "N/A"} {selectedStay.customer.companyName ? `at ${selectedStay.customer.companyName}` : ""}</p>
+                                    </div>
+                                </div>
+
+                                {/* Information Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Personal Information */}
+                                    <div className="bg-brand-offwhite dark:bg-brand-charcoal/40 p-4 rounded-xl border border-brand-beige/20 space-y-3">
+                                        <h4 className="font-bold text-brand-primary uppercase tracking-widest text-[10px]">Personal Information</h4>
+                                        <div className="grid grid-cols-2 gap-2 font-semibold">
+                                            <div>
+                                                <span className="text-[10px] text-brand-sage block font-bold">Nationality</span>
+                                                {selectedStay.customer.nationality || "N/A"}
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-brand-sage block font-bold">Gender</span>
+                                                {selectedStay.customer.gender || "N/A"}
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-brand-sage block font-bold">Marital Status</span>
+                                                {selectedStay.customer.maritalStatus || "N/A"}
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-brand-sage block font-bold">Date of Birth</span>
+                                                {selectedStay.customer.dateOfBirth ? new Date(selectedStay.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Identification */}
+                                    <div className="bg-brand-offwhite dark:bg-brand-charcoal/40 p-4 rounded-xl border border-brand-beige/20 space-y-3">
+                                        <h4 className="font-bold text-brand-primary uppercase tracking-widest text-[10px]">Identification</h4>
+                                        <div className="space-y-2 font-semibold">
+                                            <div>
+                                                <span className="text-[10px] text-brand-sage block font-bold">ID Type / Number</span>
+                                                {selectedStay.customer.identificationType || "N/A"}: {selectedStay.customer.identificationNumber || "N/A"}
+                                            </div>
+                                            {selectedStay.customer.uploadIdCopy && (
+                                                <div>
+                                                    <span className="text-[10px] text-brand-sage block font-bold mb-1">ID Copy Document</span>
+                                                    <a
+                                                        href={selectedStay.customer.uploadIdCopy}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-brand-primary hover:underline font-bold"
+                                                    >
+                                                        View Document File
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Address details */}
+                                    <div className="bg-brand-offwhite dark:bg-brand-charcoal/40 p-4 rounded-xl border border-brand-beige/20 space-y-3">
+                                        <h4 className="font-bold text-brand-primary uppercase tracking-widest text-[10px]">Permanent Address</h4>
+                                        <div className="space-y-1 font-semibold">
+                                            <p>{selectedStay.customer.address?.line1 || ""}</p>
+                                            {selectedStay.customer.address?.line2 && <p>{selectedStay.customer.address.line2}</p>}
+                                            <p>
+                                                {selectedStay.customer.address?.city || ""}{selectedStay.customer.address?.division ? `, ${selectedStay.customer.address.division}` : ""}{selectedStay.customer.address?.country ? `, ${selectedStay.customer.address.country}` : ""}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Emergency Contact */}
+                                    <div className="bg-brand-offwhite dark:bg-brand-charcoal/40 p-4 rounded-xl border border-brand-beige/20 space-y-3">
+                                        <h4 className="font-bold text-brand-primary uppercase tracking-widest text-[10px]">Emergency Contact</h4>
+                                        <div className="grid grid-cols-2 gap-2 font-semibold">
+                                            <div className="col-span-2">
+                                                <span className="text-[10px] text-brand-sage block font-bold">Contact Name</span>
+                                                {selectedStay.customer.emergencyContact?.name || "N/A"}
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-brand-sage block font-bold">Relation</span>
+                                                {selectedStay.customer.emergencyContact?.relation || "N/A"}
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-brand-sage block font-bold">Phone Number</span>
+                                                {selectedStay.customer.emergencyContact?.phoneNumber || "N/A"}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="bg-brand-offwhite dark:bg-brand-charcoal/60 p-4 border-t border-brand-beige/35 dark:border-brand-beige/10 flex justify-end">
+                                <button
+                                    onClick={() => setIsCustomerModalOpen(false)}
+                                    className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white border-none rounded uppercase tracking-wider text-[10px] px-6 cursor-pointer"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Hidden print container for Guest Folio Ledger */}
+            <div style={{ display: "none" }}>
+                {printLedgerRes && (
+                    <PrintReportTemplate
+                        ref={ledgerPrintRef}
+                        title={`Guest Folio Ledger - ${printLedgerRes.stayNo}`}
+                        subtitle={`Detailed account transactions ledger for ${printLedgerRes.customer?.fullName || "Guest"}`}
+                        dateRange={`Check-in: ${new Date(printLedgerRes.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(printLedgerRes.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
+                    >
+                        <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
+                            <strong>Customer Name:</strong> {printLedgerRes.customer?.fullName} &nbsp;|&nbsp; 
+                            <strong>Email:</strong> {printLedgerRes.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
+                            <strong>Phone:</strong> {printLedgerRes.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
+                            <strong>Assigned Rooms:</strong> {printLedgerRes.rooms?.map(r => r.room?.roomNumber).join(", ")}
+                        </div>
+
+                        <table className="print-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Description</th>
+                                    <th style={{ textAlign: "right" }}>Debit (+)</th>
+                                    <th style={{ textAlign: "right" }}>Credit (-)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {folioEntries.map(entry => (
+                                    <tr key={entry._id}>
+                                        <td>{new Date(entry.date).toLocaleDateString("en-GB")}</td>
+                                        <td style={{ fontWeight: "bold" }}>{entry.description}</td>
+                                        <td style={{ textAlign: "right", color: "red" }}>{entry.debit > 0 ? `৳${entry.debit.toFixed(2)}` : "-"}</td>
+                                        <td style={{ textAlign: "right", color: "green" }}>{entry.credit > 0 ? `৳${entry.credit.toFixed(2)}` : "-"}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot>
+                                <tr style={{ fontWeight: "bold" }}>
+                                    <td colSpan="2">TOTALS</td>
+                                    <td style={{ textAlign: "right", color: "red" }}>৳{totalDebit.toFixed(2)}</td>
+                                    <td style={{ textAlign: "right", color: "green" }}>৳{totalCredit.toFixed(2)}</td>
+                                </tr>
+                                <tr style={{ fontWeight: "bold", fontSize: "12px" }}>
+                                    <td colSpan="2" style={{ borderTop: "2px solid black" }}>OUTSTANDING DUE BALANCE:</td>
+                                    <td colSpan="2" style={{ textAlign: "right", color: outstandingDue > 0 ? "red" : "green", borderTop: "2px solid black" }}>
+                                        ৳{outstandingDue.toFixed(2)}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </PrintReportTemplate>
+                )}
             </div>
         </div>
     );

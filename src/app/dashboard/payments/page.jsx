@@ -6,6 +6,10 @@ import { motion } from "framer-motion";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import useStandardPrint from "@/hooks/useStandardPrint";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 const ReservationPaymentsPage = () => {
   const axiosSecure = useAxiosSecure();
@@ -31,6 +35,51 @@ const ReservationPaymentsPage = () => {
     const today = new Date().toISOString().split("T")[0];
     return today;
   });
+
+  // Print setup
+  const {
+    printData,
+    setPrintData,
+    printRef
+  } = useStandardPrint({
+    documentTitle: "Unified_Payments_Summary"
+  });
+
+  const handlePrintClick = () => {
+    setPrintData(payments);
+  };
+
+  const handleExportExcel = () => {
+    const formatted = payments.map((p, idx) => ({
+      "Sl": idx + 1,
+      "Date": new Date(p.date).toLocaleString(),
+      "Source": p.source,
+      "Reference No": p.refNo,
+      "Guest Name": p.customer?.fullName || "Walk-In Guest",
+      "Phone": p.customer?.phoneNumber || "",
+      "Payment Method": p.paymentType || "Cash",
+      "Transaction Ref": p.transactionRef || "",
+      "Notes": p.notes || "",
+      "Amount": p.amount
+    }));
+    exportToExcel(formatted, "Unified_Payments_Summary");
+  };
+
+  const handleExportCsv = () => {
+    const formatted = payments.map((p, idx) => ({
+      "Sl": idx + 1,
+      "Date": new Date(p.date).toLocaleString(),
+      "Source": p.source,
+      "Reference No": p.refNo,
+      "Guest Name": p.customer?.fullName || "Walk-In Guest",
+      "Phone": p.customer?.phoneNumber || "",
+      "Payment Method": p.paymentType || "Cash",
+      "Transaction Ref": p.transactionRef || "",
+      "Notes": p.notes || "",
+      "Amount": p.amount
+    }));
+    exportToCsv(formatted, "Unified_Payments_Summary");
+  };
 
   const fetchPayments = async () => {
     setLoading(true);
@@ -93,10 +142,18 @@ const ReservationPaymentsPage = () => {
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
-      <SectionHeader
-        title="Unified Payments & Cash Summary"
-        subtitle="Manage unified reservation prepayments, walk-in stay payments, checkout settlements, and cash logs."
-      />
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <SectionHeader
+          title="Unified Payments & Cash Summary"
+          subtitle="Manage unified reservation prepayments, walk-in stay payments, checkout settlements, and cash logs."
+        />
+        <ExportButtons
+          onExportExcel={handleExportExcel}
+          onExportCsv={handleExportCsv}
+          onPrint={handlePrintClick}
+          isLoading={loading}
+        />
+      </div>
 
       {/* Filters and Search Toolbar */}
       <div className="bg-white dark:bg-brand-charcoal p-6 rounded-2xl border border-brand-beige dark:border-brand-beige/25 shadow-sm space-y-4 mb-8">
@@ -351,6 +408,59 @@ const ReservationPaymentsPage = () => {
           </div>
         )}
       </motion.div>
+
+      {/* Hidden print container */}
+      <div style={{ display: "none" }}>
+        {printData && (
+          <PrintReportTemplate
+            ref={printRef}
+            title="Unified Payments & Cash Summary"
+            subtitle="Unified report of prepayments, walk-in stays, settlements, and cash logs."
+            dateRange={startDate && endDate ? `${startDate} to ${endDate}` : "All Dates"}
+          >
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Date & Time</th>
+                  <th>Source</th>
+                  <th>Reference No</th>
+                  <th>Guest Details</th>
+                  <th>Method</th>
+                  <th>Transaction Ref</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printData.map((p, idx) => {
+                  const isRefund = p.amount < 0;
+                  return (
+                    <tr key={p.id || idx}>
+                      <td>{new Date(p.date).toLocaleString("en-GB")}</td>
+                      <td>{p.source === "Pre-Booking Prepayment" ? "Pre-Booking" : "In-House Stay"}</td>
+                      <td style={{ fontWeight: "bold" }}>{p.refNo}</td>
+                      <td>
+                        <strong>{p.customer?.fullName || "Walk-In Guest"}</strong>
+                        {p.customer?.phoneNumber ? ` (${p.customer.phoneNumber})` : ""}
+                      </td>
+                      <td>{p.paymentType || "Cash"}</td>
+                      <td>{p.transactionRef || "-"}</td>
+                      <td style={{ textAlign: "right", fontWeight: "bold", color: isRefund ? "red" : "green" }}>
+                        {isRefund ? "- " : "+ "}৳{Math.abs(p.amount).toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{ fontWeight: "bold" }}>
+                  <td colSpan="6">Total Collected</td>
+                  <td style={{ textAlign: "right" }}>৳{stats.totalReceived.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </PrintReportTemplate>
+        )}
+      </div>
     </div>
   );
 };

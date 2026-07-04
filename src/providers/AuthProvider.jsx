@@ -10,6 +10,7 @@ const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [company, setCompany] = useState(null);
 
   const axiosSecure = useAxiosPublic();
 
@@ -46,6 +47,25 @@ const AuthProvider = ({ children }) => {
       fetchUserProfile(user.email);
     }
   }, [user, fetchUserProfile]);
+
+  const fetchCompany = useCallback(async () => {
+    try {
+      const { data } = await axiosSecure.get("/company");
+      if (data && data.length > 0) {
+        setCompany(data[0]);
+      }
+    } catch (error) {
+      console.error("Error fetching company details:", error);
+    }
+  }, [axiosSecure]);
+
+  useEffect(() => {
+    if (user) {
+      fetchCompany();
+    } else {
+      setCompany(null);
+    }
+  }, [user, fetchCompany]);
 
   const registerUser = async (email, password, name) => {
     setLoading(true);
@@ -122,10 +142,12 @@ const AuthProvider = ({ children }) => {
         setUser,
         userProfile,
         loading,
+        company,
         registerUser,
         loginUser,
         logoutUser,
         fetchUserProfile,
+        fetchCompany,
       }}
     >
       {children}

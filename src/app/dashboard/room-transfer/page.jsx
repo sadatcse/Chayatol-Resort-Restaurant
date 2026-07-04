@@ -44,8 +44,8 @@ function RoomTransferContent() {
     const fetchAvailableRooms = useCallback(async () => {
         try {
             const { data } = await axiosSecure.get("/room/paginated?limit=1000");
-            if (data?.data) {
-                setRooms(data.data);
+            if (data?.rooms) {
+                setRooms(data.rooms);
             }
         } catch (err) {
             console.error("Error fetching rooms:", err);

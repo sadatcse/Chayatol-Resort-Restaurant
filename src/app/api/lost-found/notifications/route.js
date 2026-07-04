@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import LostFoundNotification from "@/models/LostFoundNotification";
+import LostFoundItem from "@/models/LostFoundItem";
 import { verifyLostFoundPermission } from "@/lib/lostFoundHelpers";
 
 export async function GET(req) {
