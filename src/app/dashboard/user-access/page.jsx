@@ -11,6 +11,7 @@ import { AuthContext } from "@/providers/AuthProvider";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import useGetRoles from "@/hooks/useGetRoles";
 import useDepartments from "@/hooks/useDepartments";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const UserAccess = () => {
   const [userLogs, setUserLogs] = useState([]);
@@ -22,6 +23,7 @@ const UserAccess = () => {
   const [selectedDeptFilter, setSelectedDeptFilter] = useState("all");
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
+  const { canDelete } = usePagePermission();
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserLogs = useCallback(async (page, role = selectedRoleFilter, department = selectedDeptFilter) => {
@@ -64,7 +66,7 @@ const UserAccess = () => {
   };
 
   const handleDelete = async (id) => {
-    if (user?.role !== "admin" && user?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire({
         title: "Access Denied!",
         text: "You do not have permission to delete user logs.",
@@ -190,7 +192,7 @@ const UserAccess = () => {
                           <td className="py-4 font-mono text-xs text-brand-dark-grey dark:text-brand-offwhite/70">{log.logoutTime ? new Date(log.logoutTime).toLocaleString() : "N/A"}</td>
                           <td className="pr-8 py-4">
                             <div className="flex justify-center items-center">
-                              {(user?.role === "admin" || user?.role === "superadmin") ? (
+                              {canDelete ? (
                                 <motion.button
                                   whileHover={{ scale: 1.1 }}
                                   whileTap={{ scale: 0.9 }}

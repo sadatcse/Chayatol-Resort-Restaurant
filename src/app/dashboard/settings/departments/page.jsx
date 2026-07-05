@@ -12,10 +12,12 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useDepartments from "@/hooks/useDepartments";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const DepartmentsPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -52,6 +54,16 @@ const DepartmentsPage = () => {
   };
 
   const handleAddOrEdit = async () => {
+    if (editId ? !canEdit : !canAdd) {
+      Swal.fire({
+        title: "Access Denied",
+        text: `You do not have permission to ${editId ? "update" : "create"} departments.`,
+        icon: "error",
+        confirmButtonColor: "#8C5A35",
+      });
+      return;
+    }
+
     if (!formData.department.trim()) {
       Swal.fire("Error", "Department name is required.", "error");
       return;
@@ -85,7 +97,7 @@ const DepartmentsPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (user?.role !== "admin" && user?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire({
         title: "Access Denied",
         text: "You do not have permission to delete departments.",
@@ -144,10 +156,10 @@ const DepartmentsPage = () => {
             />
           </label>
 
-          {canPerformAction && (
+          {canAdd && (
             <button
               onClick={() => openModal()}
-              className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10"
+              className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer"
             >
               <FiPlus className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">New Department</span>
@@ -225,26 +237,30 @@ const DepartmentsPage = () => {
 
                           <td className="pr-8 py-4">
                             <div className="flex justify-center items-center gap-2">
-                              {canPerformAction ? (
+                              {canEdit || canDelete ? (
                                 <>
-                                  <motion.button
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    onClick={() => openModal(dept)}
-                                    className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer"
-                                    title="Edit Department"
-                                  >
-                                    <FiEdit size={16} />
-                                  </motion.button>
-                                  <motion.button
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    onClick={() => handleDelete(dept._id)}
-                                    className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer"
-                                    title="Delete Department"
-                                  >
-                                    <FiTrash2 size={16} />
-                                  </motion.button>
+                                  {canEdit && (
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => openModal(dept)}
+                                      className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer"
+                                      title="Edit Department"
+                                    >
+                                      <FiEdit size={16} />
+                                    </motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => handleDelete(dept._id)}
+                                      className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer"
+                                      title="Delete Department"
+                                    >
+                                      <FiTrash2 size={16} />
+                                    </motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>

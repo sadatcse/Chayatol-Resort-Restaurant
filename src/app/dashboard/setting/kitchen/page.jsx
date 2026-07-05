@@ -13,6 +13,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useKitchens from "@/hooks/useKitchens";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   name: ""
@@ -21,6 +22,7 @@ const INITIAL_FORM_DATA = {
 const KitchensPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -57,6 +59,17 @@ const KitchensPage = () => {
   };
 
   const handleAddOrEditKitchen = async () => {
+    if (editId ? !canEdit : !canAdd) {
+      Swal.fire({
+        title: "Access Denied",
+        text: `You do not have permission to ${editId ? "update" : "create"} kitchens.`,
+        icon: "error",
+        confirmButtonColor: "#8C5A35",
+      });
+      return;
+    }
+
+    // Validation: Name
     if (!formData.name || !formData.name.trim()) {
       Swal.fire({
         title: "Validation Error",
@@ -99,7 +112,7 @@ const KitchensPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire({
         title: "Access Denied",
         text: "You do not have permission to delete kitchens.",
@@ -180,8 +193,8 @@ const KitchensPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+        {canAdd && (
+          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
             <FiPlus className="text-lg" />
             <span className="uppercase tracking-widest text-xs font-bold">New Kitchen</span>
           </button>
@@ -236,14 +249,18 @@ const KitchensPage = () => {
                           </td>
                           <td className="pr-8 py-4">
                             <div className="flex justify-center items-center gap-2">
-                              {canPerformAction ? (
+                              {canEdit || canDelete ? (
                                 <>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(kitchen)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Kitchen">
-                                    <FiEdit size={16} />
-                                  </motion.button>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(kitchen._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Kitchen">
-                                    <FiTrash2 size={16} />
-                                  </motion.button>
+                                  {canEdit && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(kitchen)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Kitchen">
+                                      <FiEdit size={16} />
+                                    </motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(kitchen._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Kitchen">
+                                      <FiTrash2 size={16} />
+                                    </motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>
