@@ -12,10 +12,12 @@ import { AuthContext } from "@/providers/AuthProvider";
 import QRCodeGenerator from "@/components/pos/QRCodeGenerator";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import SectionHeader from "@/components/Comon/SectionHeader";
+import usePagePermission from "@/hooks/usePagePermission";
 
 function TableManagementContent() {
     const axiosSecure = useAxiosSecure();
     const { user } = useContext(AuthContext);
+    const { canAdd, canEdit, canDelete } = usePagePermission();
     const isAdmin = user?.role === "admin";
 
     const [tables, setTables] = useState([]);
@@ -52,6 +54,19 @@ function TableManagementContent() {
             Swal.fire("Error", "Table Name is required.", "error");
             return;
         }
+
+        if (editId) {
+            if (!canEdit) {
+                Swal.fire("Restricted", "You do not have permission to edit table settings.", "warning");
+                return;
+            }
+        } else {
+            if (!canAdd) {
+                Swal.fire("Restricted", "You do not have permission to add new tables.", "warning");
+                return;
+            }
+        }
+
         setIsLoading(true);
         try {
             if (editId) {
@@ -80,6 +95,10 @@ function TableManagementContent() {
     };
 
     const handleRemove = (id) => {
+        if (!canDelete) {
+            Swal.fire("Restricted", "You do not have permission to delete table records.", "warning");
+            return;
+        }
         Swal.fire({
             title: "Are you sure?",
             text: "You won't be able to revert this!",
@@ -115,16 +134,18 @@ function TableManagementContent() {
                     title="Table Management"
                     subtitle="Add, update, and manage restaurant table QR codes"
                 >
-                    <button
-                        onClick={() => {
-                            setEditId(null);
-                            setFormData({ tableName: "" });
-                            setIsModalOpen(true);
-                        }}
-                        className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
-                    >
-                        <GoPlus size={14} /> Add Table
-                    </button>
+                    {canAdd && (
+                        <button
+                            onClick={() => {
+                                setEditId(null);
+                                setFormData({ tableName: "" });
+                                setIsModalOpen(true);
+                            }}
+                            className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
+                        >
+                            <GoPlus size={14} /> Add Table
+                        </button>
+                    )}
                 </SectionHeader>
 
                 {/* Table List */}
@@ -159,20 +180,24 @@ function TableManagementContent() {
                                                     >
                                                         <BsQrCode /> QR Code
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleEdit(table)}
-                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-md font-bold text-xs cursor-pointer transition-colors"
-                                                        title="Edit"
-                                                    >
-                                                        <FiEdit /> Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleRemove(table._id)}
-                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:bg-red-950/20 dark:text-red-400 rounded-md font-bold text-xs cursor-pointer transition-colors"
-                                                        title="Delete"
-                                                    >
-                                                        <FiTrash2 /> Delete
-                                                    </button>
+                                                    {canEdit && (
+                                                        <button
+                                                            onClick={() => handleEdit(table)}
+                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-md font-bold text-xs cursor-pointer transition-colors"
+                                                            title="Edit"
+                                                        >
+                                                            <FiEdit /> Edit
+                                                        </button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <button
+                                                            onClick={() => handleRemove(table._id)}
+                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:bg-red-950/20 dark:text-red-400 rounded-md font-bold text-xs cursor-pointer transition-colors"
+                                                            title="Delete"
+                                                        >
+                                                            <FiTrash2 /> Delete
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

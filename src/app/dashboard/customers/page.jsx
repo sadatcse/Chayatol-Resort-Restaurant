@@ -17,6 +17,7 @@ import useDebounce from "@/hooks/useDebounce";
 import { AuthContext } from "@/providers/AuthProvider";
 import countriesData from "@/assets/Countries.json";
 import districtsData from "@/assets/District.json";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   fullName: "",
@@ -437,6 +438,18 @@ const CustomersPage = () => {
       }
     }
 
+    if (editId) {
+      if (!canEdit) {
+        Swal.fire("Restricted", "You do not have permission to edit customer records.", "warning");
+        return;
+      }
+    } else {
+      if (!canAdd) {
+        Swal.fire("Restricted", "You do not have permission to register new customers.", "warning");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       if (editId) {
@@ -465,6 +478,10 @@ const CustomersPage = () => {
   };
 
   const handleRemove = (id) => {
+    if (!canDelete) {
+      Swal.fire("Restricted", "You do not have permission to delete customer records.", "warning");
+      return;
+    }
     Swal.fire({
       title: "Are you sure?",
       text: "You won't be able to revert this customer record!",
@@ -501,7 +518,7 @@ const CustomersPage = () => {
     );
   }, [filteredCustomers, currentPage, itemsPerPage]);
 
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
@@ -591,8 +608,8 @@ const CustomersPage = () => {
           </select>
         </div>
 
-        {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+        {canAdd && (
+          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
             <FiPlus className="text-lg" />
             <span className="uppercase tracking-widest text-xs font-bold">New Guest</span>
           </button>
@@ -732,14 +749,18 @@ const CustomersPage = () => {
                           <button onClick={() => openViewModal(customer)} className="btn btn-sm btn-circle btn-ghost text-brand-primary hover:text-brand-secondary hover:bg-brand-primary/10 transition-colors" title="View Profile Details">
                             <FiSearch size={16} />
                           </button>
-                          {canPerformAction ? (
+                          {(canEdit || canDelete) ? (
                             <>
-                              <button onClick={() => openModal(customer)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors" title="Edit Customer">
-                                <FiEdit size={16} />
-                              </button>
-                              <button onClick={() => handleRemove(customer._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete Customer">
-                                <FiTrash2 size={16} />
-                              </button>
+                              {canEdit && (
+                                <button onClick={() => openModal(customer)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors cursor-pointer" title="Edit Customer">
+                                  <FiEdit size={16} />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button onClick={() => handleRemove(customer._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer" title="Delete Customer">
+                                  <FiTrash2 size={16} />
+                                </button>
+                              )}
                             </>
                           ) : (
                             <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>

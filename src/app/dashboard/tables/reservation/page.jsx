@@ -17,6 +17,7 @@ import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 function TableReservationContent() {
     const axiosSecure = useAxiosSecure();
     const { user } = useContext(AuthContext);
+    const { canAdd, canEdit, canDelete } = usePagePermission();
 
     const [reservations, setReservations] = useState([]);
     const [availableTables, setAvailableTables] = useState([]);
@@ -143,6 +144,18 @@ function TableReservationContent() {
             return;
         }
 
+        if (editId) {
+            if (!canEdit) {
+                Swal.fire("Restricted", "You do not have permission to edit table reservations.", "warning");
+                return;
+            }
+        } else {
+            if (!canAdd) {
+                Swal.fire("Restricted", "You do not have permission to add table reservations.", "warning");
+                return;
+            }
+        }
+
         setIsLoading(true);
         try {
             const reservationData = {
@@ -194,6 +207,10 @@ function TableReservationContent() {
     };
 
     const handleRemove = (id) => {
+        if (!canDelete) {
+            Swal.fire("Restricted", "You do not have permission to delete table reservations.", "warning");
+            return;
+        }
         Swal.fire({
             title: "Are you sure?",
             text: "You won't be able to revert this!",
@@ -283,25 +300,27 @@ function TableReservationContent() {
                     title="Table Reservations"
                     subtitle="Book and coordinate restaurant table time-slots"
                 >
-                    <button
-                        onClick={() => {
-                            setEditId(null);
-                            setFormData({
-                                tableName: "",
-                                startTime: (dateFilterType === "custom" ? filterDate : new Date().toISOString().slice(0, 10)) + "T12:00",
-                                endTime: (dateFilterType === "custom" ? filterDate : new Date().toISOString().slice(0, 10)) + "T14:00",
-                                customerName: "",
-                                customerPhone: "",
-                                customerEmail: "",
-                                additionalInfo: "",
-                                status: "Pending",
-                            });
-                            setIsModalOpen(true);
-                        }}
-                        className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
-                    >
-                        <FiPlus size={14} /> New Reservation
-                    </button>
+                    {canAdd && (
+                        <button
+                            onClick={() => {
+                                setEditId(null);
+                                setFormData({
+                                    tableName: "",
+                                    startTime: (dateFilterType === "custom" ? filterDate : new Date().toISOString().slice(0, 10)) + "T12:00",
+                                    endTime: (dateFilterType === "custom" ? filterDate : new Date().toISOString().slice(0, 10)) + "T14:00",
+                                    customerName: "",
+                                    customerPhone: "",
+                                    customerEmail: "",
+                                    additionalInfo: "",
+                                    status: "Pending",
+                                });
+                                setIsModalOpen(true);
+                            }}
+                            className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
+                        >
+                            <FiPlus size={14} /> New Reservation
+                        </button>
+                    )}
                 </SectionHeader>
 
                 {/* Filter and Action Controls */}
@@ -363,12 +382,14 @@ function TableReservationContent() {
 
                         <div className="h-6 w-px bg-brand-beige/50 dark:bg-brand-beige/20 hidden sm:block"></div>
 
-                        <ExportButtons
-                            onExportExcel={handleExportExcel}
-                            onExportCsv={handleExportCsv}
-                            onPrint={handlePrintClick}
-                            isLoading={isExporting}
-                        />
+                        {canEdit && (
+                            <ExportButtons
+                                onExportExcel={handleExportExcel}
+                                onExportCsv={handleExportCsv}
+                                onPrint={handlePrintClick}
+                                isLoading={isExporting}
+                            />
+                        )}
                     </div>
                 </div>
 
@@ -420,18 +441,22 @@ function TableReservationContent() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
                                                     <div className="flex justify-end gap-2">
-                                                        <button
-                                                            onClick={() => handleEdit(res)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-md font-bold cursor-pointer"
-                                                        >
-                                                            <FiEdit /> Edit
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleRemove(res._id)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:bg-red-950/20 dark:text-red-400 rounded-md font-bold cursor-pointer"
-                                                        >
-                                                            <FiTrash2 /> Delete
-                                                        </button>
+                                                        {canEdit && (
+                                                            <button
+                                                                onClick={() => handleEdit(res)}
+                                                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-md font-bold cursor-pointer"
+                                                            >
+                                                                <FiEdit /> Edit
+                                                            </button>
+                                                        )}
+                                                        {canDelete && (
+                                                            <button
+                                                                onClick={() => handleRemove(res._id)}
+                                                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:bg-red-950/20 dark:text-red-400 rounded-md font-bold cursor-pointer"
+                                                            >
+                                                                <FiTrash2 /> Delete
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>

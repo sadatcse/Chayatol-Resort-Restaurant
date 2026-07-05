@@ -140,6 +140,17 @@ const ResortStaff = () => {
   };
 
   const handleAddOrEditUser = async () => {
+    if (editId) {
+      if (!canEdit) {
+        Swal.fire("Restricted", "You do not have permission to edit staff profiles.", "warning");
+        return;
+      }
+    } else {
+      if (!canAdd) {
+        Swal.fire("Restricted", "You do not have permission to register new staff.", "warning");
+        return;
+      }
+    }
     setIsSubmitting(true);
     try {
       if (editId) {
@@ -168,6 +179,10 @@ const ResortStaff = () => {
   };
 
   const handleRemove = (id) => {
+    if (!canDelete) {
+      Swal.fire("Restricted", "You do not have permission to delete staff profiles.", "warning");
+      return;
+    }
     Swal.fire({
       title: "Are you sure?",
       text: "You won't be able to revert this!",
@@ -211,6 +226,10 @@ const ResortStaff = () => {
   };
 
   const handleChangePassword = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to modify passwords.", "warning");
+      return;
+    }
     if (!newPassword.trim()) {
       Swal.fire({
         title: "Validation Error",
