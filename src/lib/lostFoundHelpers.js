@@ -25,14 +25,84 @@ export async function verifyLostFoundPermission(req, permissionPath) {
     return { user };
   }
 
+  // Map permissionPath to route path and action field
+  let targetPath = null;
+  let actionField = "canView"; // Default to view
+
+  // Detect method to refine action
+  const method = req.method ? req.method.toUpperCase() : "GET";
+
+  if (permissionPath === "lost_found.settings.manage") {
+    // Determine path based on URL
+    const url = req.url || "";
+    if (url.includes("/categories")) {
+      targetPath = "/dashboard/lost-found/categories";
+    } else if (url.includes("/locations")) {
+      targetPath = "/dashboard/lost-found/locations";
+    } else {
+      targetPath = "/dashboard/lost-found/categories";
+    }
+
+    // Determine action field based on method
+    if (method === "GET") actionField = "canView";
+    else if (method === "POST") actionField = "canAdd";
+    else if (method === "PUT" || method === "PATCH") actionField = "canEdit";
+    else if (method === "DELETE") actionField = "canDelete";
+  } else if (permissionPath === "lost_found.view") {
+    const url = req.url || "";
+    if (url.includes("/return-notes")) {
+      targetPath = "/dashboard/lost-found/return-notes";
+    } else if (url.includes("/dashboard")) {
+      targetPath = "/dashboard/lost-found/dashboard";
+    } else {
+      targetPath = "/dashboard/lost-found/active-items";
+    }
+    actionField = "canView";
+  } else if (permissionPath === "lost_found.create") {
+    targetPath = "/dashboard/lost-found/new-item";
+    actionField = "canAdd";
+  } else if (permissionPath === "lost_found.edit") {
+    targetPath = "/dashboard/lost-found/active-items";
+    actionField = "canEdit";
+  } else if (permissionPath === "lost_found.delete") {
+    targetPath = "/dashboard/lost-found/active-items";
+    actionField = "canDelete";
+  } else if (permissionPath === "lost_found.claims.view") {
+    targetPath = "/dashboard/lost-found/claims";
+    actionField = "canView";
+  } else if (permissionPath === "lost_found.claims.verify") {
+    targetPath = "/dashboard/lost-found/claims";
+    actionField = "canEdit";
+  } else if (permissionPath === "lost_found.return.create") {
+    targetPath = "/dashboard/lost-found/returns";
+    actionField = "canAdd";
+  } else if (permissionPath === "lost_found.reports.view") {
+    targetPath = "/dashboard/lost-found/reports";
+    actionField = "canView";
+  } else {
+    // If it's already a route path string, use it directly
+    if (permissionPath.startsWith("/")) {
+      targetPath = permissionPath;
+      if (method === "GET") actionField = "canView";
+      else if (method === "POST") actionField = "canAdd";
+      else if (method === "PUT" || method === "PATCH") actionField = "canEdit";
+      else if (method === "DELETE") actionField = "canDelete";
+    } else {
+      // Fallback
+      targetPath = "/dashboard/lost-found/dashboard";
+      actionField = "canView";
+    }
+  }
+
   // Check if role has permission allowed for the path/key
   const permission = await Permission.findOne({
     role: user.role,
-    path: permissionPath,
-    isAllowed: true,
+    path: targetPath,
   });
 
-  if (!permission) {
+  const isAllowed = permission && (permission.isAllowed || permission[actionField] === true);
+
+  if (!isAllowed) {
     return { error: "Forbidden: You do not have permission to perform this action.", status: 403 };
   }
 
