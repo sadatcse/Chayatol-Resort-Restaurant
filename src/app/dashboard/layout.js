@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }) {
   const { user, loading } = useContext(AuthContext);
   const router = useRouter();
   const { mode } = useThemeMode();
-  
+
   // Initialize based on screen width
   const [isSidebarOpen, setSidebarOpen] = useState(false);
 
@@ -40,8 +40,6 @@ export default function DashboardLayout({ children }) {
     if (!loading) {
       if (!user) {
         router.push("/");
-      } else if (user.role === "superadmin") {
-        router.push("/admin/");
       }
     }
   }, [user, loading, router]);
@@ -68,14 +66,13 @@ export default function DashboardLayout({ children }) {
       />
 
       {/* Content Wrapper */}
-      <div 
-        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${
-          isSidebarOpen ? "md:ml-64" : "md:ml-20"
-        }`}
+      <div
+        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isSidebarOpen ? "md:ml-64" : "md:ml-20"
+          }`}
       >
-        <Header 
-          isSidebarOpen={isSidebarOpen} 
-          toggleSidebar={toggleSidebar} 
+        <Header
+          isSidebarOpen={isSidebarOpen}
+          toggleSidebar={toggleSidebar}
         />
 
         {/* Main Content */}

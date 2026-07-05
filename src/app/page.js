@@ -111,8 +111,8 @@ const Login = () => {
         <button
           onClick={handleThemeToggle}
           className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm font-medium transition-all duration-300 cursor-pointer ${theme === "dark"
-              ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite hover:bg-brand-dark-grey"
-              : "bg-brand-white border-brand-beige text-brand-dark-grey hover:bg-brand-offwhite"
+            ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite hover:bg-brand-dark-grey"
+            : "bg-brand-white border-brand-beige text-brand-dark-grey hover:bg-brand-offwhite"
             }`}
         >
           {theme === "dark" ? (
@@ -131,14 +131,14 @@ const Login = () => {
 
       {/* Main Container */}
       <div className={`min-h-screen flex items-center justify-center p-4 transition-all duration-500 ${theme === "dark"
-          ? "bg-gradient-to-br from-brand-charcoal via-brand-dark-grey to-brand-black"
-          : "bg-gradient-to-br from-brand-offwhite via-brand-white to-brand-beige"
+        ? "bg-gradient-to-br from-brand-charcoal via-brand-dark-grey to-brand-black"
+        : "bg-gradient-to-br from-brand-offwhite via-brand-white to-brand-beige"
         }`}>
 
         {/* Login Card */}
         <div className={`flex rounded-3xl shadow-2xl overflow-hidden max-w-4xl w-full border transition-all duration-300 ${theme === "dark"
-            ? "bg-brand-charcoal/90 border-brand-dark-grey/50"
-            : "bg-brand-white/95 border-brand-beige/50"
+          ? "bg-brand-charcoal/90 border-brand-dark-grey/50"
+          : "bg-brand-white/95 border-brand-beige/50"
           }`}>
 
           {/* Left Panel (Image with elegant Brand Overlay) */}
@@ -195,8 +195,8 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${theme === "dark"
-                        ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
-                        : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
+                      ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
+                      : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
                       }`}
                     required
                   />
@@ -219,8 +219,8 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${theme === "dark"
-                        ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
-                        : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
+                      ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
+                      : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
                       }`}
                     required
                   />
@@ -237,8 +237,8 @@ const Login = () => {
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className={`h-4 w-4 rounded border transition-all duration-300 accent-brand-primary focus:ring-0 ${theme === "dark"
-                        ? "border-brand-dark-grey bg-brand-dark-grey"
-                        : "border-brand-beige bg-brand-white"
+                      ? "border-brand-dark-grey bg-brand-dark-grey"
+                      : "border-brand-beige bg-brand-white"
                       }`}
                   />
                   <span className={`ml-2 font-medium ${theme === "dark" ? "text-brand-offwhite" : "text-brand-dark-grey"}`}>
@@ -260,8 +260,8 @@ const Login = () => {
                 type="submit"
                 disabled={loading}
                 className={`w-full font-bold py-3.5 px-4 rounded-xl text-brand-white shadow-lg transition-all duration-300 transform active:scale-95 cursor-pointer ${loading
-                    ? "bg-brand-primary/50 cursor-not-allowed shadow-none"
-                    : "bg-brand-primary hover:bg-brand-secondary hover:shadow-brand-primary/30 shadow-brand-primary/20 hover:-translate-y-0.5"
+                  ? "bg-brand-primary/50 cursor-not-allowed shadow-none"
+                  : "bg-brand-primary hover:bg-brand-secondary hover:shadow-brand-primary/30 shadow-brand-primary/20 hover:-translate-y-0.5"
                   }`}
               >
                 {loading ? (
@@ -282,8 +282,8 @@ const Login = () => {
       {showForgotModal && (
         <div className="fixed inset-0 bg-brand-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4 animate-fade-in">
           <div className={`p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full relative border transition-all duration-300 ${theme === "dark"
-              ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite"
-              : "bg-brand-white border-brand-beige text-brand-charcoal"
+            ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite"
+            : "bg-brand-white border-brand-beige text-brand-charcoal"
             }`}>
             <button
               onClick={() => setShowForgotModal(false)}
@@ -301,8 +301,8 @@ const Login = () => {
                   type="email"
                   placeholder="Email Address"
                   className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all duration-300 ${theme === "dark"
-                      ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
-                      : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
+                    ? "bg-brand-dark-grey border-brand-dark-grey text-brand-offwhite placeholder-brand-sage/60"
+                    : "bg-brand-offwhite/50 border-brand-beige text-brand-charcoal placeholder-brand-dark-grey/60"
                     }`}
                   required
                 />

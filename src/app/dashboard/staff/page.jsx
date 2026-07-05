@@ -156,7 +156,7 @@ const ResortStaff = () => {
     } catch (error) {
       Swal.fire({
         title: "Action Failed",
-        text: error.response?.data?.message || "Failed to update staff record.",
+        text: error.response?.data?.error || error.response?.data?.message || `Failed to ${editId ? "update" : "create"} staff record.`,
         icon: "error",
         confirmButtonColor: "#346E36",
       });
