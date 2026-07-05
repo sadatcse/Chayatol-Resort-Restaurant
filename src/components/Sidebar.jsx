@@ -121,6 +121,11 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar, mode }) => {
 
       if (validChildren.length === 0) return null;
 
+      // If category has only one active child, render that child directly (no mother item dropdown)
+      if (validChildren.length === 1) {
+        return validChildren[0];
+      }
+
       return { ...item, children: validChildren };
     }).filter(Boolean);
 

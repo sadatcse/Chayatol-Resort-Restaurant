@@ -12,6 +12,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useRoomTypes from "@/hooks/useRoomTypes";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   name: "",
@@ -22,30 +23,31 @@ const INITIAL_FORM_DATA = {
 const RoomTypesPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
+  const [users, setUsers] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
+  const [editId, setEditId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { roomTypes, totalPages, totalItems, isLoading, refetch } = useRoomTypes(
+  const debouncedSearch = useDebounce(searchTerm, 500);
+  const { roomTypes, totalItems, totalPages, isLoading, refetch } = useRoomTypes(
     currentPage,
     itemsPerPage,
-    debouncedSearchTerm
+    debouncedSearch
   );
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
-
-  const openModal = (roomTypeToEdit = null) => {
-    if (roomTypeToEdit) {
-      setEditId(roomTypeToEdit._id);
+  const openModal = (type = null) => {
+    if (type) {
+      setEditId(type._id);
       setFormData({
-        name: roomTypeToEdit.name || "",
-        description: roomTypeToEdit.description || "",
-        isActive: roomTypeToEdit.isActive !== undefined ? roomTypeToEdit.isActive : true
+        name: type.name,
+        description: type.description || "",
+        isActive: type.isActive
       });
     } else {
       setEditId(null);
@@ -60,6 +62,16 @@ const RoomTypesPage = () => {
   };
 
   const handleAddOrEditRoomType = async () => {
+    if (editId ? !canEdit : !canAdd) {
+      Swal.fire({
+        title: "Access Denied",
+        text: `You do not have permission to ${editId ? "update" : "create"} room types.`,
+        icon: "error",
+        confirmButtonColor: "#8C5A35",
+      });
+      return;
+    }
+
     if (!formData.name || !formData.name.trim()) {
       Swal.fire({
         title: "Validation Error",
@@ -93,8 +105,8 @@ const RoomTypesPage = () => {
       });
     } catch (error) {
       Swal.fire({
-        title: "Action Failed",
-        text: error.response?.data?.message || "Failed to save room type.",
+        title: "Error!",
+        text: error.response?.data?.message || "Failed to add or edit room type.",
         icon: "error",
         confirmButtonColor: "#346E36",
       });
@@ -104,7 +116,7 @@ const RoomTypesPage = () => {
   };
 
   const handleDelete = (id, typeName) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire({
         title: "Access Denied",
         text: "You do not have permission to delete room types.",
@@ -144,8 +156,6 @@ const RoomTypesPage = () => {
       }
     });
   };
-
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
@@ -188,8 +198,8 @@ const RoomTypesPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+        {canAdd && (
+          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
             <FiPlus className="text-lg" />
             <span className="uppercase tracking-widest text-xs font-bold">New Room Type</span>
           </button>
@@ -255,14 +265,18 @@ const RoomTypesPage = () => {
                           </td>
                           <td className="pr-8 py-4">
                             <div className="flex justify-center items-center gap-2">
-                              {canPerformAction ? (
+                              {canEdit || canDelete ? (
                                 <>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(type)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Room Type">
-                                    <FiEdit size={16} />
-                                  </motion.button>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(type._id, type.name)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Room Type">
-                                    <FiTrash2 size={16} />
-                                  </motion.button>
+                                  {canEdit && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(type)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Room Type">
+                                      <FiEdit size={16} />
+                                    </motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(type._id, type.name)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Room Type">
+                                      <FiTrash2 size={16} />
+                                    </motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>

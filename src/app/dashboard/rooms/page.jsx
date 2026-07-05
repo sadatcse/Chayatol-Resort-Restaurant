@@ -12,6 +12,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useRooms from "@/hooks/useRooms";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_ROOM_FORM = {
   roomNumber: "",
@@ -26,6 +27,7 @@ const INITIAL_ROOM_FORM = {
 const RoomAndPlansPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   // ------------------ ROOMS STATE & LOGIC ------------------
   const [roomsPage, setRoomsPage] = useState(1);
@@ -102,24 +104,24 @@ const RoomAndPlansPage = () => {
     if (!roomFormData.roomType || !roomFormData.roomType.trim()) {
       Swal.fire("Validation Error", "Please select the room type.", "warning");
       return;
-    }
-    if (roomFormData.price === "" || isNaN(roomFormData.price)) {
-      Swal.fire("Validation Error", "Please provide a valid price.", "warning");
+    if (editRoomId ? !canEdit : !canAdd) {
+      Swal.fire("Access Denied", `You do not have permission to ${editRoomId ? "update" : "create"} rooms.`, "error");
       return;
     }
-    if (roomFormData.capacity === "" || isNaN(roomFormData.capacity)) {
-      Swal.fire("Validation Error", "Please provide a valid capacity.", "warning");
+
+    if (!roomFormData.roomNumber || !roomFormData.roomType || !roomFormData.price) {
+      Swal.fire("Validation Error", "Please fill in all required fields.", "warning");
       return;
     }
 
     setIsRoomSubmitting(true);
     const payload = {
       roomNumber: roomFormData.roomNumber.trim(),
-      roomType: roomFormData.roomType.trim(),
+      roomType: roomFormData.roomType,
       price: Number(roomFormData.price),
       priceWithBreakfast: Number(roomFormData.priceWithBreakfast || 0),
       priceWithAllDayFood: Number(roomFormData.priceWithAllDayFood || 0),
-      capacity: Number(roomFormData.capacity),
+      capacity: Number(roomFormData.capacity || 2),
       status: roomFormData.status
     };
 
@@ -140,7 +142,7 @@ const RoomAndPlansPage = () => {
   };
 
   const handleDeleteRoom = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire("Access Denied", "You do not have permission to delete rooms.", "error");
       return;
     }
@@ -167,7 +169,10 @@ const RoomAndPlansPage = () => {
   };
 
   const handleToggleRoomStatus = (room) => {
-    if (!canPerformAction) return;
+    if (!canEdit) {
+      Swal.fire("Access Denied", "You do not have permission to change room status.", "error");
+      return;
+    }
     setSelectedStatusRoom(room);
     setIsStatusModalOpen(true);
   };
@@ -284,8 +289,8 @@ const RoomAndPlansPage = () => {
                 />
               </label>
 
-              {canPerformAction && (
-                <button onClick={() => openRoomModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow gap-2 px-6 h-10 shrink-0">
+              {canAdd && (
+                <button onClick={() => openRoomModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow gap-2 px-6 h-10 shrink-0 cursor-pointer">
                   <FiPlus className="text-lg" />
                   <span className="uppercase tracking-widest text-xs font-bold">New Room</span>
                 </button>
@@ -343,21 +348,25 @@ const RoomAndPlansPage = () => {
                                 room.status === "Occupied" ? "bg-red-100 text-red-700 hover:bg-red-200" :
                                 "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
                               }`}
-                              title={canPerformAction ? "Click to change status" : ""}
+                              title={canEdit ? "Click to change status" : ""}
                             >
                               {room.status}
                             </span>
                           </td>
                           <td className="pr-8 py-4 text-center">
                             <div className="flex justify-center items-center gap-2">
-                              {canPerformAction ? (
+                              {canEdit || canDelete ? (
                                 <>
-                                  <button onClick={() => openRoomModal(room)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary" title="Edit Room">
-                                    <FiEdit size={16} />
-                                  </button>
-                                  <button onClick={() => handleDeleteRoom(room._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500" title="Delete Room">
-                                    <FiTrash2 size={16} />
-                                  </button>
+                                  {canEdit && (
+                                    <button onClick={() => openRoomModal(room)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary cursor-pointer" title="Edit Room">
+                                      <FiEdit size={16} />
+                                    </button>
+                                  )}
+                                  {canDelete && (
+                                    <button onClick={() => handleDeleteRoom(room._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 cursor-pointer" title="Delete Room">
+                                      <FiTrash2 size={16} />
+                                    </button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] uppercase font-bold text-brand-sage">Restricted</div>
