@@ -97,6 +97,11 @@ const RoomAndPlansPage = () => {
 
   // Rooms CRUD
   const handleAddOrEditRoom = async () => {
+    if (editRoomId ? !canEdit : !canAdd) {
+      Swal.fire("Access Denied", `You do not have permission to ${editRoomId ? "update" : "create"} rooms.`, "error");
+      return;
+    }
+
     if (!roomFormData.roomNumber || !roomFormData.roomNumber.trim()) {
       Swal.fire("Validation Error", "Please provide the room number.", "warning");
       return;
@@ -104,13 +109,9 @@ const RoomAndPlansPage = () => {
     if (!roomFormData.roomType || !roomFormData.roomType.trim()) {
       Swal.fire("Validation Error", "Please select the room type.", "warning");
       return;
-    if (editRoomId ? !canEdit : !canAdd) {
-      Swal.fire("Access Denied", `You do not have permission to ${editRoomId ? "update" : "create"} rooms.`, "error");
-      return;
     }
-
-    if (!roomFormData.roomNumber || !roomFormData.roomType || !roomFormData.price) {
-      Swal.fire("Validation Error", "Please fill in all required fields.", "warning");
+    if (roomFormData.price === "" || isNaN(roomFormData.price)) {
+      Swal.fire("Validation Error", "Please provide a valid price.", "warning");
       return;
     }
 
