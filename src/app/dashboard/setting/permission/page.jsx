@@ -165,6 +165,7 @@ const UserPermission = () => {
       canAdd: perm?.canAdd ?? false,
       canEdit: perm?.canEdit ?? false,
       canDelete: perm?.canDelete ?? false,
+    };
   }, [permissions]);
 
   const getBulkStatus = useCallback((group, action) => {
