@@ -5,9 +5,11 @@ import { toast } from "react-toastify";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { MdInfoOutline } from "react-icons/md";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import usePagePermission from "@/hooks/usePagePermission";
 
 export default function ChargeSettingsPage() {
   const axiosSecure = useAxiosSecure();
+  const { canEdit } = usePagePermission();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -88,6 +90,11 @@ export default function ChargeSettingsPage() {
   }, [fetchSettings]);
 
   const handleSave = async () => {
+    if (!canEdit) {
+      toast.error("You do not have permission to modify charge configurations.");
+      return;
+    }
+
     try {
       setSaving(true);
       await axiosSecure.put("/settings/charges", settings);
@@ -150,9 +157,11 @@ export default function ChargeSettingsPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-brand-charcoal dark:text-brand-offwhite">Charge Settings</h2>
-          <button onClick={handleSave} disabled={saving} className="btn bg-brand-primary text-white border-none hover:bg-brand-primary-dark">
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
+          {canEdit && (
+            <button onClick={handleSave} disabled={saving} className="btn bg-brand-primary text-white border-none hover:bg-brand-primary-dark cursor-pointer">
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

@@ -9,10 +9,12 @@ import { AuthContext } from "@/providers/AuthProvider";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import Mtitle from "@/components/Comon/Mtitle";
 import ImageUpload from "@/components/Comon/ImageUpload";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const UserProfile = () => {
   const { user, setUser } = useContext(AuthContext);
   const axiosSecure = useAxiosSecure();
+  const { canEdit } = usePagePermission();
 
   const [activeTab, setActiveTab] = useState("profile");
   const [isProfileSaving, setIsProfileSaving] = useState(false);
@@ -70,6 +72,14 @@ const UserProfile = () => {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
+    if (!canEdit) {
+      Swal.fire({
+        icon: "error",
+        title: "Access Denied",
+        text: "You do not have permission to modify profile settings."
+      });
+      return;
+    }
     if (!profileData.name.trim() || !profileData.email.trim() || !profileData.mobileNumber.trim()) {
       Swal.fire({ icon: "warning", title: "Validation Alert", text: "Name, Email, and Mobile Number fields are required!" });
       return;
@@ -118,6 +128,14 @@ const UserProfile = () => {
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
+    if (!canEdit) {
+      Swal.fire({
+        icon: "error",
+        title: "Access Denied",
+        text: "You do not have permission to modify password credentials."
+      });
+      return;
+    }
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       Swal.fire({ icon: "error", title: "Passwords Mismatch", text: "New password and confirmation password do not match!" });
       return;
@@ -340,7 +358,7 @@ const UserProfile = () => {
                   <button
                     type="submit"
                     className="btn bg-gradient-to-r from-brand-primary to-brand-secondary hover:from-brand-secondary hover:to-brand-primary text-brand-white border-none rounded-xl px-6 py-2.5 flex items-center gap-2 shadow-lg shadow-brand-primary/20 font-semibold text-sm transition-all duration-300 disabled:opacity-50 active:scale-95 cursor-pointer"
-                    disabled={isProfileSaving}
+                    disabled={isProfileSaving || !canEdit}
                   >
                     {isProfileSaving ? (
                       <span className="loading loading-spinner loading-sm"></span>
@@ -402,7 +420,7 @@ const UserProfile = () => {
                   <button
                     type="submit"
                     className="btn bg-gradient-to-r from-brand-bronze to-brand-secondary hover:from-brand-secondary hover:to-brand-bronze text-brand-white border-none rounded-xl px-6 py-2.5 flex items-center gap-2 shadow-lg shadow-brand-bronze/20 font-semibold text-sm transition-all duration-300 disabled:opacity-50 active:scale-95 cursor-pointer"
-                    disabled={isPasswordSaving}
+                    disabled={isPasswordSaving || !canEdit}
                   >
                     {isPasswordSaving ? (
                       <span className="loading loading-spinner loading-sm"></span>

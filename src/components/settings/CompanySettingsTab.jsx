@@ -9,6 +9,7 @@ import { AuthContext } from "@/providers/AuthProvider";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import ImageUpload from "@/components/Comon/ImageUpload";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   name: "",
@@ -26,6 +27,7 @@ const INITIAL_FORM_DATA = {
 const CompanySettingsPage = () => {
   const { user } = useContext(AuthContext);
   const axiosSecure = useAxiosSecure();
+  const { canEdit } = usePagePermission();
 
   const [activeTab, setActiveTab] = useState("general");
   const [isLoading, setIsLoading] = useState(true);
@@ -91,6 +93,15 @@ const CompanySettingsPage = () => {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+
+    if (!canEdit) {
+      Swal.fire({
+        icon: "error",
+        title: "Access Denied",
+        text: "You do not have permission to modify company settings."
+      });
+      return;
+    }
 
     // 1. Validation: Name
     if (!formData.name.trim()) {
@@ -184,7 +195,7 @@ const CompanySettingsPage = () => {
     }
   };
 
-  const canPerformAction = user?.role === "admin" || user?.role === "superadmin";
+  const canPerformAction = canEdit;
 
   if (isLoading) {
     return (

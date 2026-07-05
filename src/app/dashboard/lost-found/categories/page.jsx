@@ -11,6 +11,7 @@ import Swal from "sweetalert2";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const categorySchema = z.object({
   name: z.string().min(1, "Category name is required").trim(),
@@ -21,6 +22,7 @@ const categorySchema = z.object({
 export default function CategoriesPage() {
   const axiosSecure = useAxiosSecure();
   const queryClient = useQueryClient();
+  const { canAdd, canEdit, canDelete } = usePagePermission();
   const [editingCategory, setEditingCategory] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -85,6 +87,10 @@ export default function CategoriesPage() {
   });
 
   const onSubmit = (formData) => {
+    if (editingCategory ? !canEdit : !canAdd) {
+      toast.error(`You do not have permission to ${editingCategory ? "update" : "create"} categories.`);
+      return;
+    }
     if (editingCategory) {
       updateMutation.mutate({ id: editingCategory._id, updatedCat: formData });
     } else {
@@ -93,12 +99,20 @@ export default function CategoriesPage() {
   };
 
   const openAddModal = () => {
+    if (!canAdd) {
+      toast.error("You do not have permission to create categories.");
+      return;
+    }
     setEditingCategory(null);
     reset({ name: "", description: "", isActive: true });
     setIsModalOpen(true);
   };
 
   const openEditModal = (cat) => {
+    if (!canEdit) {
+      toast.error("You do not have permission to edit categories.");
+      return;
+    }
     setEditingCategory(cat);
     reset({
       name: cat.name,
@@ -114,6 +128,10 @@ export default function CategoriesPage() {
   };
 
   const handleDelete = (id) => {
+    if (!canDelete) {
+      toast.error("You do not have permission to delete categories.");
+      return;
+    }
     Swal.fire({
       title: "Are you sure?",
       text: "This will delete the category permanently.",
@@ -133,12 +151,14 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <SectionHeader title="Lost & Found Categories" subtitle="Manage category tags for lost items" />
-        <button
-          onClick={openAddModal}
-          className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/90 flex items-center gap-2 rounded-xl text-sm font-bold uppercase tracking-wider px-5 shadow-md shadow-brand-primary/10 cursor-pointer self-start sm:self-auto"
-        >
-          <FiPlus size={16} /> Add Category
-        </button>
+        {canAdd && (
+          <button
+            onClick={openAddModal}
+            className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/90 flex items-center gap-2 rounded-xl text-sm font-bold uppercase tracking-wider px-5 shadow-md shadow-brand-primary/10 cursor-pointer self-start sm:self-auto"
+          >
+            <FiPlus size={16} /> Add Category
+          </button>
+        )}
       </div>
 
       {isLoading ? (
@@ -172,20 +192,30 @@ export default function CategoriesPage() {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => openEditModal(cat)}
-                            className="btn btn-xs btn-ghost btn-circle text-brand-primary hover:bg-brand-primary/10"
-                            title="Edit"
-                          >
-                            <FiEdit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(cat._id)}
-                            className="btn btn-xs btn-ghost btn-circle text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            title="Delete"
-                          >
-                            <FiTrash2 size={14} />
-                          </button>
+                          {canEdit || canDelete ? (
+                            <>
+                              {canEdit && (
+                                <button
+                                  onClick={() => openEditModal(cat)}
+                                  className="btn btn-xs btn-ghost btn-circle text-brand-primary hover:bg-brand-primary/10 cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <FiEdit2 size={14} />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  onClick={() => handleDelete(cat._id)}
+                                  className="btn btn-xs btn-ghost btn-circle text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <FiTrash2 size={14} />
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>
+                          )}
                         </div>
                       </td>
                     </tr>

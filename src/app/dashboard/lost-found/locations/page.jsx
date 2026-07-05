@@ -11,6 +11,7 @@ import Swal from "sweetalert2";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const locationSchema = z.object({
   name: z.string().min(1, "Location name is required").trim(),
@@ -22,6 +23,7 @@ const locationSchema = z.object({
 export default function LocationsPage() {
   const axiosSecure = useAxiosSecure();
   const queryClient = useQueryClient();
+  const { canAdd, canEdit, canDelete } = usePagePermission();
   const [editingLocation, setEditingLocation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -86,6 +88,10 @@ export default function LocationsPage() {
   });
 
   const onSubmit = (formData) => {
+    if (editingLocation ? !canEdit : !canAdd) {
+      toast.error(`You do not have permission to ${editingLocation ? "update" : "create"} locations.`);
+      return;
+    }
     if (editingLocation) {
       updateMutation.mutate({ id: editingLocation._id, updatedLoc: formData });
     } else {
@@ -94,12 +100,20 @@ export default function LocationsPage() {
   };
 
   const openAddModal = () => {
+    if (!canAdd) {
+      toast.error("You do not have permission to create locations.");
+      return;
+    }
     setEditingLocation(null);
     reset({ name: "", type: "Others", description: "", isActive: true });
     setIsModalOpen(true);
   };
 
   const openEditModal = (loc) => {
+    if (!canEdit) {
+      toast.error("You do not have permission to edit locations.");
+      return;
+    }
     setEditingLocation(loc);
     reset({
       name: loc.name,
@@ -116,6 +130,10 @@ export default function LocationsPage() {
   };
 
   const handleDelete = (id) => {
+    if (!canDelete) {
+      toast.error("You do not have permission to delete locations.");
+      return;
+    }
     Swal.fire({
       title: "Are you sure?",
       text: "This will delete the location permanently.",
@@ -135,12 +153,14 @@ export default function LocationsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <SectionHeader title="Lost & Found Locations" subtitle="Manage locations for recovery and storage" />
-        <button
-          onClick={openAddModal}
-          className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/90 flex items-center gap-2 rounded-xl text-sm font-bold uppercase tracking-wider px-5 shadow-md shadow-brand-primary/10 cursor-pointer self-start sm:self-auto"
-        >
-          <FiPlus size={16} /> Add Location
-        </button>
+        {canAdd && (
+          <button
+            onClick={openAddModal}
+            className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/90 flex items-center gap-2 rounded-xl text-sm font-bold uppercase tracking-wider px-5 shadow-md shadow-brand-primary/10 cursor-pointer self-start sm:self-auto"
+          >
+            <FiPlus size={16} /> Add Location
+          </button>
+        )}
       </div>
 
       {isLoading ? (
@@ -180,20 +200,30 @@ export default function LocationsPage() {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => openEditModal(loc)}
-                            className="btn btn-xs btn-ghost btn-circle text-brand-primary hover:bg-brand-primary/10"
-                            title="Edit"
-                          >
-                            <FiEdit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(loc._id)}
-                            className="btn btn-xs btn-ghost btn-circle text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            title="Delete"
-                          >
-                            <FiTrash2 size={14} />
-                          </button>
+                          {canEdit || canDelete ? (
+                            <>
+                              {canEdit && (
+                                <button
+                                  onClick={() => openEditModal(loc)}
+                                  className="btn btn-xs btn-ghost btn-circle text-brand-primary hover:bg-brand-primary/10 cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <FiEdit2 size={14} />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  onClick={() => handleDelete(loc._id)}
+                                  className="btn btn-xs btn-ghost btn-circle text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <FiTrash2 size={14} />
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>
+                          )}
                         </div>
                       </td>
                     </tr>

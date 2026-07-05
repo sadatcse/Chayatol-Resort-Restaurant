@@ -5,9 +5,11 @@ import { toast } from "react-toastify";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { MdInfoOutline } from "react-icons/md";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import usePagePermission from "@/hooks/usePagePermission";
 
 export default function ControlsSettingsPage() {
   const axiosSecure = useAxiosSecure();
+  const { canEdit } = usePagePermission();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -72,6 +74,11 @@ export default function ControlsSettingsPage() {
   }, [fetchSettings]);
 
   const handleSave = async () => {
+    if (!canEdit) {
+      toast.error("You do not have permission to modify system controls.");
+      return;
+    }
+
     try {
       setSaving(true);
       await axiosSecure.put("/settings/controls", settings);
@@ -100,9 +107,11 @@ export default function ControlsSettingsPage() {
     <div className="p-4 sm:p-6 lg:p-8 bg-brand-offwhite dark:bg-brand-charcoal/30 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-end items-center mb-6">
-          <button onClick={handleSave} disabled={saving} className="btn bg-brand-primary text-white border-none hover:bg-brand-primary-dark">
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
+          {canEdit && (
+            <button onClick={handleSave} disabled={saving} className="btn bg-brand-primary text-white border-none hover:bg-brand-primary-dark cursor-pointer">
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -120,6 +129,7 @@ export default function ControlsSettingsPage() {
               className="toggle bg-brand-primary" 
               checked={settings.dailyReport} 
               onChange={e => updateSetting("dailyReport", e.target.checked)} 
+              disabled={!canEdit}
             />
           </div>
 
@@ -136,6 +146,7 @@ export default function ControlsSettingsPage() {
               className="toggle bg-brand-primary" 
               checked={settings.printKOT} 
               onChange={e => updateSetting("printKOT", e.target.checked)} 
+              disabled={!canEdit}
             />
           </div>
 
@@ -152,6 +163,7 @@ export default function ControlsSettingsPage() {
               className="toggle bg-brand-primary" 
               checked={settings.sendOnlineOrderSMS} 
               onChange={e => updateSetting("sendOnlineOrderSMS", e.target.checked)} 
+              disabled={!canEdit}
             />
           </div>
 
@@ -168,6 +180,7 @@ export default function ControlsSettingsPage() {
               className="toggle bg-brand-primary" 
               checked={settings.sendInvoiceSMS} 
               onChange={e => updateSetting("sendInvoiceSMS", e.target.checked)} 
+              disabled={!canEdit}
             />
           </div>
 
@@ -184,6 +197,7 @@ export default function ControlsSettingsPage() {
                 className="select select-bordered w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm focus:outline-none focus:border-brand-primary"
                 value={settings.timeZone}
                 onChange={(e) => updateSetting("timeZone", e.target.value)}
+                disabled={!canEdit}
               >
                 {timeZones.map((tz) => (
                    <option key={tz} value={tz}>{tz}</option>
@@ -206,6 +220,7 @@ export default function ControlsSettingsPage() {
                 className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm focus:outline-none focus:border-brand-primary"
                 value={settings.checkInTime}
                 onChange={(e) => updateSetting("checkInTime", e.target.value)}
+                disabled={!canEdit}
               />
             </div>
           </div>
@@ -224,6 +239,7 @@ export default function ControlsSettingsPage() {
                 className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm focus:outline-none focus:border-brand-primary"
                 value={settings.checkOutTime}
                 onChange={(e) => updateSetting("checkOutTime", e.target.value)}
+                disabled={!canEdit}
               />
             </div>
           </div>
