@@ -10,9 +10,11 @@ import MtableLoading from "@/components/Comon/MtableLoading";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import usePagePermission from "@/hooks/usePagePermission";
 
 export default function ReportsPage() {
   const axiosSecure = useAxiosSecure();
+  const { canEdit } = usePagePermission();
 
   const [reportType, setReportType] = useState("found"); // found, returned, expired, disposal, claim_verification, staff_activity
   const [categoryId, setCategoryId] = useState("");
@@ -95,16 +97,23 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <SectionHeader title="Lost & Found Reports" subtitle="Generate, print, and export lost & found audits" />
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <button
-            onClick={() => setPrintRes(reportData)}
-            disabled={reportData.length === 0}
-            className="btn btn-sm btn-outline border-brand-beige text-brand-charcoal dark:text-brand-offwhite rounded-xl flex items-center gap-1.5 h-10 px-4 cursor-pointer"
-          >
-            <FiPrinter size={14} /> Print Report
-          </button>
-          <ExportButtons onExcel={() => handleExport("excel")} onCsv={() => handleExport("csv")} />
-        </div>
+        {canEdit ? (
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              onClick={() => setPrintRes(reportData)}
+              disabled={reportData.length === 0}
+              className="btn btn-sm btn-outline border-brand-beige text-brand-charcoal dark:text-brand-offwhite rounded-xl flex items-center gap-1.5 h-10 px-4 cursor-pointer"
+            >
+              <FiPrinter size={14} /> Print Report
+            </button>
+            <ExportButtons 
+              onExportExcel={() => handleExport("excel")} 
+              onExportCsv={() => handleExport("csv")} 
+            />
+          </div>
+        ) : (
+          <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-white dark:bg-brand-charcoal border-none py-3 px-4 shadow-sm">Export Restricted</div>
+        )}
       </div>
 
       {/* Filter Bar */}

@@ -12,10 +12,12 @@ import MtableLoading from "@/components/Comon/MtableLoading";
 import ClaimTimeline from "@/components/lost-found/ClaimTimeline";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
 
 export default function ActiveItemsPage() {
   const axiosSecure = useAxiosSecure();
   const queryClient = useQueryClient();
+  const { canEdit, canDelete } = usePagePermission();
 
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -98,6 +100,10 @@ export default function ActiveItemsPage() {
   });
 
   const handleDelete = (id) => {
+    if (!canDelete) {
+      toast.error("You do not have permission to delete found items.");
+      return;
+    }
     Swal.fire({
       title: "Are you sure?",
       text: "This will delete the item record permanently.",
@@ -280,18 +286,20 @@ export default function ActiveItemsPage() {
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => setSelectedItem(item)}
-                            className="btn btn-xs btn-ghost btn-circle text-brand-primary hover:bg-brand-primary/10"
+                            className="btn btn-xs btn-ghost btn-circle text-brand-primary hover:bg-brand-primary/10 cursor-pointer"
                             title="View Details"
                           >
                             <FiEye size={15} />
                           </button>
-                          <button
-                            onClick={() => handleDelete(item._id)}
-                            className="btn btn-xs btn-ghost btn-circle text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            title="Delete"
-                          >
-                            <FiTrash2 size={15} />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(item._id)}
+                              className="btn btn-xs btn-ghost btn-circle text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                              title="Delete"
+                            >
+                              <FiTrash2 size={15} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -416,6 +424,10 @@ export default function ActiveItemsPage() {
                       <form
                         onSubmit={(e) => {
                           e.preventDefault();
+                          if (!canEdit) {
+                            toast.error("You do not have permission to edit/assign storage.");
+                            return;
+                          }
                           const formData = new FormData(e.target);
                           assignStorageMutation.mutate({
                             id: selectedItem._id,
@@ -429,6 +441,7 @@ export default function ActiveItemsPage() {
                         <select
                           name="storageLocationId"
                           required
+                          disabled={!canEdit}
                           className="select select-bordered select-sm w-full rounded-lg"
                         >
                           <option value="">Select Location</option>
@@ -441,18 +454,21 @@ export default function ActiveItemsPage() {
                             type="text"
                             name="lockerNumber"
                             placeholder="Locker #"
+                            disabled={!canEdit}
                             className="input input-bordered input-sm rounded-lg"
                           />
                           <input
                             type="text"
                             name="shelfNumber"
                             placeholder="Shelf #"
+                            disabled={!canEdit}
                             className="input input-bordered input-sm rounded-lg"
                           />
                         </div>
                         <button
                           type="submit"
-                          className="btn btn-sm btn-primary bg-brand-primary w-full rounded-lg text-white font-semibold cursor-pointer"
+                          disabled={!canEdit}
+                          className="btn btn-sm btn-primary bg-brand-primary w-full rounded-lg text-white font-semibold cursor-pointer disabled:opacity-50"
                         >
                           Assign & Mark Stored
                         </button>

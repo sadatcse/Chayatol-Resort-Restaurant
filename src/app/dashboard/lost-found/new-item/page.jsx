@@ -11,6 +11,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MediaUploader from "@/components/lost-found/MediaUploader";
 import { FiCheck, FiAlertCircle } from "react-icons/fi";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const itemSchema = z.object({
   name: z.string().min(1, "Item name is required").trim(),
@@ -33,6 +34,7 @@ const itemSchema = z.object({
 
 export default function NewItemEntryPage() {
   const axiosSecure = useAxiosSecure();
+  const { canAdd } = usePagePermission();
   const [images, setImages] = useState([]);
   const [video, setVideo] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -122,6 +124,10 @@ export default function NewItemEntryPage() {
   });
 
   const onSubmit = (formData) => {
+    if (!canAdd) {
+      toast.error("You do not have permission to add new items.");
+      return;
+    }
     const payload = {
       ...formData,
       images,
@@ -465,7 +471,7 @@ export default function NewItemEntryPage() {
               </button>
               <button
                 type="submit"
-                disabled={createItemMutation.isPending}
+                disabled={createItemMutation.isPending || !canAdd}
                 className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl flex-1 flex items-center gap-1.5 cursor-pointer shadow-md shadow-brand-primary/10"
               >
                 <FiCheck size={16} /> Save Item

@@ -12,6 +12,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const claimSchema = z.object({
   itemId: z.string().min(1, "Please select the lost item"),
@@ -26,6 +27,7 @@ const claimSchema = z.object({
 export default function ClaimsVerificationPage() {
   const axiosSecure = useAxiosSecure();
   const queryClient = useQueryClient();
+  const { canAdd, canEdit } = usePagePermission();
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -118,10 +120,18 @@ export default function ClaimsVerificationPage() {
   });
 
   const onNewClaimSubmit = (formData) => {
+    if (!canAdd) {
+      toast.error("You do not have permission to log guest claims.");
+      return;
+    }
     createClaimMutation.mutate(formData);
   };
 
   const handleVerifyClaim = (statusOutcome, notes) => {
+    if (!canEdit) {
+      toast.error("You do not have permission to verify guest claims.");
+      return;
+    }
     verifyClaimMutation.mutate({
       id: selectedClaim._id,
       verificationStatus: statusOutcome,
@@ -140,12 +150,14 @@ export default function ClaimsVerificationPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <SectionHeader title="Claims Verification" subtitle="Verify guest claims and ownership proof for lost items" />
-        <button
-          onClick={() => setIsNewClaimModalOpen(true)}
-          className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/90 flex items-center gap-2 rounded-xl text-sm font-bold uppercase tracking-wider px-5 shadow-md shadow-brand-primary/10 cursor-pointer self-start sm:self-auto"
-        >
-          <FiPlus size={16} /> Log Guest Claim
-        </button>
+        {canAdd && (
+          <button
+            onClick={() => setIsNewClaimModalOpen(true)}
+            className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/90 flex items-center gap-2 rounded-xl text-sm font-bold uppercase tracking-wider px-5 shadow-md shadow-brand-primary/10 cursor-pointer self-start sm:self-auto"
+          >
+            <FiPlus size={16} /> Log Guest Claim
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -476,29 +488,36 @@ export default function ClaimsVerificationPage() {
                     </label>
                     <textarea
                       id="vNotes"
-                      placeholder="Add details regarding how ownership was verified (e.g. proof of photos, serial match, security passcode, etc.)"
+                      placeholder={canEdit ? "Add details regarding how ownership was verified (e.g. proof of photos, serial match, security passcode, etc.)" : "Verification remarks are restricted."}
                       rows="3"
+                      disabled={!canEdit}
                       className="textarea textarea-bordered w-full rounded-xl text-sm"
                     />
                   </div>
 
                   <div className="flex gap-3 justify-end pt-4 border-t border-brand-beige/30">
-                    <button
-                      type="button"
-                      onClick={() => handleVerifyClaim("REJECTED", document.getElementById("vNotes").value)}
-                      disabled={verifyClaimMutation.isPending}
-                      className="btn btn-sm btn-error text-white hover:bg-error/85 rounded-xl px-5 flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <FiXCircle size={15} /> Reject Claim
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleVerifyClaim("APPROVED", document.getElementById("vNotes").value)}
-                      disabled={verifyClaimMutation.isPending}
-                      className="btn btn-sm btn-success text-white hover:bg-emerald-600 rounded-xl px-5 flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <FiCheck size={15} /> Approve Claim
-                    </button>
+                    {canEdit ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleVerifyClaim("REJECTED", document.getElementById("vNotes").value)}
+                          disabled={verifyClaimMutation.isPending}
+                          className="btn btn-sm btn-error text-white hover:bg-error/85 rounded-xl px-5 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FiXCircle size={15} /> Reject Claim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleVerifyClaim("APPROVED", document.getElementById("vNotes").value)}
+                          disabled={verifyClaimMutation.isPending}
+                          className="btn btn-sm btn-success text-white hover:bg-emerald-600 rounded-xl px-5 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FiCheck size={15} /> Approve Claim
+                        </button>
+                      </>
+                    ) : (
+                      <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none py-3 px-4">Verification Restricted</div>
+                    )}
                   </div>
                 </div>
               ) : (

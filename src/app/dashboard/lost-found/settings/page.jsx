@@ -7,10 +7,12 @@ import { toast } from "react-toastify";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import usePagePermission from "@/hooks/usePagePermission";
 
 export default function SettingsPage() {
   const axiosSecure = useAxiosSecure();
   const queryClient = useQueryClient();
+  const { canEdit } = usePagePermission();
 
   // Query: Fetch Notifications
   const { data: notifications = [], isLoading } = useQuery({
@@ -74,7 +76,7 @@ export default function SettingsPage() {
             </h3>
             <button
               onClick={() => markAllReadMutation.mutate()}
-              disabled={notifications.filter((n) => !n.read).length === 0}
+              disabled={notifications.filter((n) => !n.read).length === 0 || !canEdit}
               className="btn btn-xs btn-outline border-brand-beige text-brand-charcoal dark:text-brand-offwhite rounded-lg cursor-pointer"
             >
               Mark All Read
@@ -90,7 +92,7 @@ export default function SettingsPage() {
                   <div
                     key={notif._id}
                     onClick={() => {
-                      if (!notif.read) markReadMutation.mutate(notif._id);
+                      if (!notif.read && canEdit) markReadMutation.mutate(notif._id);
                     }}
                     className={`pt-3 first:pt-0 flex justify-between items-start text-xs cursor-pointer rounded-xl p-2 transition-colors ${
                       notif.read ? "opacity-75" : "bg-brand-primary/5 dark:bg-brand-sage/5 border-l-4 border-brand-primary pl-3"
@@ -129,8 +131,8 @@ export default function SettingsPage() {
             </p>
             <button
               onClick={() => runCleanupMutation.mutate()}
-              disabled={runCleanupMutation.isPending}
-              className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white w-full rounded-xl mt-2 cursor-pointer"
+              disabled={runCleanupMutation.isPending || !canEdit}
+              className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white w-full rounded-xl mt-2 cursor-pointer disabled:opacity-50"
             >
               {runCleanupMutation.isPending ? "Scanning..." : "Trigger Retention Sweep"}
             </button>

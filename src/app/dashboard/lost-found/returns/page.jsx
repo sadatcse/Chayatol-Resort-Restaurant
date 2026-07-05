@@ -9,10 +9,12 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import SignaturePad from "@/components/lost-found/SignaturePad";
+import usePagePermission from "@/hooks/usePagePermission";
 
 export default function ReturnManagementPage() {
   const axiosSecure = useAxiosSecure();
   const queryClient = useQueryClient();
+  const { canAdd } = usePagePermission();
 
   const [search, setSearch] = useState("");
   const [selectedClaim, setSelectedClaim] = useState(null);
@@ -75,6 +77,10 @@ export default function ReturnManagementPage() {
   };
 
   const handleCompleteReturn = () => {
+    if (!canAdd) {
+      toast.error("You do not have permission to process returns.");
+      return;
+    }
     if (!customerSignature) {
       return toast.warning("Customer signature is required!");
     }
@@ -154,12 +160,16 @@ export default function ReturnManagementPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleOpenReturnModal(claim)}
-                  className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl w-full flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-brand-primary/10 uppercase text-[10px] tracking-widest font-black py-2.5"
-                >
-                  <FiCheck size={14} /> Process Handover
-                </button>
+                {canAdd ? (
+                  <button
+                    onClick={() => handleOpenReturnModal(claim)}
+                    className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl w-full flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-brand-primary/10 uppercase text-[10px] tracking-widest font-black py-2.5"
+                  >
+                    <FiCheck size={14} /> Process Handover
+                  </button>
+                ) : (
+                  <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none py-2.5 w-full text-center">Handover Restricted</div>
+                )}
               </div>
             ))
           ) : (
