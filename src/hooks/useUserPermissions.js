@@ -32,7 +32,7 @@ const useUserPermissions = () => {
         const permMap = {};
         routesData.forEach(p => {
           permMap[p.path] = {
-            canView: p.canView ?? p.isAllowed ?? false,
+            canView: p.canView || p.isAllowed || false,
             canAdd: p.canAdd ?? false,
             canEdit: p.canEdit ?? false,
             canDelete: p.canDelete ?? false,

@@ -111,51 +111,24 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar, mode }) => {
       return items;
     }
 
-    // Step 1: Filter children by permission
-    const processedItems = items.map((item) => {
-      if (!item.children) return item;
-
-      const validChildren = item.children.filter((child) =>
-        allowedRoutes.includes(child.path)
-      );
-
-      if (validChildren.length === 0) return null;
-
-      // If category has only one active child, render that child directly (no mother item dropdown)
-      if (validChildren.length === 1) {
-        return validChildren[0];
-      }
-
-      return { ...item, children: validChildren };
-    }).filter(Boolean);
-
-    // Step 2: Count valid parents
-    const validParentCount = processedItems.filter(
-      (item) => item.children
-    ).length;
-
-    // Step 3: Apply FORCE CONDITION
-    if (validParentCount < 3) {
-      // Remove parents, push children directly
-      return processedItems.reduce((acc, item) => {
-        if (item.children) {
-          acc.push(...item.children);
-        } else if (allowedRoutes.includes(item.path)) {
-          acc.push(item);
+    return items
+      .map((item) => {
+        if (!item.children) {
+          // If it's a standalone parent link, check its route permission
+          return allowedRoutes.includes(item.path) ? item : null;
         }
-        return acc;
-      }, []);
-    }
 
-    // Step 4: Normal behavior (parents stay)
-    return processedItems.reduce((acc, item) => {
-      if (item.children) {
-        acc.push(item);
-      } else if (allowedRoutes.includes(item.path)) {
-        acc.push(item);
-      }
-      return acc;
-    }, []);
+        // Parent item with submenus: filter valid children by permission
+        const validChildren = item.children.filter((child) =>
+          allowedRoutes.includes(child.path)
+        );
+
+        if (validChildren.length === 0) return null;
+
+        // Keep parent and its matching child routes grouped
+        return { ...item, children: validChildren };
+      })
+      .filter(Boolean);
   }, [allowedRoutes, loading, user]);
 
   return (
