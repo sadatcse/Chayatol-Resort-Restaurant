@@ -10,9 +10,11 @@ import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
 
 function ProductSalesContent() {
     const axiosSecure = useAxiosSecure();
+    const { canEdit } = usePagePermission();
 
     const getFormattedDate = (date) => {
         return date.toISOString().slice(0, 10);
@@ -167,7 +169,7 @@ function ProductSalesContent() {
                         <h1 className="text-3xl font-black text-gray-800 dark:text-zinc-100 tracking-tight">Product Sales Report</h1>
                         <p className="text-sm text-gray-500 mt-1">Item-wise details of items sold</p>
                     </div>
-                    {displays.length > 0 && (
+                    {displays.length > 0 && canEdit && (
                         <ExportButtons
                             onExportExcel={handleExportExcel}
                             onExportCsv={handleExportCsv}

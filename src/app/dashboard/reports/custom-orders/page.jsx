@@ -10,10 +10,12 @@ import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
 
 function CustomOrdersContent() {
     const axiosSecure = useAxiosSecure();
     const receiptRef = useRef();
+    const { canEdit } = usePagePermission();
 
     const getFormattedDate = (date) => {
         return date.toISOString().slice(0, 10);
@@ -184,7 +186,7 @@ function CustomOrdersContent() {
                         <h1 className="text-3xl font-black tracking-tight">Custom Order Report</h1>
                         <p className="text-sm text-gray-500 mt-1">Run advanced sales query logs from the transaction database</p>
                     </div>
-                    {orders.length > 0 && (
+                    {orders.length > 0 && canEdit && (
                         <ExportButtons
                             onExportExcel={handleExportExcel}
                             onExportCsv={handleExportCsv}
