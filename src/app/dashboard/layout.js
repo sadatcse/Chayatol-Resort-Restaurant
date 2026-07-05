@@ -1,15 +1,18 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useContext } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { AuthContext } from "@/providers/AuthProvider";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import useThemeMode from "@/hooks/useThemeMode";
+import useUserPermissions from "@/hooks/useUserPermissions";
+import { FiLock } from "react-icons/fi";
 
 export default function DashboardLayout({ children }) {
   const { user, loading } = useContext(AuthContext);
   const router = useRouter();
+  const pathname = usePathname();
   const { mode } = useThemeMode();
 
   // Initialize based on screen width
@@ -35,6 +38,8 @@ export default function DashboardLayout({ children }) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const { hasPermission, loading: permLoading } = useUserPermissions();
+
   // Redirect if not logged in
   useEffect(() => {
     if (!loading) {
@@ -48,7 +53,16 @@ export default function DashboardLayout({ children }) {
     setSidebarOpen((prev) => !prev);
   }, []);
 
-  if (loading || !user) {
+  const isSuperadmin = user?.role === "superadmin";
+  const hasViewPermission = isSuperadmin ||
+    pathname === "/dashboard/home" ||
+    pathname === "/dashboard/profile" ||
+    pathname === "/dashboard" ||
+    hasPermission(pathname, "view");
+
+  const showLoading = loading || (!isSuperadmin && permLoading);
+
+  if (showLoading || !user) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-brand-offwhite dark:bg-brand-charcoal">
         <span className="loading loading-spinner loading-lg text-brand-primary"></span>
@@ -77,7 +91,25 @@ export default function DashboardLayout({ children }) {
 
         {/* Main Content */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6">
-          {children}
+          {hasViewPermission ? (
+            children
+          ) : (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-brand-white dark:bg-brand-charcoal rounded-3xl shadow-xl border border-brand-beige/50 dark:border-brand-dark-grey/50 max-w-xl mx-auto mt-12">
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-950/20 text-red-500 rounded-full flex items-center justify-center mb-5">
+                <FiLock className="text-3xl" />
+              </div>
+              <h1 className="text-2xl font-bold mb-3 text-brand-black dark:text-brand-offwhite">Access Restricted</h1>
+              <p className="text-brand-dark-grey dark:text-brand-sage text-sm leading-relaxed max-w-sm mb-6">
+                You do not have permission to view this section. Please contact your administrator if you believe this is an error.
+              </p>
+              <button 
+                onClick={() => router.push("/dashboard/home")}
+                className="btn bg-brand-primary text-white border-none rounded-xl hover:bg-brand-secondary font-semibold text-xs px-6 py-2.5 transition-all duration-300 cursor-pointer"
+              >
+                Go Back Home
+              </button>
+            </div>
+          )}
         </main>
       </div>
     </div>

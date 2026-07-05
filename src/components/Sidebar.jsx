@@ -107,7 +107,7 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar, mode }) => {
 
     const items = menuItems();
 
-    if (user?.role === "superadmin" || user?.role === "admin") {
+    if (user?.role === "superadmin") {
       return items;
     }
 

@@ -16,6 +16,7 @@ import useDebounce from "@/hooks/useDebounce";
 import useGetRoles from "@/hooks/useGetRoles";
 import useDepartments from "@/hooks/useDepartments";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   email: "",
@@ -33,6 +34,7 @@ const ResortStaff = () => {
   const { user: currentUser } = useContext(AuthContext);
   const userRoles = useGetRoles();
   const { departments } = useDepartments(1, 100);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [users, setUsers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -349,8 +351,8 @@ const ResortStaff = () => {
           </select>
         </div>
 
-        {assignableRoles.length > 0 && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md text-white hover:bg-secondary border-none gap-2 px-6 h-10">
+        {canAdd && assignableRoles.length > 0 && (
+          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md text-white hover:bg-secondary border-none gap-2 px-6 h-10 cursor-pointer">
             <FiPlus className="text-lg" />
             <span className="uppercase tracking-widest text-xs font-bold">New Personnel</span>
           </button>
@@ -467,17 +469,23 @@ const ResortStaff = () => {
 
                         <td className="pr-8 py-4">
                           <div className="flex justify-center items-center gap-2">
-                            {canPerformAction ? (
+                            {canPerformAction && (canEdit || canDelete) ? (
                               <>
-                                <button onClick={() => openModal(user)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors" title="Edit Personnel">
-                                  <FiEdit size={16} />
-                                </button>
-                                <button onClick={() => openPasswordModal(user)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors" title="Change Password">
-                                  <FiKey size={16} />
-                                </button>
-                                <button onClick={() => handleRemove(user._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete Personnel">
-                                  <FiTrash2 size={16} />
-                                </button>
+                                {canEdit && (
+                                  <>
+                                    <button onClick={() => openModal(user)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors cursor-pointer" title="Edit Personnel">
+                                      <FiEdit size={16} />
+                                    </button>
+                                    <button onClick={() => openPasswordModal(user)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors cursor-pointer" title="Change Password">
+                                      <FiKey size={16} />
+                                    </button>
+                                  </>
+                                )}
+                                {canDelete && (
+                                  <button onClick={() => handleRemove(user._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer" title="Delete Personnel">
+                                    <FiTrash2 size={16} />
+                                  </button>
+                                )}
                               </>
                             ) : (
                               <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>

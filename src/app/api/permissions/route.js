@@ -22,7 +22,11 @@ export async function PUT(req) {
       },
       { 
         $set: { 
-            isAllowed: routeData.isAllowed,
+            canView: routeData.canView,
+            canAdd: routeData.canAdd,
+            canEdit: routeData.canEdit,
+            canDelete: routeData.canDelete,
+            isAllowed: routeData.canView, // map view to legacy isAllowed
             title: routeData.title,
             group_name: routeData.group_name
         } 

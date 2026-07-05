@@ -13,7 +13,10 @@ export async function GET(req, { params }) {
       {
         $match: {
           role: role,
-          isAllowed: true,
+          $or: [
+            { isAllowed: true },
+            { canView: true }
+          ]
         },
       },
       {
