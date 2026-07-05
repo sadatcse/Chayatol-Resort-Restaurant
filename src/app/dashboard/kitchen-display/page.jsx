@@ -13,6 +13,16 @@ import {
 import { BsHandbagFill } from "react-icons/bs";
 import { FaCheckCircle, FaUtensils, FaFire, FaClock, FaHotel } from "react-icons/fa";
 
+// Kitchen preparation routing helper
+export const getProductKitchen = (p) => {
+    if (p.cookOn) return p.cookOn;
+    const name = (p.productName || p.itemName || "").toLowerCase();
+    if (name.includes("juice") || name.includes("lassi") || name.includes("shake") || name.includes("lemonade")) {
+        return "JUICE BAR";
+    }
+    return "MAIN KITCHEN";
+};
+
 // Time ago calculation helper
 const useTimeAgo = (startTime) => {
     const [timeAgo, setTimeAgo] = useState('');
@@ -80,25 +90,25 @@ const ProductBatchRow = ({ batch, isDrink, onStatusChange }) => {
     const getStatusStyle = (status) => {
         switch (status?.toUpperCase()) {
             case 'PENDING': 
-                return 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-250 dark:border-yellow-900/40 text-yellow-800 dark:text-yellow-400';
+                return 'bg-yellow-500/10 dark:bg-yellow-950/20 border-yellow-500/20 text-yellow-600 dark:text-yellow-400';
             case 'COOKING': 
-                return 'bg-orange-50 dark:bg-orange-950/20 border-orange-250 dark:border-orange-900/40 text-orange-850 dark:text-orange-400';
+                return 'bg-orange-500/10 dark:bg-orange-950/20 border-orange-500/20 text-orange-600 dark:text-orange-405';
             case 'SERVED': 
-                return 'bg-gray-50 dark:bg-zinc-800/40 border-gray-200 dark:border-zinc-800 text-gray-400 dark:text-zinc-500 opacity-60';
+                return 'bg-brand-beige/5 dark:bg-brand-charcoal/20 border-brand-beige/10 text-brand-sage/55 opacity-60';
             default: 
-                return 'bg-gray-50 dark:bg-zinc-800/50';
+                return 'bg-brand-offwhite/50 dark:bg-brand-charcoal/50 border-brand-beige/10';
         }
     };
 
     return (
         <div className={`flex items-center justify-between p-2 mb-1.5 rounded-md border ${getStatusStyle(batch.cookStatus)}`}>
             <div className="flex items-center gap-3">
-                <div className={`text-xs font-black px-2 py-1 rounded border ${isDrink ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900/40' : 'bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 text-gray-800 dark:text-zinc-200'}`}>
+                <div className={`text-xs font-black px-2 py-1 rounded border ${isDrink ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20' : 'bg-brand-primary/10 text-brand-primary dark:text-brand-sage border-brand-primary/20'}`}>
                     +{batch.qty}
                 </div>
                 <div className="flex flex-col">
-                    <span className="text-[10px] text-gray-500 dark:text-zinc-400 flex items-center gap-1">
-                        <MdHistory /> {new Date(batch.updateTime || Date.now()).toLocaleTimeString()}
+                    <span className="text-[10px] text-brand-sage flex items-center gap-1">
+                        <MdHistory /> {batch.updateTime ? new Date(batch.updateTime).toLocaleTimeString() : ""}
                     </span>
                     <span className="text-[10px] font-black uppercase tracking-wider">
                         {batch.cookStatus || 'PENDING'}
@@ -110,7 +120,7 @@ const ProductBatchRow = ({ batch, isDrink, onStatusChange }) => {
                 {batch.cookStatus?.toUpperCase() === 'PENDING' && (
                     <button 
                         onClick={() => onStatusChange(batch._id, 'COOKING')}
-                        className="btn btn-xs bg-amber-500 hover:bg-amber-600 border-none text-white cursor-pointer px-2 py-1 flex items-center gap-1 font-bold"
+                        className="btn btn-xs bg-yellow-500 hover:bg-yellow-600 border-none text-yellow-950 cursor-pointer px-2 py-1 flex items-center gap-1 font-bold"
                     >
                         <FaFire size={10} /> Cook
                     </button>
@@ -118,13 +128,13 @@ const ProductBatchRow = ({ batch, isDrink, onStatusChange }) => {
                 {batch.cookStatus?.toUpperCase() === 'COOKING' && (
                     <button 
                         onClick={() => onStatusChange(batch._id, 'SERVED')}
-                        className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 border-none text-white cursor-pointer px-2 py-1 flex items-center gap-1 font-bold"
+                        className="btn btn-xs bg-brand-primary hover:bg-brand-secondary border-none text-white cursor-pointer px-2 py-1 flex items-center gap-1 font-bold"
                     >
                         <FaUtensils size={10} /> Serve
                     </button>
                 )}
                 {batch.cookStatus?.toUpperCase() === 'SERVED' && (
-                    <FaCheckCircle className="text-emerald-500" />
+                    <FaCheckCircle className="text-brand-primary" />
                 )}
             </div>
         </div>
@@ -157,15 +167,15 @@ const ProductItem = ({ product, onUpdateHistory }) => {
     const isDrink = product.drinkBar === true;
 
     return (
-        <li className="flex flex-col w-full py-3 border-b border-gray-150 dark:border-zinc-800 last:border-none">
+        <li className="flex flex-col w-full py-3 border-b border-brand-beige/20 dark:border-brand-beige/10 last:border-none">
             <div className="flex items-center gap-3 mb-2 px-2">
-                <div className={`p-2 rounded-lg ${isDrink ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400' : 'bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'}`}>
+                <div className={`p-2 rounded-lg ${isDrink ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-brand-primary/10 text-brand-primary dark:text-brand-sage'}`}>
                     {isDrink ? <IoBeerOutline size={20} /> : <MdFastfood size={20} />}
                 </div>
                 <div>
                     <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-base text-gray-800 dark:text-zinc-150">Total: {product.qty}x</span>
-                        <span className="font-bold text-sm text-gray-700 dark:text-zinc-300">{product.productName}</span>
+                        <span className="font-extrabold text-base text-brand-charcoal dark:text-brand-offwhite">Total: {product.qty}x</span>
+                        <span className="font-bold text-sm text-brand-charcoal dark:text-brand-offwhite">{product.productName}</span>
                     </div>
                 </div>
             </div>
@@ -185,23 +195,28 @@ const ProductItem = ({ product, onUpdateHistory }) => {
 };
 
 // Order Card Component
-const OrderCard = ({ order, onUpdate }) => {
+const OrderCard = ({ order, selectedKitchen, onUpdate }) => {
     const timeAgo = useTimeAgo(order.dateTime || order.createdAt);
 
     const getOrderTypeDetails = (type) => {
         switch (type?.toLowerCase()) {
             case 'dine-in': 
-                return { className: 'bg-rose-600 text-white', icon: <IoRestaurant size={22} /> };
+                return { className: 'bg-brand-primary text-white', icon: <IoRestaurant size={22} /> };
             case 'delivery': 
-                return { className: 'bg-emerald-600 text-white', icon: <MdDeliveryDining size={22} /> };
+                return { className: 'bg-emerald-700 text-white', icon: <MdDeliveryDining size={22} /> };
             case 'takeaway': 
-                return { className: 'bg-amber-500 text-white', icon: <BsHandbagFill size={18} /> };
+                return { className: 'bg-amber-600 text-white', icon: <BsHandbagFill size={18} /> };
             case 'room service': 
-                return { className: 'bg-indigo-600 text-white', icon: <FaHotel size={18} /> };
+                return { className: 'bg-indigo-700 text-white', icon: <FaHotel size={18} /> };
             default: 
-                return { className: 'bg-slate-500 text-white', icon: <MdSoupKitchen size={22} /> };
+                return { className: 'bg-brand-primary text-white', icon: <MdSoupKitchen size={22} /> };
         }
     };
+
+    const displayedProducts = useMemo(() => {
+        if (!selectedKitchen || selectedKitchen === "All") return order.products || [];
+        return order.products?.filter(p => getProductKitchen(p) === selectedKitchen) || [];
+    }, [order.products, selectedKitchen]);
 
     const handleHistoryUpdate = (productId, historyId, newStatus) => {
         const updatedProducts = order.products.map(p => {
@@ -233,6 +248,9 @@ const OrderCard = ({ order, onUpdate }) => {
 
     const handleCookAllPending = () => {
         const updatedProducts = order.products.map(p => {
+            if (selectedKitchen !== "All" && getProductKitchen(p) !== selectedKitchen) {
+                return p;
+            }
             if (!p.history || p.history.length === 0) {
                 return p.cookStatus === 'PENDING' ? {...p, cookStatus: 'COOKING'} : p;
             }
@@ -260,13 +278,13 @@ const OrderCard = ({ order, onUpdate }) => {
         identifier = `Room: ${order.roomNo || 'N/A'}`;
     }
 
-    const hasPending = order.products?.some(p => {
+    const hasPending = displayedProducts?.some(p => {
         if (p.history?.length > 0) return p.history.some(h => h.cookStatus === 'PENDING');
         return p.cookStatus === 'PENDING';
     });
 
     return (
-        <div className="card bg-white dark:bg-zinc-900 shadow-xl border border-gray-200 dark:border-zinc-800 flex flex-col h-full text-gray-800 dark:text-zinc-100 rounded-2xl overflow-hidden">
+        <div className="card bg-white dark:bg-brand-charcoal/50 shadow-xl border border-brand-beige dark:border-brand-beige/25 flex flex-col h-full text-brand-charcoal dark:text-brand-offwhite rounded-2xl overflow-hidden animate-scale-in">
             <div className={`p-4 flex justify-between items-start ${orderTypeDetails.className}`}>
                 <div className="flex gap-3">
                     <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm h-fit">
@@ -294,7 +312,7 @@ const OrderCard = ({ order, onUpdate }) => {
 
             <div className="flex-1 overflow-y-auto max-h-[380px] p-2">
                 <ul className="flex flex-col">
-                    {order.products?.map(product => (
+                    {displayedProducts?.map(product => (
                         <ProductItem 
                             key={product._id} 
                             product={product} 
@@ -304,16 +322,16 @@ const OrderCard = ({ order, onUpdate }) => {
                 </ul>
             </div>
 
-            <div className="p-3 border-t border-gray-150 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-850">
+            <div className="p-3 border-t border-brand-beige/25 dark:border-brand-beige/10 bg-brand-offwhite/50 dark:bg-brand-charcoal">
                 <button 
-                    className={`w-full py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors
+                    className={`w-full py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors border-none
                         ${hasPending 
-                            ? 'bg-zinc-800 hover:bg-black text-white dark:bg-zinc-700 dark:hover:bg-zinc-650' 
-                            : 'bg-gray-250 text-gray-400 cursor-not-allowed dark:bg-zinc-800 dark:text-zinc-600'}`}
+                            ? 'bg-brand-primary hover:bg-brand-secondary text-white' 
+                            : 'bg-brand-beige/25 text-brand-sage/50 cursor-not-allowed shadow-none'}`}
                     onClick={hasPending ? handleCookAllPending : undefined}
                     disabled={!hasPending}
                 >
-                    <FaFire className={hasPending ? "text-orange-500" : ""} /> 
+                    <FaFire className={hasPending ? "text-yellow-400 animate-pulse" : ""} /> 
                     {hasPending ? "Cook All New Items" : "All Items Processing"}
                 </button>
             </div>
@@ -328,10 +346,63 @@ function KitchenDisplayContent() {
     const [loading, setLoading] = useState(true);
     const [isAlertEnabled, setIsAlertEnabled] = useState(true);
     const [showAlert, setShowAlert] = useState(false);
+    
+    // Outlets state
+    const [kitchens, setKitchens] = useState([]);
+    const [selectedKitchen, setSelectedKitchen] = useState("All");
+
+    // Filter states
+    const [dateFilter, setDateFilter] = useState("all");
+    const [orderTypeFilter, setOrderTypeFilter] = useState("All");
 
     const fetchOrders = useCallback(async () => {
         try {
-            const response = await axiosSecure.get(`/pos/invoice?isKitchen=true`);
+            let url = `/pos/invoice?isKitchen=true`;
+
+            // Order type filter
+            if (orderTypeFilter && orderTypeFilter !== "All") {
+                url += `&orderType=${encodeURIComponent(orderTypeFilter)}`;
+            }
+
+            // Date filter logic
+            if (dateFilter && dateFilter !== "all") {
+                const today = new Date();
+                let start = null;
+                let end = today;
+
+                if (dateFilter === "today") {
+                    start = today;
+                    end = today;
+                } else if (dateFilter === "yesterday") {
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
+                    start = yesterday;
+                    end = yesterday;
+                } else if (dateFilter === "last7") {
+                    const sevenDaysAgo = new Date();
+                    sevenDaysAgo.setDate(today.getDate() - 6);
+                    start = sevenDaysAgo;
+                    end = today;
+                } else if (dateFilter === "last6months") {
+                    const sixMonthsAgo = new Date();
+                    sixMonthsAgo.setMonth(today.getMonth() - 5);
+                    sixMonthsAgo.setDate(1);
+                    start = sixMonthsAgo;
+                    end = today;
+                }
+
+                if (start && end) {
+                    const formatDate = (date) => {
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, "0");
+                        const day = String(date.getDate()).padStart(2, "0");
+                        return `${year}-${month}-${day}`;
+                    };
+                    url += `&startDate=${formatDate(start)}&endDate=${formatDate(end)}`;
+                }
+            }
+
+            const response = await axiosSecure.get(url);
             if (response.data?.success) {
                 const activeOrders = response.data.invoices || response.data.data || [];
                 
@@ -362,10 +433,27 @@ function KitchenDisplayContent() {
         } finally {
             setLoading(false);
         }
-    }, [axiosSecure, isAlertEnabled]);
+    }, [axiosSecure, isAlertEnabled, dateFilter, orderTypeFilter]);
+
+    // Fetch dynamic kitchens list
+    useEffect(() => {
+        const fetchKitchens = async () => {
+            try {
+                const res = await axiosSecure.get("/kitchen");
+                if (res.data) {
+                    setKitchens(res.data);
+                }
+            } catch (err) {
+                console.error("Error fetching kitchens list:", err);
+            }
+        };
+        fetchKitchens();
+    }, [axiosSecure]);
 
     useEffect(() => {
-        fetchOrders();
+        Promise.resolve().then(() => {
+            fetchOrders();
+        });
 
         // 10 second short polling for fast updates in serverless environment
         const intervalId = setInterval(fetchOrders, 10000);
@@ -404,39 +492,112 @@ function KitchenDisplayContent() {
         }
     };
 
+    const activeTicketsCount = useMemo(() => {
+        return orders.filter(order => {
+            const hasItemsForKitchen = selectedKitchen === "All" || order.products?.some(p => getProductKitchen(p) === selectedKitchen);
+            if (!hasItemsForKitchen) return false;
+
+            if (selectedKitchen !== "All") {
+                const kitchenProducts = order.products?.filter(p => getProductKitchen(p) === selectedKitchen) || [];
+                const allKitchenProductsServed = kitchenProducts.every(p => p.cookStatus === 'SERVED');
+                return !(allKitchenProductsServed && kitchenProducts.length > 0);
+            } else {
+                const allProductsServed = order.products?.every(p => p.cookStatus === 'SERVED');
+                return !allProductsServed;
+            }
+        }).length;
+    }, [orders, selectedKitchen]);
+
     return (
-        <div className="bg-slate-50 dark:bg-zinc-950 min-h-screen p-4 font-sans text-gray-800 dark:text-zinc-100 transition-colors duration-200">
+        <div className="bg-brand-offwhite dark:bg-brand-charcoal min-h-screen p-4 font-sans text-brand-charcoal dark:text-brand-offwhite transition-colors duration-200 animate-scale-in">
             <div className="max-w-[1920px] mx-auto">
                 {/* Upper bar */}
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-8 bg-white dark:bg-zinc-900 p-5 rounded-2xl shadow-sm border border-gray-150 dark:border-zinc-800">
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white dark:bg-brand-charcoal p-5 rounded-2xl shadow-md border border-brand-beige dark:border-brand-beige/25">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl">
+                        <div className="p-3 bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-primary dark:text-brand-sage rounded-xl">
                             <MdOutlineFoodBank size={32} />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black text-gray-800 dark:text-zinc-100 tracking-tight">KITCHEN BOARD</h1>
-                            <p className="text-gray-500 dark:text-zinc-400 font-medium">Live Order Tickets Management</p>
+                            <h1 className="text-3xl font-black text-brand-charcoal dark:text-brand-offwhite tracking-tight uppercase">KITCHEN BOARD</h1>
+                            <p className="text-brand-sage font-bold text-xs uppercase tracking-widest mt-1">Live Order Tickets Management</p>
                         </div>
                     </div>
                     
-                    <div className="flex items-center gap-4 mt-4 sm:mt-0">
-                        <div className="text-2xl font-bold text-gray-700 dark:text-zinc-300 bg-gray-55 dark:bg-zinc-800 px-4 py-2 rounded-lg border border-gray-150 dark:border-zinc-700">
-                            {orders.length} <span className="text-sm font-normal text-gray-400">Tickets</span>
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 mt-4 sm:mt-0 w-full sm:w-auto justify-end">
+                        {/* Order Type Filter */}
+                        <div className="relative w-full sm:w-40">
+                            <select
+                                value={orderTypeFilter}
+                                onChange={(e) => setOrderTypeFilter(e.target.value)}
+                                className="select select-bordered w-full bg-white dark:bg-zinc-800 dark:border-zinc-700 text-xs font-bold h-11 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-primary cursor-pointer border-brand-beige/80 dark:border-brand-beige/20 shadow-sm pl-4 pr-10"
+                            >
+                                <option value="All">All Types</option>
+                                <option value="Dine In">Dine In</option>
+                                <option value="Takeaway">Takeaway</option>
+                                <option value="Delivery">Delivery</option>
+                                <option value="Room Service">Room Service</option>
+                            </select>
                         </div>
-                        <button 
-                            onClick={() => setIsAlertEnabled(!isAlertEnabled)} 
-                            className={`btn btn-circle cursor-pointer p-2.5 rounded-full border border-gray-250 dark:border-zinc-700 ${isAlertEnabled ? 'bg-zinc-800 text-white dark:bg-zinc-700' : 'bg-transparent text-gray-400 dark:text-zinc-550'}`}
-                            title={isAlertEnabled ? "Mute Alert Sound" : "Enable Alert Sound"}
-                        >
-                            {isAlertEnabled ? <IoVolumeHighOutline size={20} /> : <IoVolumeMuteOutline size={20} />}
-                        </button>
+
+                        {/* Date Range Filter */}
+                        <div className="relative w-full sm:w-40">
+                            <select
+                                value={dateFilter}
+                                onChange={(e) => setDateFilter(e.target.value)}
+                                className="select select-bordered w-full bg-white dark:bg-zinc-800 dark:border-zinc-700 text-xs font-bold h-11 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-primary cursor-pointer border-brand-beige/80 dark:border-brand-beige/20 shadow-sm pl-4 pr-10"
+                            >
+                                <option value="all">All Dates</option>
+                                <option value="today">Today</option>
+                                <option value="yesterday">Yesterday</option>
+                                <option value="last7">Last 7 Days</option>
+                                <option value="last6months">Last 6 Months</option>
+                            </select>
+                        </div>
+
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <div className="text-xl font-extrabold text-brand-charcoal dark:text-brand-offwhite bg-brand-offwhite dark:bg-brand-charcoal px-4 py-2 rounded-xl border border-brand-beige dark:border-brand-beige/25 shadow-inner h-11 flex items-center justify-center whitespace-nowrap min-w-[110px]">
+                                {activeTicketsCount} <span className="text-xs font-normal text-brand-sage uppercase tracking-wider ml-1">Tickets</span>
+                            </div>
+                            <button 
+                                onClick={() => setIsAlertEnabled(!isAlertEnabled)} 
+                                className={`btn btn-circle cursor-pointer rounded-xl border h-11 w-11 flex items-center justify-center transition-all ${isAlertEnabled ? 'border-brand-primary bg-brand-primary text-white hover:bg-brand-secondary shadow-md' : 'bg-transparent border-brand-beige dark:border-brand-beige/25 text-brand-primary hover:bg-brand-primary/5 shadow-sm'}`}
+                                title={isAlertEnabled ? "Mute Alert Sound" : "Enable Alert Sound"}
+                            >
+                                {isAlertEnabled ? <IoVolumeHighOutline size={20} /> : <IoVolumeMuteOutline size={20} />}
+                            </button>
+                        </div>
                     </div>
+                </div>
+
+                {/* Kitchen Selector tabs */}
+                <div className="flex gap-2 mb-6 overflow-x-auto pb-2 custom-scrollbar">
+                    <button
+                        onClick={() => setSelectedKitchen("All")}
+                        className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-none shadow
+                            ${selectedKitchen === "All" 
+                                ? "bg-brand-primary text-white" 
+                                : "bg-white dark:bg-brand-charcoal/50 text-brand-sage hover:bg-brand-primary/10 border border-brand-beige dark:border-brand-beige/25"}`}
+                    >
+                        ALL OUTLETS
+                    </button>
+                    {kitchens.map((k) => (
+                        <button
+                            key={k._id}
+                            onClick={() => setSelectedKitchen(k.name)}
+                            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer border-none shadow uppercase
+                                ${selectedKitchen === k.name 
+                                    ? "bg-brand-primary text-white" 
+                                    : "bg-white dark:bg-brand-charcoal/50 text-brand-sage hover:bg-brand-primary/10 border border-brand-beige dark:border-brand-beige/25"}`}
+                        >
+                            {k.name}
+                        </button>
+                    ))}
                 </div>
 
                 {/* New order pop alert */}
                 {showAlert && (
                     <div className="fixed top-20 right-10 z-50 animate-bounce">
-                        <div className="flex items-center gap-2 bg-red-500 text-white px-5 py-3 rounded-xl shadow-2xl font-bold">
+                        <div className="flex items-center gap-2 bg-brand-primary text-white px-5 py-3 rounded-xl shadow-2xl border border-brand-beige font-bold">
                             <IoRestaurant size={20} /> <span>New Order Round Received!</span>
                         </div>
                     </div>
@@ -444,18 +605,36 @@ function KitchenDisplayContent() {
 
                 {loading ? (
                     <div className="flex justify-center mt-20">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {orders.map(order => (
-                            <OrderCard key={order._id} order={order} onUpdate={handleUpdateOrder} />
-                        ))}
-                        {orders.length === 0 && (
-                            <div className="col-span-full text-center py-20 text-gray-400 dark:text-zinc-500">
-                                <FaCheckCircle size={60} className="mx-auto mb-4 opacity-20" />
-                                <p className="text-xl font-bold">All Orders Cleared</p>
-                                <p className="text-sm text-gray-400 mt-1">Waiting for incoming tickets...</p>
+                        {orders.map(order => {
+                            const hasItemsForKitchen = selectedKitchen === "All" || order.products?.some(p => getProductKitchen(p) === selectedKitchen);
+                            if (!hasItemsForKitchen) return null;
+
+                            if (selectedKitchen !== "All") {
+                                const kitchenProducts = order.products?.filter(p => getProductKitchen(p) === selectedKitchen) || [];
+                                const allKitchenProductsServed = kitchenProducts.every(p => p.cookStatus === 'SERVED');
+                                if (allKitchenProductsServed && kitchenProducts.length > 0) return null;
+                            } else {
+                                const allProductsServed = order.products?.every(p => p.cookStatus === 'SERVED');
+                                if (allProductsServed) return null;
+                            }
+                            return (
+                                <OrderCard 
+                                    key={order._id} 
+                                    order={order} 
+                                    selectedKitchen={selectedKitchen} 
+                                    onUpdate={handleUpdateOrder} 
+                                />
+                            );
+                        })}
+                        {activeTicketsCount === 0 && (
+                            <div className="col-span-full text-center py-20 text-brand-sage">
+                                <FaCheckCircle size={60} className="mx-auto mb-4 opacity-25" />
+                                <p className="text-xl font-black uppercase tracking-widest">All Orders Cleared</p>
+                                <p className="text-sm mt-1 text-brand-sage/80 font-medium">Waiting for incoming tickets...</p>
                             </div>
                         )}
                     </div>
@@ -467,7 +646,7 @@ function KitchenDisplayContent() {
 
 export default function KitchenDisplayPage() {
     return (
-        <Suspense fallback={<div className="flex items-center justify-center min-h-[400px] w-full"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-[400px] w-full"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>}>
             <KitchenDisplayContent />
         </Suspense>
     );

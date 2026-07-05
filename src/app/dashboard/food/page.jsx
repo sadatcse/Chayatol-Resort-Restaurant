@@ -27,6 +27,7 @@ const INITIAL_FORM_DATA = {
   image: "",
   price: "",
   status: "Available",
+  cookOn: "MAIN KITCHEN",
   vat: 0,
   sc: 0,
   sd: 0,
@@ -75,10 +76,29 @@ const FoodPage = () => {
   const [bulkFile, setBulkFile] = useState(null);
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
   const [bulkPreview, setBulkPreview] = useState([]);
-  
+
   // New Bulk Add Form UI State
   const [isBulkUiModalOpen, setIsBulkUiModalOpen] = useState(false);
   const [bulkUiFormData, setBulkUiFormData] = useState([]);
+
+  // Kitchen preparation outlets state
+  const [kitchens, setKitchens] = useState([]);
+
+  useEffect(() => {
+    const fetchKitchens = async () => {
+      try {
+        const { data } = await axiosSecure.get("/kitchen");
+        if (data) setKitchens(data);
+      } catch (err) {
+        console.error("Failed to fetch kitchens:", err);
+      }
+    };
+    fetchKitchens();
+  }, [axiosSecure]);
+
+  const kitchenOptions = kitchens.length > 0
+    ? kitchens.map(k => k.name)
+    : ["MAIN KITCHEN", "JUICE BAR"];
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -104,6 +124,7 @@ const FoodPage = () => {
         image: foodToEdit.image || "",
         price: foodToEdit.price || "",
         status: foodToEdit.status || "Available",
+        cookOn: foodToEdit.cookOn || "MAIN KITCHEN",
         vat: foodToEdit.vat || 0,
         sc: foodToEdit.sc || 0,
         sd: foodToEdit.sd || 0,
@@ -192,7 +213,7 @@ const FoodPage = () => {
         let parsedStatus = "Available";
         const rawStatus = item.status?.trim().toUpperCase();
         if (rawStatus === "INACTIVE" || rawStatus === "UNAVAILABLE") {
-            parsedStatus = "Unavailable";
+          parsedStatus = "Unavailable";
         }
 
         let parsedVat = 0;
@@ -222,7 +243,8 @@ const FoodPage = () => {
           vat: parsedVat,
           sc: parsedSc,
           sd: parsedSd,
-          status: parsedStatus
+          status: parsedStatus,
+          cookOn: item.cookOn?.trim() || (item.category?.trim().toLowerCase() === "juice" ? "JUICE BAR" : "MAIN KITCHEN")
         };
       });
 
@@ -262,7 +284,8 @@ const FoodPage = () => {
         sc: Number(item.sc) || 0,
         sd: Number(item.sd) || 0,
         status: item.status || "Available",
-        image: item.image || ""
+        image: item.image || "",
+        cookOn: item.cookOn || "MAIN KITCHEN"
       }));
 
       const res = await axiosSecure.post("/food/bulk-post", payload);
@@ -507,6 +530,7 @@ const FoodPage = () => {
                     <th className="py-5">Food Name</th>
                     <th className="py-5">Category</th>
                     <th className="py-5">Type</th>
+                    <th className="py-5">Cook On</th>
                     <th className="py-5">Price</th>
                     <th className="py-5">Status</th>
                     <th className="pr-8 text-center py-5 w-36">Manage</th>
@@ -516,7 +540,7 @@ const FoodPage = () => {
                   <AnimatePresence mode="popLayout">
                     {foods.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
+                        <td colSpan="8" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
                           No food items configured.
                         </td>
                       </tr>
@@ -548,6 +572,9 @@ const FoodPage = () => {
                           </td>
                           <td className="py-4 font-bold text-brand-secondary text-xs uppercase tracking-widest">
                             {food.foodType}
+                          </td>
+                          <td className="py-4 font-bold text-brand-sage text-xs uppercase">
+                            {food.cookOn || "MAIN KITCHEN"}
                           </td>
                           <td className="py-4 font-bold text-brand-primary">
                             ৳{food.price}
@@ -668,57 +695,70 @@ const FoodPage = () => {
                 />
               </div>
 
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Cook On / Kitchen Outlet</span></label>
+                <select
+                  value={formData.cookOn}
+                  onChange={(e) => setFormData({ ...formData, cookOn: e.target.value })}
+                  className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
+                >
+                  {kitchenOptions.map((k) => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
+              </div>
+
               {chargeSettings && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {chargeSettings.vat?.enabled && (
                     <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">VAT</span>
-                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.vat.value}% VAT`} />
-                          </div>
-                          <input 
-                            type="checkbox" 
-                            className="toggle toggle-sm bg-brand-primary" 
-                            checked={formData.vat > 0} 
-                            onChange={(e) => setFormData({ ...formData, vat: e.target.checked ? chargeSettings.vat.value : 0 })} 
-                          />
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">VAT</span>
+                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.vat.value}% VAT`} />
                         </div>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-sm bg-brand-primary"
+                          checked={formData.vat > 0}
+                          onChange={(e) => setFormData({ ...formData, vat: e.target.checked ? chargeSettings.vat.value : 0 })}
+                        />
                       </div>
+                    </div>
                   )}
 
                   {chargeSettings.sc?.enabled && (
                     <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SC</span>
-                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sc.value}% SC`} />
-                          </div>
-                          <input 
-                            type="checkbox" 
-                            className="toggle toggle-sm bg-brand-primary" 
-                            checked={formData.sc > 0} 
-                            onChange={(e) => setFormData({ ...formData, sc: e.target.checked ? chargeSettings.sc.value : 0 })} 
-                          />
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SC</span>
+                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sc.value}% SC`} />
                         </div>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-sm bg-brand-primary"
+                          checked={formData.sc > 0}
+                          onChange={(e) => setFormData({ ...formData, sc: e.target.checked ? chargeSettings.sc.value : 0 })}
+                        />
                       </div>
+                    </div>
                   )}
 
                   {chargeSettings.sd?.enabled && (
                     <div className="card bg-brand-white dark:bg-brand-charcoal shadow-sm border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden p-4">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SD</span>
-                            <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sd.value}% SD`} />
-                          </div>
-                          <input 
-                            type="checkbox" 
-                            className="toggle toggle-sm bg-brand-primary" 
-                            checked={formData.sd > 0} 
-                            onChange={(e) => setFormData({ ...formData, sd: e.target.checked ? chargeSettings.sd.value : 0 })} 
-                          />
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-sm text-brand-charcoal dark:text-gray-200">SD</span>
+                          <MdInfoOutline className="text-gray-400" title={`Apply ${chargeSettings.sd.value}% SD`} />
                         </div>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-sm bg-brand-primary"
+                          checked={formData.sd > 0}
+                          onChange={(e) => setFormData({ ...formData, sd: e.target.checked ? chargeSettings.sd.value : 0 })}
+                        />
                       </div>
+                    </div>
                   )}
                 </div>
               )}

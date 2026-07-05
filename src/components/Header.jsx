@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FaUserCircle } from "react-icons/fa";
 import { RiMenuFold4Fill as RiFoldIcon } from "react-icons/ri";
-import { MdMenu, MdSearch, MdDarkMode, MdLightMode } from "react-icons/md";
+import { MdMenu, MdSearch, MdDarkMode, MdLightMode, MdTableRestaurant, MdReceiptLong, MdDashboard } from "react-icons/md";
 import { FiBell, FiCheck } from "react-icons/fi";
 import { AuthContext } from "@/providers/AuthProvider";
 import useThemeMode from "@/hooks/useThemeMode";
@@ -117,6 +117,31 @@ const Header = ({ isSidebarOpen, toggleSidebar }) => {
             className="w-full bg-brand-offwhite dark:bg-brand-dark-grey border border-brand-beige/50 dark:border-brand-dark-grey/50 rounded-md pl-10 pr-4 py-2 text-sm text-brand-charcoal dark:text-brand-offwhite focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
           />
         </div>
+      </div>
+
+      {/* Quick Links */}
+      <div className="hidden lg:flex items-center gap-1">
+        <Link
+          href="/dashboard/front-desk"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-primary/10 dark:hover:bg-brand-dark-grey transition-colors duration-200"
+        >
+          <MdDashboard className="text-sm text-brand-primary" />
+          Front Desk
+        </Link>
+        <Link
+          href="/dashboard/tables/view"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-primary/10 dark:hover:bg-brand-dark-grey transition-colors duration-200"
+        >
+          <MdTableRestaurant className="text-sm text-brand-primary" />
+          Table View
+        </Link>
+        <Link
+          href="/dashboard/pos"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-primary/10 dark:hover:bg-brand-dark-grey transition-colors duration-200"
+        >
+          <MdReceiptLong className="text-sm text-brand-primary" />
+          POS
+        </Link>
       </div>
 
       <div className="flex items-center gap-4">

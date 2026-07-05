@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect, useContext, useMemo, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { FiEye, FiX, FiSearch, FiPlus, FiArrowRight, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiPrinter } from "react-icons/fi";
+import { FiEye, FiTrash2, FiX, FiSearch, FiPlus, FiArrowRight, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiPrinter } from "react-icons/fi";
 import { MdRestaurant } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import useStandardPrint from "@/hooks/useStandardPrint";
+import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
+import A4ReceiptTemplate from "@/components/Receipt/A4ReceiptTemplate";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -214,6 +216,44 @@ const StaysPage = () => {
     documentTitle: `Folio_Ledger_${selectedStay?.stayNo || "Report"}`
   });
 
+  // POS Restaurant Invoice integration states & refs
+  const [viewingInvoice, setViewingInvoice] = useState(null);
+  const [isInvoiceLoading, setIsInvoiceLoading] = useState(false);
+  const [invoicePrintData, setInvoicePrintData] = useState(null);
+  const [companyInfo, setCompanyInfo] = useState(null);
+  const receiptRef = useRef(null);
+  const a4ReceiptRef = useRef(null);
+
+  const handleViewInvoice = async (referenceId) => {
+    if (!referenceId) return;
+    setIsInvoiceLoading(true);
+    try {
+      const response = await axiosSecure.get(`/pos/invoice/${referenceId}`);
+      if (response.data?.success) {
+        setViewingInvoice(response.data.data || response.data.invoice);
+      } else {
+        Swal.fire("Error", "Could not retrieve POS invoice details.", "error");
+      }
+    } catch (err) {
+      console.error("Error fetching invoice:", err);
+      Swal.fire("Error", "Failed to fetch invoice details.", "error");
+    } finally {
+      setIsInvoiceLoading(false);
+    }
+  };
+
+  const handlePrintInvoiceAction = (type) => {
+    if (!viewingInvoice) return;
+    setInvoicePrintData(viewingInvoice);
+    setTimeout(() => {
+      if (type === "a4" && a4ReceiptRef.current) {
+        a4ReceiptRef.current.printReceipt();
+      } else if (type === "thermal" && receiptRef.current) {
+        receiptRef.current.printReceipt();
+      }
+    }, 100);
+  };
+
   const {
     printData: customerPrintRes,
     setPrintData: setCustomerPrintRes,
@@ -245,18 +285,22 @@ const StaysPage = () => {
   useEffect(() => {
     const fetchPostingData = async () => {
       try {
-        const [foodRes, serviceRes, payRes, foodCatRes, serviceCatRes] = await Promise.all([
+        const [foodRes, serviceRes, payRes, foodCatRes, serviceCatRes, companyRes] = await Promise.all([
           axiosSecure.get("/food/get?limit=10000"),
           axiosSecure.get("/resort-service/get"),
           axiosSecure.get("/paymenttype"),
           axiosSecure.get("/category"),
-          axiosSecure.get("/resort-service-category/get")
+          axiosSecure.get("/resort-service-category/get"),
+          axiosSecure.get("/company").catch(() => null)
         ]);
         setFoodMenu(foodRes.data?.data || foodRes.data || []);
         setServices(serviceRes.data?.data || serviceRes.data || []);
         setPaymentTypes(payRes.data || []);
         setFoodCategories(foodCatRes.data || []);
         setServiceCategories(serviceCatRes.data || []);
+        if (companyRes?.data && companyRes.data.length > 0) {
+          setCompanyInfo(companyRes.data[0]);
+        }
       } catch (err) {
         console.error("Error loading posting dropdown details:", err);
       }
@@ -623,6 +667,29 @@ const StaysPage = () => {
     }
   };
 
+  const handleDeleteStay = async (e, stay) => {
+    e.stopPropagation(); // don't open folio panel
+    const result = await Swal.fire({
+      title: "Delete Stay?",
+      html: `<p>Are you sure you want to permanently delete stay <strong>${stay.stayNo}</strong> for <strong>${stay.customer?.fullName || "Guest"}</strong>?</p><p class="text-red-500 text-sm mt-2">This action cannot be undone.</p>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#6c757d",
+      confirmButtonText: "Yes, Delete",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await axiosSecure.delete(`/stays/${stay._id}`);
+      if (selectedStay?._id === stay._id) setSelectedStay(null);
+      refetch();
+      Swal.fire("Deleted!", `Stay ${stay.stayNo} has been deleted.`, "success");
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to delete stay.", "error");
+    }
+  };
+
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
 
@@ -736,7 +803,7 @@ const StaysPage = () => {
                       <th className="py-5">Rooms</th>
                       <th className="py-5">Check-In / Out Dates</th>
                       <th className="py-5">Status</th>
-                      <th className="pr-6 text-center py-5">View</th>
+                      <th className="pr-6 text-center py-5">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -777,9 +844,22 @@ const StaysPage = () => {
                               </span>
                             </td>
                             <td className="pr-6 py-4 text-center">
-                              <button className="btn btn-ghost btn-circle btn-xs text-brand-sage hover:text-brand-primary">
-                                <FiEye size={16} />
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => handleSelectStay(stay)}
+                                  title="View Folio"
+                                  className="btn btn-ghost btn-circle btn-xs text-brand-sage hover:text-brand-primary"
+                                >
+                                  <FiEye size={16} />
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeleteStay(e, stay)}
+                                  title="Delete Stay"
+                                  className="btn btn-ghost btn-circle btn-xs text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                >
+                                  <FiTrash2 size={15} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -878,7 +958,19 @@ const StaysPage = () => {
                           {folioEntries.map(entry => (
                             <tr key={entry._id} className="border-b border-brand-beige/10 last:border-none">
                               <td className="text-brand-sage text-[10px]">{new Date(entry.date).toLocaleDateString()}</td>
-                              <td className="font-bold">{entry.description}</td>
+                              <td className="font-bold">
+                                {entry.referenceId && (entry.type === "Food Charge" || entry.description.includes("Invoice")) ? (
+                                  <button
+                                    onClick={() => handleViewInvoice(entry.referenceId)}
+                                    className="text-brand-primary hover:text-brand-secondary dark:text-brand-sage dark:hover:text-brand-sage/80 underline text-left font-bold cursor-pointer flex items-center gap-1 bg-transparent border-none p-0"
+                                    title="Click to view detailed POS invoice and print"
+                                  >
+                                    <FiFileText className="flex-shrink-0" /> {entry.description}
+                                  </button>
+                                ) : (
+                                  entry.description
+                                )}
+                              </td>
                               <td className="text-right font-bold text-red-600">{entry.debit > 0 ? `৳${entry.debit}` : "-"}</td>
                               <td className="text-right font-bold text-green-600">{entry.credit > 0 ? `৳${entry.credit}` : "-"}</td>
                             </tr>
@@ -1728,6 +1820,149 @@ const StaysPage = () => {
           </PrintReportTemplate>
         )}
       </div>
+
+      {/* View Restaurant Invoice Details Modal */}
+      {viewingInvoice && (
+        <dialog className="modal modal-open z-[99999] bg-brand-charcoal/40 backdrop-blur-sm">
+          <div className="modal-box bg-white dark:bg-brand-charcoal border border-brand-beige/25 dark:border-brand-beige/25 w-full max-w-lg rounded-2xl shadow-2xl p-6 relative max-h-[85vh] overflow-y-auto animate-scale-in text-brand-charcoal dark:text-brand-offwhite">
+            <button
+              onClick={() => setViewingInvoice(null)}
+              className="absolute top-4 right-4 text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite cursor-pointer bg-transparent border-none"
+            >
+              <FiX size={20} />
+            </button>
+
+            <h3 className="text-lg font-black text-brand-charcoal dark:text-brand-offwhite uppercase tracking-widest flex items-center gap-2 mb-2">
+              <FiFileText className="text-brand-primary" /> POS Invoice Details
+            </h3>
+            <p className="text-xs font-bold text-brand-sage mb-4">
+              Invoice Serial: {viewingInvoice.invoiceSerial || viewingInvoice.invoiceNo}
+            </p>
+
+            <div className="grid grid-cols-2 gap-4 border-b border-brand-beige/20 dark:border-brand-beige/10 pb-4 mb-4 text-xs font-semibold">
+              <div>
+                <p className="text-brand-sage uppercase tracking-wider">DateTime</p>
+                <p className="text-brand-charcoal dark:text-brand-offwhite mt-0.5 font-bold">
+                  {new Date(viewingInvoice.dateTime || viewingInvoice.createdAt).toLocaleString("en-GB")}
+                </p>
+              </div>
+              <div>
+                <p className="text-brand-sage uppercase tracking-wider">Guest</p>
+                <p className="text-brand-charcoal dark:text-brand-offwhite mt-0.5 font-bold">
+                  {viewingInvoice.customerName || viewingInvoice.customer?.name || "Walk-in Guest"}
+                </p>
+              </div>
+              <div>
+                <p className="text-brand-sage uppercase tracking-wider">Order Type</p>
+                <p className="text-brand-charcoal dark:text-brand-offwhite mt-0.5 font-bold uppercase">
+                  {viewingInvoice.orderType}
+                </p>
+              </div>
+              <div>
+                <p className="text-brand-sage uppercase tracking-wider">Payment Status</p>
+                <p className="text-brand-charcoal dark:text-brand-offwhite mt-0.5 font-extrabold uppercase">
+                  {viewingInvoice.paymentStatus || "Unpaid"}
+                </p>
+              </div>
+            </div>
+
+            {/* Items */}
+            <div className="mb-4">
+              <h4 className="text-xs font-extrabold text-brand-sage mb-2 uppercase tracking-widest">Order Items</h4>
+              <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 border border-brand-beige/25 dark:border-brand-beige/10 rounded-2xl p-4">
+                <table className="min-w-full text-xs font-semibold text-brand-charcoal dark:text-brand-offwhite">
+                  <thead>
+                    <tr className="border-b border-brand-beige dark:border-brand-beige/20 text-brand-sage uppercase text-[10px] tracking-wider">
+                      <th className="text-left pb-2">Item Name</th>
+                      <th className="text-center pb-2">Qty</th>
+                      <th className="text-right pb-2">Rate</th>
+                      <th className="text-right pb-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.isArray(viewingInvoice.products) && viewingInvoice.products.length > 0 ? (
+                      viewingInvoice.products.map((item, index) => (
+                        <tr key={index} className="border-b border-brand-beige/10">
+                          <td className="py-2 text-left">{item.productName || item.foodName}</td>
+                          <td className="py-2 text-center font-extrabold">{item.qty || item.quantity}</td>
+                          <td className="py-2 text-right">৳ {(item.rate || item.unitPrice || 0).toFixed(0)}</td>
+                          <td className="py-2 text-right">৳ {(item.subtotal || item.totalPrice || 0).toFixed(0)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="4" className="text-center py-4">No items listed.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Calculations */}
+            <div className="flex flex-col items-end gap-1.5 text-xs font-semibold border-t border-brand-beige/25 dark:border-brand-beige/10 pt-4 mb-6">
+              <p>Subtotal: ৳ {(viewingInvoice.subtotal || viewingInvoice.subTotal || 0).toFixed(0)}</p>
+              {viewingInvoice.discount > 0 && <p className="text-green-600">Discount: -৳ {viewingInvoice.discount.toFixed(0)}</p>}
+              {viewingInvoice.vat > 0 && <p>VAT: ৳ {viewingInvoice.vat.toFixed(0)}</p>}
+              {viewingInvoice.sd > 0 && <p>SD: ৳ {viewingInvoice.sd.toFixed(0)}</p>}
+              {viewingInvoice.serviceCharge > 0 && <p>Service Charge: ৳ {viewingInvoice.serviceCharge.toFixed(0)}</p>}
+              {viewingInvoice.deliveryCharge > 0 && <p>Delivery Charge: ৳ {viewingInvoice.deliveryCharge.toFixed(0)}</p>}
+              <p className="font-extrabold text-brand-primary dark:text-brand-sage text-sm mt-1">
+                Total Amount: ৳ {(viewingInvoice.totalAmount || viewingInvoice.grandTotal || 0).toFixed(0)}
+              </p>
+            </div>
+
+            {/* View Modal Actions */}
+            <div className="flex justify-end gap-2.5">
+              <button
+                onClick={() => setViewingInvoice(null)}
+                className="btn btn-sm bg-transparent hover:bg-brand-beige/25 text-brand-sage font-bold text-[10px] uppercase tracking-wider px-4 py-2 cursor-pointer border-none shadow-none"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => handlePrintInvoiceAction("thermal")}
+                className="btn btn-sm bg-[#1e293b] hover:bg-[#1e293b]/90 text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-3 shadow flex items-center gap-1"
+                title="Print Thermal Receipt (80mm)"
+              >
+                <FiPrinter /> Thermal Print
+              </button>
+              <button
+                onClick={() => handlePrintInvoiceAction("a4")}
+                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-3 shadow flex items-center gap-1"
+                title="Print A4 Invoice Page"
+              >
+                <FiPrinter /> A4 Print
+              </button>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {/* Global/Hidden POS receipt print containers */}
+      <div className="hidden">
+        {invoicePrintData && (
+          <>
+            <ReceiptTemplate
+              ref={receiptRef}
+              profileData={companyInfo}
+              invoiceData={invoicePrintData}
+            />
+            <A4ReceiptTemplate
+              ref={a4ReceiptRef}
+              profileData={companyInfo}
+              invoiceData={invoicePrintData}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Loading Backdrop for fetching invoices */}
+      {isInvoiceLoading && (
+        <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
+        </div>
+      )}
     </div>
   );
 };

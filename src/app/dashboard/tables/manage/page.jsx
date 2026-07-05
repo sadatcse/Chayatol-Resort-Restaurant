@@ -11,6 +11,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import QRCodeGenerator from "@/components/pos/QRCodeGenerator";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import SectionHeader from "@/components/Comon/SectionHeader";
 
 function TableManagementContent() {
     const axiosSecure = useAxiosSecure();
@@ -107,72 +108,67 @@ function TableManagementContent() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-200">
+        <div className="min-h-screen bg-brand-offwhite dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-200 animate-scale-in">
             <div className="max-w-6xl mx-auto">
                 {/* Header */}
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h1 className="text-3xl font-black text-gray-800 dark:text-zinc-100">Table Management</h1>
-                        <p className="text-sm text-gray-500 mt-1">Add, update, and manage restaurant table QR codes</p>
-                    </div>
+                <SectionHeader
+                    title="Table Management"
+                    subtitle="Add, update, and manage restaurant table QR codes"
+                >
                     <button
                         onClick={() => {
                             setEditId(null);
                             setFormData({ tableName: "" });
                             setIsModalOpen(true);
                         }}
-                        className="btn bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow"
+                        className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
                     >
-                        <GoPlus size={18} /> Add Table
+                        <GoPlus size={14} /> Add Table
                     </button>
-                </div>
+                </SectionHeader>
 
                 {/* Table List */}
                 {loading ? <MtableLoading data={null} /> : (
-                    <div className="bg-white dark:bg-zinc-900 border border-gray-250 dark:border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
-                            <thead className="bg-slate-50 dark:bg-zinc-800">
+                    <div className="bg-white dark:bg-brand-charcoal border border-brand-beige dark:border-brand-beige/25 rounded-2xl shadow-xl overflow-hidden">
+                        <table className="min-w-full divide-y divide-brand-beige dark:divide-brand-beige/25">
+                            <thead className="bg-brand-offwhite dark:bg-zinc-850">
                                 <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Table Name</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Created At</th>
-                                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Actions</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Table Name</th>
+                                    <th className="px-6 py-4 text-right text-xs font-bold text-brand-sage uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-250 dark:divide-zinc-800 text-sm font-semibold">
+                            <tbody className="bg-white dark:bg-brand-charcoal/30 divide-y divide-brand-beige dark:divide-brand-beige/15 text-sm font-semibold">
                                 {tables.length === 0 ? (
                                     <tr>
-                                        <td colSpan="3" className="px-6 py-8 text-center text-gray-400">
+                                        <td colSpan="2" className="px-6 py-8 text-center text-brand-sage font-bold">
                                             No tables found. Click &quot;Add Table&quot; to create one.
                                         </td>
                                     </tr>
                                 ) : (
                                     tables.map((table) => (
-                                        <tr key={table._id} className="hover:bg-gray-50 dark:hover:bg-zinc-850/50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-zinc-200 font-extrabold text-base">
+                                        <tr key={table._id} className="hover:bg-brand-beige/10 dark:hover:bg-brand-beige/5 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap text-brand-charcoal dark:text-brand-offwhite font-extrabold text-base">
                                                 {table.tableName}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-zinc-400">
-                                                {new Date(table.createdAt).toLocaleString("en-GB")}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                                                 <div className="flex justify-end gap-2">
                                                     <button
                                                         onClick={() => handleOpenQrModal(table)}
-                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-150 hover:bg-indigo-200 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded-md font-bold text-xs cursor-pointer transition-colors"
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-md font-bold text-xs cursor-pointer transition-colors"
                                                         title="QR Code"
                                                     >
                                                         <BsQrCode /> QR Code
                                                     </button>
                                                     <button
                                                         onClick={() => handleEdit(table)}
-                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-150 hover:bg-blue-200 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-md font-bold text-xs cursor-pointer transition-colors"
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-md font-bold text-xs cursor-pointer transition-colors"
                                                         title="Edit"
                                                     >
                                                         <FiEdit /> Edit
                                                     </button>
                                                     <button
                                                         onClick={() => handleRemove(table._id)}
-                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-150 hover:bg-red-200 text-red-700 dark:bg-red-950 dark:text-red-300 rounded-md font-bold text-xs cursor-pointer transition-colors"
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:bg-red-950/20 dark:text-red-400 rounded-md font-bold text-xs cursor-pointer transition-colors"
                                                         title="Delete"
                                                     >
                                                         <FiTrash2 /> Delete
@@ -190,22 +186,22 @@ function TableManagementContent() {
 
             {/* Add/Edit Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-2xl p-6 shadow-2xl max-w-md w-full relative">
+                <div className="fixed inset-0 z-50 bg-brand-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-brand-charcoal border border-brand-beige/25 dark:border-brand-beige/25 rounded-2xl p-6 shadow-2xl max-w-md w-full relative animate-scale-in">
                         <button
                             onClick={() => setIsModalOpen(false)}
-                            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-200 cursor-pointer"
+                            className="absolute top-4 right-4 text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite cursor-pointer"
                         >
                             <FiX size={20} />
                         </button>
                         
-                        <h2 className="text-xl font-bold mb-4">{editId ? "Edit Table" : "Add New Table"}</h2>
+                        <h2 className="text-xl font-bold mb-4 text-brand-charcoal dark:text-brand-offwhite uppercase tracking-widest">{editId ? "Edit Table" : "Add New Table"}</h2>
                         
                         <div className="mb-4">
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Table Name/No</label>
+                            <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">Table Name/No</label>
                             <input
                                 type="text"
-                                className="input input-bordered w-full dark:bg-zinc-800 dark:border-zinc-700"
+                                className="input input-bordered w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                 placeholder="e.g. Table 01, Table A"
                                 value={formData.tableName}
                                 onChange={(e) => setFormData({ ...formData, tableName: e.target.value })}
@@ -215,14 +211,14 @@ function TableManagementContent() {
                         <div className="flex justify-end gap-2">
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="btn btn-sm btn-ghost dark:text-zinc-400 cursor-pointer"
+                                className="btn btn-sm btn-ghost cursor-pointer text-brand-sage text-xs"
                                 disabled={isLoading}
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleAddOrEditTable}
-                                className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer"
+                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow"
                                 disabled={isLoading}
                             >
                                 {isLoading ? "Saving..." : "Save"}
@@ -234,7 +230,7 @@ function TableManagementContent() {
 
             {/* QR Code Modal */}
             {isQrModalOpen && selectedTable && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-50 bg-brand-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="relative">
                         <button
                             onClick={() => setIsQrModalOpen(false)}
@@ -252,7 +248,7 @@ function TableManagementContent() {
 
 export default function TableManagementPage() {
     return (
-        <Suspense fallback={<div className="flex justify-center items-center py-24"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+        <Suspense fallback={<div className="flex justify-center items-center py-24"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>}>
             <TableManagementContent />
         </Suspense>
     );

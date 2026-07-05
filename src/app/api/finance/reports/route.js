@@ -52,15 +52,32 @@ export async function GET(req) {
       roomRevenue += fp.credit || 0;
     });
 
+    // 1.2 Fetch Stay Folio Food Charges (to subtract from front desk checkout collections and prevent double-counting)
+    const foodChargedToRooms = await FolioEntry.find({
+      type: "Food Charge",
+      date: { $gte: startDate, $lte: endDate }
+    });
+    let totalFoodCharged = 0;
+    foodChargedToRooms.forEach(entry => {
+      totalFoodCharged += entry.debit || 0;
+    });
+
+    // Deduct food charges from front desk collections to isolate pure room/stay revenue
+    roomRevenue = Math.max(0, roomRevenue - totalFoodCharged);
+
     // 2. Fetch Restaurant POS Invoices (Restaurant Sales)
+    // Accrual basis: Include Paid/Partial OR any invoice charged to Room Bill (since service was delivered)
     const restaurantInvoices = await Invoice.find({
       createdAt: { $gte: startDate, $lte: endDate },
-      paymentStatus: { $in: ["Paid", "Partial"] }
+      $or: [
+        { paymentStatus: { $in: ["Paid", "Partial"] } },
+        { paymentMethod: "Room Bill" }
+      ]
     });
 
     let restaurantRevenue = 0;
     restaurantInvoices.forEach(inv => {
-      restaurantRevenue += inv.grandTotal || 0;
+      restaurantRevenue += inv.grandTotal || inv.totalAmount || 0;
     });
 
     // 3. Fetch General Expenses (Salary, Utilities, Maintenance, etc.)

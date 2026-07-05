@@ -21,21 +21,26 @@ export default function ControlsSettingsPage() {
     checkOutTime: "12:00"
   });
 
-  const timeZones = [
-    "Asia/Dhaka",
-    "Asia/Kolkata",
-    "Asia/Karachi",
-    "Asia/Colombo",
-    "Asia/Katmandu",
-    "Asia/Dubai",
-    "Asia/Riyadh",
-    "Asia/Bangkok",
-    "Asia/Singapore",
-    "Europe/London",
-    "America/New_York",
-    "America/Los_Angeles",
-    "Australia/Sydney"
-  ];
+  let timeZones = [];
+  try {
+    timeZones = Intl.supportedValuesOf('timeZone');
+  } catch (e) {
+    timeZones = [
+      "Asia/Dhaka",
+      "Asia/Kolkata",
+      "Asia/Karachi",
+      "Asia/Colombo",
+      "Asia/Katmandu",
+      "Asia/Dubai",
+      "Asia/Riyadh",
+      "Asia/Bangkok",
+      "Asia/Singapore",
+      "Europe/London",
+      "America/New_York",
+      "America/Los_Angeles",
+      "Australia/Sydney"
+    ];
+  }
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -61,7 +66,9 @@ export default function ControlsSettingsPage() {
   }, [axiosSecure]);
 
   useEffect(() => {
-    fetchSettings();
+    Promise.resolve().then(() => {
+      fetchSettings();
+    });
   }, [fetchSettings]);
 
   const handleSave = async () => {

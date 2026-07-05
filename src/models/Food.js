@@ -35,6 +35,10 @@ const FoodSchema = Schema(
       enum: ["Available", "Unavailable"],
       default: "Available",
     },
+    cookOn: {
+      type: String,
+      default: "MAIN KITCHEN",
+    },
     vat: {
       type: Number,
       default: 0,

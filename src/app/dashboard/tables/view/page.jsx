@@ -12,6 +12,7 @@ import {
     FaRedo
 } from 'react-icons/fa';
 import useAxiosSecure from '@/hooks/useAxiosSecure';
+import SectionHeader from '@/components/Comon/SectionHeader';
 
 const statusConfig = {
     free: {
@@ -105,32 +106,30 @@ function LobbyContent() {
     };
 
     return (
-        <div className="bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 min-h-screen p-4 sm:p-6 lg:p-8 transition-colors duration-200">
+        <div className="bg-brand-offwhite dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite min-h-screen p-4 sm:p-6 lg:p-8 transition-colors duration-200">
             <motion.div
-                className="card bg-white dark:bg-zinc-900 border border-gray-250 dark:border-zinc-800 shadow-xl w-full mx-auto"
+                className="card bg-white dark:bg-brand-charcoal border border-brand-beige dark:border-brand-beige/25 shadow-xl w-full mx-auto"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
             >
                 <div className="card-body p-6">
-                    <header className="flex justify-between items-center mb-6">
-                        <div>
-                            <h1 className="text-3xl font-black text-gray-800 dark:text-zinc-100">Restaurant Lobby</h1>
-                            <p className="text-sm text-gray-500 mt-1">Live table occupancy & service statuses</p>
-                        </div>
+                    <SectionHeader
+                        title="Restaurant Lobby"
+                        subtitle="Live table occupancy & service statuses"
+                    >
                         <button 
                             onClick={fetchTablesStatus} 
-                            className="btn btn-outline btn-sm rounded-lg flex items-center gap-1 cursor-pointer dark:border-zinc-800 dark:text-zinc-250"
+                            className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1"
                         >
                             <FaRedo /> Refresh
                         </button>
-                    </header>
-                    <div className="divider dark:before:bg-zinc-800 dark:after:bg-zinc-800" />
+                    </SectionHeader>
                     
-                    <main>
+                    <main className="mt-4">
                         {loading ? (
                             <div className="flex justify-center items-center py-24">
-                                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
                             </div>
                         ) : tables && tables.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
@@ -154,13 +153,13 @@ function LobbyContent() {
                                                 onMouseEnter={() => setHoveredTableId(table._id)}
                                                 onMouseLeave={() => setHoveredTableId(null)}
                                                 onClick={() => isClickable && handleTableSelect(table)}
-                                                className={`card bg-white dark:bg-zinc-900 shadow-md transition-all duration-300 relative overflow-hidden border border-slate-200 dark:border-zinc-800/80 ${isClickable ? 'cursor-pointer hover:shadow-xl hover:border-blue-600 dark:hover:border-blue-500' : 'cursor-not-allowed opacity-70'}`}
+                                                className={`card bg-white dark:bg-brand-charcoal/50 shadow-md transition-all duration-300 relative overflow-hidden border border-brand-beige dark:border-brand-beige/25 ${isClickable ? 'cursor-pointer hover:shadow-xl hover:border-brand-primary dark:hover:border-brand-primary' : 'cursor-not-allowed opacity-70'}`}
                                             >
                                                 <div className="card-body items-center text-center p-6 relative">
                                                     <div className="absolute top-4 right-4">
                                                         <IconComponent className={`w-12 h-12 ${config.iconClass} opacity-10`} />
                                                     </div>
-                                                    <h2 className="text-3xl font-black text-slate-800 dark:text-zinc-150 mb-3 tracking-tight">
+                                                    <h2 className="text-3xl font-black text-brand-charcoal dark:text-brand-offwhite mb-3 tracking-tight">
                                                         {table.tableName}
                                                     </h2>
                                                     <div className="card-actions justify-center w-full">
@@ -181,11 +180,11 @@ function LobbyContent() {
                                                             animate={{ opacity: 1, y: 0 }}
                                                             exit={{ opacity: 0, y: 10 }}
                                                             transition={{ duration: 0.2 }}
-                                                            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-3 bg-slate-800 dark:bg-zinc-800 text-white text-xs rounded-lg shadow-lg z-20 pointer-events-none"
+                                                            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-3 bg-brand-primary dark:bg-brand-secondary text-white text-xs rounded-lg shadow-lg z-20 pointer-events-none"
                                                         >
                                                             <div className="font-bold text-sm mb-1">{table.reservation.customerName}</div>
-                                                            <div className="text-slate-300 dark:text-zinc-400 font-medium">{table.reservation.customerPhone}</div>
-                                                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800 dark:border-t-zinc-800"></div>
+                                                            <div className="text-white/80 font-medium">{table.reservation.customerPhone}</div>
+                                                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-brand-primary dark:border-t-brand-secondary"></div>
                                                         </motion.div>
                                                     )}
                                                 </AnimatePresence>
@@ -195,7 +194,7 @@ function LobbyContent() {
                                 </AnimatePresence>
                             </div>
                         ) : (
-                            <div className="flex justify-center items-center py-24 text-gray-500 dark:text-zinc-400 font-bold text-lg">
+                            <div className="flex justify-center items-center py-24 text-brand-sage font-bold text-lg">
                                 No restaurant tables configured.
                             </div>
                         )}

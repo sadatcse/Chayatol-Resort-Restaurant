@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import Invoice from "@/models/Invoice";
+import User from "@/models/User";
 
 const MONGO_URI = process.env.MONGODB_URI;
 
@@ -13,6 +14,23 @@ export async function POST(req) {
   try {
     await connectToDatabase();
     const data = await req.json();
+
+    // Map orderType to schema enums case-insensitively
+    if (data.orderType) {
+      const orderTypeMapping = {
+        "dine-in": "Dine In",
+        "takeaway": "Takeaway",
+        "delivery": "Delivery",
+        "room service": "Room Service",
+        "foodpanda": "Foodpanda",
+        "foodi": "Foodi",
+        "pathao": "Pathao",
+        "dine in": "Dine In",
+        "roomservice": "Room Service"
+      };
+      const key = data.orderType.toLowerCase().trim();
+      data.orderType = orderTypeMapping[key] || data.orderType;
+    }
 
     // Deduplication check: check if an invoice with the same table/room, orderType, and grandTotal was created in the last 10 seconds
     const tenSecondsAgo = new Date(Date.now() - 10000);
@@ -35,7 +53,7 @@ export async function POST(req) {
       // Find the last invoice for today to increment the number
       const lastInvoice = await Invoice.findOne({
         invoiceNo: new RegExp(`^INV-${dateString}-`),
-      }).sort({ createdAt: -1 });
+      }).sort({ invoiceNo: -1 });
 
       let nextNumber = "001";
       if (lastInvoice && lastInvoice.invoiceNo) {
@@ -67,9 +85,46 @@ export async function POST(req) {
     if (data.subtotal && !data.subTotal) {
       data.subTotal = data.subtotal;
     }
+    if (data.sc !== undefined && data.serviceCharge === undefined) {
+      data.serviceCharge = data.sc;
+    }
+    if (data.tableName && !data.tableNo) {
+      data.tableNo = data.tableName;
+    } else if (data.tableNo && !data.tableName) {
+      data.tableName = data.tableNo;
+    }
 
     const newInvoice = new Invoice(data);
     await newInvoice.save();
+
+    // Sync with Stay Folio if Room Service and charged to Room Bill
+    if (newInvoice.orderType === "Room Service" && newInvoice.paymentMethod === "Room Bill" && newInvoice.roomNo) {
+      try {
+        const Room = mongoose.models.Room || (await import("@/models/Room")).default;
+        const Stay = mongoose.models.Stay || (await import("@/models/Stay")).default;
+        const FolioEntry = mongoose.models.FolioEntry || (await import("@/models/FolioEntry")).default;
+
+        const roomDoc = await Room.findOne({ roomNumber: newInvoice.roomNo });
+        if (roomDoc) {
+          const activeStay = await Stay.findOne({
+            status: "In House",
+            "rooms.room": roomDoc._id
+          });
+          if (activeStay) {
+            await FolioEntry.create({
+              stayId: activeStay._id,
+              type: "Food Charge",
+              description: `POS Restaurant Invoice ${newInvoice.invoiceNo} (Room Service for Room ${newInvoice.roomNo})`,
+              debit: newInvoice.grandTotal,
+              credit: 0,
+              referenceId: newInvoice._id
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error creating folio entry for Room Service POS:", err);
+      }
+    }
 
     return NextResponse.json({ success: true, data: newInvoice }, { status: 201 });
   } catch (error) {
@@ -105,7 +160,9 @@ export async function GET(req) {
         { "customer.name": { $regex: escapedSearch, $options: 'i' } },
         { "customer.phone": { $regex: escapedSearch, $options: 'i' } },
         { tableName: { $regex: escapedSearch, $options: 'i' } },
-        { tableNo: { $regex: escapedSearch, $options: 'i' } }
+        { tableNo: { $regex: escapedSearch, $options: 'i' } },
+        { roomNo: { $regex: escapedSearch, $options: 'i' } },
+        { deliveryProvider: { $regex: escapedSearch, $options: 'i' } }
       ];
     }
 
@@ -120,13 +177,29 @@ export async function GET(req) {
     }
 
     if (orderType) {
-      query.orderType = { $regex: `^${orderType}$`, $options: 'i' };
+      const orderTypeMapping = {
+        "dine-in": "Dine In",
+        "takeaway": "Takeaway",
+        "delivery": "Delivery",
+        "room service": "Room Service",
+        "foodpanda": "Foodpanda",
+        "foodi": "Foodi",
+        "pathao": "Pathao",
+        "dine in": "Dine In",
+        "roomservice": "Room Service"
+      };
+      const key = orderType.toLowerCase().trim();
+      const mappedType = orderTypeMapping[key] || orderType;
+      query.orderType = { $regex: `^${mappedType}$`, $options: 'i' };
     }
 
     if (orderStatus) {
-      // In Teaxo, "pending" status on order refers to unpaid/pending invoices
       if (orderStatus.toLowerCase() === 'pending') {
-        query.orderStatus = { $ne: 'served' };
+        // Show in pending list if payment is not paid yet OR if order is not served yet
+        query.$or = [
+          { paymentStatus: { $ne: 'Paid' } },
+          { orderStatus: { $ne: 'served' } }
+        ];
       } else {
         query.orderStatus = orderStatus;
       }
@@ -136,13 +209,23 @@ export async function GET(req) {
       query.paymentStatus = paymentStatus;
     }
 
+    const paymentMethod = searchParams.get('paymentMethod');
+    if (paymentMethod) {
+      query.paymentMethod = { $regex: `^${paymentMethod}$`, $options: 'i' };
+    }
+
     if (isKitchen) {
       query.orderStatus = { $ne: 'served' };
+      query.$or = [
+        { "products.cookStatus": { $in: ["PENDING", "COOKING"] } },
+        { "orderBatches.items.orderStatus": { $in: ["Pending", "Cooking", "Ready"] } }
+      ];
     }
 
     const skip = (page - 1) * limit;
 
     const invoices = await Invoice.find(query)
+      .populate("createdBy", "name")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);

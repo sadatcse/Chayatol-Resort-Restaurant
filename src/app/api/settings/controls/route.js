@@ -29,6 +29,10 @@ export async function PUT(req) {
       settings = await ControlSettings.findOneAndUpdate({}, data, { new: true });
     }
 
+    if (settings && settings.timeZone) {
+      process.env.TZ = settings.timeZone;
+    }
+
     return NextResponse.json(settings, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

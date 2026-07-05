@@ -53,6 +53,7 @@ export async function GET(req) {
           totalSubtotal: { $sum: { $ifNull: ["$subTotal", { $ifNull: ["$subtotal", 0] }] } },
           totalVat: { $sum: { $ifNull: ["$vat", 0] } },
           totalSd: { $sum: { $ifNull: ["$sd", 0] } },
+          totalSc: { $sum: { $ifNull: ["$serviceCharge", 0] } },
           totalDiscount: { $sum: { $ifNull: ["$discount", 0] } },
           totalAmount: { $sum: { $ifNull: ["$totalAmount", { $ifNull: ["$grandTotal", 0] }] } }
         }
@@ -66,6 +67,7 @@ export async function GET(req) {
           totalSubtotal: 1,
           totalVat: 1,
           totalSd: 1,
+          totalSc: 1,
           totalDiscount: 1,
           totalAmount: 1
         }

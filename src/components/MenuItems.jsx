@@ -49,6 +49,7 @@ import {
   MdLogout,
   MdRestaurant,
   MdAdminPanelSettings,
+  MdLockClock,
 } from "react-icons/md";
 
 const menuItems = () => {
@@ -118,21 +119,7 @@ const menuItems = () => {
           path: "/dashboard/pos",
           icon: <MdReceiptLong className="text-base" />,
         },
-        {
-          title: "Table View",
-          path: "/dashboard/tables/view",
-          icon: <MdTableRestaurant className="text-base" />,
-        },
-        {
-          title: "Table Reservation",
-          path: "/dashboard/tables/reservation",
-          icon: <MdEventAvailable className="text-base" />,
-        },
-        {
-          title: "Table Management",
-          path: "/dashboard/tables/manage",
-          icon: <MdListAlt className="text-base" />,
-        },
+
         {
           title: "Pending Orders",
           path: "/dashboard/pending-orders",
@@ -149,7 +136,12 @@ const menuItems = () => {
           icon: <MdKitchen className="text-base" />,
         },
         {
-          title: "Invoices",
+          title: "Table Transfer",
+          path: "/dashboard/tables/transfer",
+          icon: <MdSwapHoriz className="text-base" />,
+        },
+        {
+          title: "Invoices History",
           path: "/dashboard/invoices",
           icon: <MdReceiptLong className="text-base" />,
         },
@@ -157,6 +149,11 @@ const menuItems = () => {
           title: "Customer Reviews",
           path: "/dashboard/reviews",
           icon: <MdFeedback className="text-base" />,
+        },
+        {
+          title: "Daily Closing",
+          path: "/dashboard/daily-closing",
+          icon: <MdLockClock className="text-base" />,
         },
       ],
     },
@@ -265,6 +262,30 @@ const menuItems = () => {
       ],
     },
 
+    // Tables
+    {
+      title: "Tables",
+      icon: <MdTableRestaurant className="text-lg" />,
+      children: [
+        {
+          title: "Table View",
+          path: "/dashboard/tables/view",
+          icon: <MdTableRestaurant className="text-base" />,
+        },
+
+        {
+          title: "Table Reservation",
+          path: "/dashboard/tables/reservation",
+          icon: <MdEventAvailable className="text-base" />,
+        },
+        {
+          title: "Table Management",
+          path: "/dashboard/tables/manage",
+          icon: <MdListAlt className="text-base" />,
+        },
+      ],
+    },
+
     // Lost & Found
     {
       title: "Lost & Found",
@@ -319,19 +340,14 @@ const menuItems = () => {
       icon: <MdAssessment className="text-lg" />,
       children: [
         {
-          title: "Daily Sales Report",
+          title: "Daily Sales Report Resturant",
           path: "/dashboard/reports/daily-sales",
           icon: <MdTrendingUp className="text-base" />,
         },
         {
-          title: "Product Sales Report",
+          title: "Product Sales Report Resturant",
           path: "/dashboard/reports/product-sales",
           icon: <MdShowChart className="text-base" />,
-        },
-        {
-          title: "Daily Order Report",
-          path: "/dashboard/reports/daily-orders",
-          icon: <MdAssessment className="text-base" />,
         },
         {
           title: "Custom Order Report",

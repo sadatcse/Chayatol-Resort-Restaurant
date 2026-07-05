@@ -8,6 +8,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import SectionHeader from "@/components/Comon/SectionHeader";
+import useStandardPrint from "@/hooks/useStandardPrint";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 function TableReservationContent() {
     const axiosSecure = useAxiosSecure();
@@ -17,6 +22,57 @@ function TableReservationContent() {
     const [availableTables, setAvailableTables] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [filterDate, setFilterDate] = useState(new Date().toISOString().slice(0, 10));
+
+    // Advanced Filters & Exports
+    const [tableNameFilter, setTableNameFilter] = useState("");
+    const [dateFilterType, setDateFilterType] = useState("today");
+    const [isExporting, setIsExporting] = useState(false);
+
+    const {
+        printData: printReservations,
+        setPrintData: setPrintReservations,
+        printRef: printRef,
+        handlePrint: handlePrint
+    } = useStandardPrint({
+        documentTitle: "Table_Reservations_Report",
+        onAfterPrint: () => setPrintReservations(null)
+    });
+
+    const getDateRange = (type, customDate) => {
+        const now = new Date();
+        switch (type) {
+            case "today": {
+                const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+                const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+                return { startDate: start.toISOString(), endDate: end.toISOString() };
+            }
+            case "next7": {
+                const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+                const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 23, 59, 59, 999);
+                return { startDate: start.toISOString(), endDate: end.toISOString() };
+            }
+            case "thisMonth": {
+                const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+                return { startDate: start.toISOString(), endDate: end.toISOString() };
+            }
+            case "nextMonth": {
+                const start = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+                const end = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59, 999);
+                return { startDate: start.toISOString(), endDate: end.toISOString() };
+            }
+            case "custom": {
+                if (!customDate) return { startDate: "", endDate: "" };
+                const parts = customDate.split("-");
+                const start = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+                const end = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
+                return { startDate: start.toISOString(), endDate: end.toISOString() };
+            }
+            case "all":
+            default:
+                return { startDate: "", endDate: "" };
+        }
+    };
 
     const [formData, setFormData] = useState({
         tableName: "",
@@ -36,7 +92,18 @@ function TableReservationContent() {
     const fetchReservations = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await axiosSecure.get(`/tablereservation?date=${filterDate}`);
+            const { startDate, endDate } = getDateRange(dateFilterType, filterDate);
+            let url = "/tablereservation?";
+            if (dateFilterType === "custom" && filterDate) {
+                url += `date=${filterDate}&`;
+            } else {
+                if (startDate) url += `startDate=${encodeURIComponent(startDate)}&`;
+                if (endDate) url += `endDate=${encodeURIComponent(endDate)}&`;
+            }
+            if (tableNameFilter) {
+                url += `tableName=${encodeURIComponent(tableNameFilter)}&`;
+            }
+            const response = await axiosSecure.get(url);
             if (response.data) {
                 setReservations(response.data);
             }
@@ -46,7 +113,7 @@ function TableReservationContent() {
         } finally {
             setLoading(false);
         }
-    }, [axiosSecure, filterDate]);
+    }, [axiosSecure, dateFilterType, filterDate, tableNameFilter]);
 
     const fetchAvailableTables = useCallback(async () => {
         try {
@@ -159,90 +226,191 @@ function TableReservationContent() {
         }
     };
 
+    const handleExportExcel = async () => {
+        setIsExporting(true);
+        try {
+            const formatted = reservations.map((res, idx) => ({
+                "Sl": idx + 1,
+                "Table": res.tableName,
+                "Start Time": new Date(res.startTime).toLocaleString("en-GB"),
+                "End Time": new Date(res.endTime).toLocaleString("en-GB"),
+                "Guest Name": res.customerName,
+                "Phone": res.customerPhone,
+                "Email": res.customerEmail || "N/A",
+                "Status": res.status,
+                "Notes": res.additionalInfo || "N/A"
+            }));
+            exportToExcel(formatted, "Table_Reservations_Report");
+        } catch (err) {
+            console.error("Excel export error:", err);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleExportCsv = async () => {
+        setIsExporting(true);
+        try {
+            const formatted = reservations.map((res, idx) => ({
+                "Sl": idx + 1,
+                "Table": res.tableName,
+                "Start Time": new Date(res.startTime).toLocaleString("en-GB"),
+                "End Time": new Date(res.endTime).toLocaleString("en-GB"),
+                "Guest Name": res.customerName,
+                "Phone": res.customerPhone,
+                "Email": res.customerEmail || "N/A",
+                "Status": res.status,
+                "Notes": res.additionalInfo || "N/A"
+            }));
+            exportToCsv(formatted, "Table_Reservations_Report");
+        } catch (err) {
+            console.error("CSV export error:", err);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handlePrintClick = () => {
+        setPrintReservations(reservations);
+    };
+
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-150 p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-200">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen bg-brand-offwhite dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-200">
+            <div className="max-w-7xl mx-auto animate-scale-in">
                 
                 {/* Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                    <div>
-                        <h1 className="text-3xl font-black text-gray-800 dark:text-zinc-100">Table Reservations</h1>
-                        <p className="text-sm text-gray-500 mt-1">Book and coordinate restaurant table time-slots</p>
+                <SectionHeader
+                    title="Table Reservations"
+                    subtitle="Book and coordinate restaurant table time-slots"
+                >
+                    <button
+                        onClick={() => {
+                            setEditId(null);
+                            setFormData({
+                                tableName: "",
+                                startTime: (dateFilterType === "custom" ? filterDate : new Date().toISOString().slice(0, 10)) + "T12:00",
+                                endTime: (dateFilterType === "custom" ? filterDate : new Date().toISOString().slice(0, 10)) + "T14:00",
+                                customerName: "",
+                                customerPhone: "",
+                                customerEmail: "",
+                                additionalInfo: "",
+                                status: "Pending",
+                            });
+                            setIsModalOpen(true);
+                        }}
+                        className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
+                    >
+                        <FiPlus size={14} /> New Reservation
+                    </button>
+                </SectionHeader>
+
+                {/* Filter and Action Controls */}
+                <div className="bg-white dark:bg-brand-charcoal p-4 rounded-2xl border border-brand-beige dark:border-brand-beige/25 shadow-sm mb-6 flex flex-col lg:flex-row justify-between items-center gap-4 animate-scale-in">
+                    {/* Quick Date Range Buttons */}
+                    <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
+                        <span className="text-xs font-bold text-brand-sage uppercase tracking-widest mr-2">Quick Dates:</span>
+                        {[
+                            { value: "today", label: "Today" },
+                            { value: "next7", label: "Next 7 Days" },
+                            { value: "thisMonth", label: "This Month" },
+                            { value: "nextMonth", label: "Next Month" },
+                            { value: "all", label: "All" },
+                            { value: "custom", label: "Custom Date" },
+                        ].map((btn) => (
+                            <button
+                                key={btn.value}
+                                type="button"
+                                onClick={() => setDateFilterType(btn.value)}
+                                className={`btn btn-xs rounded-full px-4 h-8 uppercase tracking-wider font-bold text-[10px] transition-all duration-200 cursor-pointer ${
+                                    dateFilterType === btn.value
+                                        ? "bg-brand-primary text-white border-none shadow-sm"
+                                        : "btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white"
+                                }`}
+                            >
+                                {btn.label}
+                            </button>
+                        ))}
+
+                        {/* Custom Date Input */}
+                        {dateFilterType === "custom" && (
+                            <div className="flex items-center border border-brand-primary bg-white dark:bg-brand-charcoal/50 px-3 py-1.5 rounded-lg shadow-xs ml-2 h-8">
+                                <FiCalendar className="text-brand-sage mr-2" size={14} />
+                                <input
+                                    type="date"
+                                    className="bg-transparent focus:outline-none text-[11px] font-bold text-brand-charcoal dark:text-brand-offwhite"
+                                    value={filterDate}
+                                    onChange={(e) => setFilterDate(e.target.value)}
+                                />
+                            </div>
+                        )}
                     </div>
-                    
-                    <div className="flex items-center gap-3 flex-wrap">
-                        {/* Date Filter */}
-                        <div className="flex items-center border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-lg shadow-xs">
-                            <FiCalendar className="text-gray-400 mr-2" />
-                            <input
-                                type="date"
-                                className="bg-transparent focus:outline-none text-sm font-bold dark:text-zinc-100"
-                                value={filterDate}
-                                onChange={(e) => setFilterDate(e.target.value)}
-                            />
+
+                    {/* Table Select Filter & Export Buttons */}
+                    <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto lg:justify-end">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Table:</span>
+                            <select
+                                value={tableNameFilter}
+                                onChange={(e) => setTableNameFilter(e.target.value)}
+                                className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9 px-3 rounded-full outline-none focus:outline-none"
+                            >
+                                <option value="">All Tables</option>
+                                {availableTables.map((t) => (
+                                    <option key={t._id} value={t.tableName}>{t.tableName}</option>
+                                ))}
+                            </select>
                         </div>
 
-                        <button
-                            onClick={() => {
-                                setEditId(null);
-                                setFormData({
-                                    tableName: "",
-                                    startTime: filterDate + "T12:00",
-                                    endTime: filterDate + "T14:00",
-                                    customerName: "",
-                                    customerPhone: "",
-                                    customerEmail: "",
-                                    additionalInfo: "",
-                                    status: "Pending",
-                                });
-                                setIsModalOpen(true);
-                            }}
-                            className="btn bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow"
-                        >
-                            <FiPlus size={18} /> New Reservation
-                        </button>
+                        <div className="h-6 w-px bg-brand-beige/50 dark:bg-brand-beige/20 hidden sm:block"></div>
+
+                        <ExportButtons
+                            onExportExcel={handleExportExcel}
+                            onExportCsv={handleExportCsv}
+                            onPrint={handlePrintClick}
+                            isLoading={isExporting}
+                        />
                     </div>
                 </div>
 
                 {/* Grid list or Table list */}
                 {loading ? <MtableLoading data={null} /> : (
-                    <div className="bg-white dark:bg-zinc-900 border border-gray-250 dark:border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+                    <div className="bg-white dark:bg-brand-charcoal border border-brand-beige dark:border-brand-beige/25 rounded-2xl shadow-xl overflow-hidden">
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
-                                <thead className="bg-slate-50 dark:bg-zinc-800">
+                            <table className="min-w-full divide-y divide-brand-beige dark:divide-brand-beige/25">
+                                <thead className="bg-brand-offwhite dark:bg-zinc-850">
                                     <tr>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-505 dark:text-zinc-400 uppercase tracking-wider">Table</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-505 dark:text-zinc-400 uppercase tracking-wider">Start Time</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-505 dark:text-zinc-400 uppercase tracking-wider">End Time</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-505 dark:text-zinc-400 uppercase tracking-wider">Guest</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-505 dark:text-zinc-400 uppercase tracking-wider">Phone</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-505 dark:text-zinc-400 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-right text-xs font-bold text-gray-505 dark:text-zinc-400 uppercase tracking-wider rounded-tr-lg">Action</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Table</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Start Time</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">End Time</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Guest</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Phone</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-4 text-right text-xs font-bold text-brand-sage uppercase tracking-wider rounded-tr-lg">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-250 dark:divide-zinc-850 text-sm font-semibold">
+                                <tbody className="bg-white dark:bg-brand-charcoal/30 divide-y divide-brand-beige dark:divide-brand-beige/15 text-sm font-semibold">
                                     {reservations.length === 0 ? (
                                         <tr>
-                                            <td colSpan="7" className="px-6 py-12 text-center text-gray-400 dark:text-zinc-500 font-bold">
+                                            <td colSpan="7" className="px-6 py-12 text-center text-brand-sage font-bold">
                                                 No reservations booked for {new Date(filterDate).toLocaleDateString("en-GB", { day: 'numeric', month: 'long', year: 'numeric' })}.
                                             </td>
                                         </tr>
                                     ) : (
                                         reservations.map((res) => (
-                                            <tr key={res._id} className="hover:bg-gray-50/60 dark:hover:bg-zinc-850/40 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap font-extrabold text-gray-900 dark:text-zinc-150 text-base">
+                                            <tr key={res._id} className="hover:bg-brand-beige/10 dark:hover:bg-brand-beige/5 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap font-extrabold text-brand-charcoal dark:text-brand-offwhite text-base">
                                                     {res.tableName}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-gray-650 dark:text-zinc-350">
+                                                <td className="px-6 py-4 whitespace-nowrap text-brand-sage font-medium">
                                                     {new Date(res.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-gray-650 dark:text-zinc-350">
+                                                <td className="px-6 py-4 whitespace-nowrap text-brand-sage font-medium">
                                                     {new Date(res.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-zinc-200">
+                                                <td className="px-6 py-4 whitespace-nowrap text-brand-charcoal dark:text-brand-offwhite">
                                                     {res.customerName}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-zinc-300">
+                                                <td className="px-6 py-4 whitespace-nowrap text-brand-charcoal dark:text-brand-offwhite">
                                                     {res.customerPhone}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-xs">
@@ -254,13 +422,13 @@ function TableReservationContent() {
                                                     <div className="flex justify-end gap-2">
                                                         <button
                                                             onClick={() => handleEdit(res)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-150 hover:bg-blue-200 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-md font-bold cursor-pointer"
+                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-md font-bold cursor-pointer"
                                                         >
                                                             <FiEdit /> Edit
                                                         </button>
                                                         <button
                                                             onClick={() => handleRemove(res._id)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-150 hover:bg-red-200 text-red-700 dark:bg-red-950 dark:text-red-300 rounded-md font-bold cursor-pointer"
+                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:bg-red-950/20 dark:text-red-400 rounded-md font-bold cursor-pointer"
                                                         >
                                                             <FiTrash2 /> Delete
                                                         </button>
@@ -278,25 +446,25 @@ function TableReservationContent() {
 
             {/* Form Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-2xl p-6 shadow-2xl max-w-lg w-full relative max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 z-50 bg-brand-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-brand-charcoal border border-brand-beige/25 dark:border-brand-beige/25 rounded-2xl p-6 shadow-2xl max-w-lg w-full relative max-h-[90vh] overflow-y-auto animate-scale-in">
                         <button
                             onClick={() => setIsModalOpen(false)}
-                            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-200 cursor-pointer"
+                            className="absolute top-4 right-4 text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite cursor-pointer"
                         >
                             <FiX size={20} />
                         </button>
                         
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-1.5">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-1.5 text-brand-charcoal dark:text-brand-offwhite uppercase tracking-widest">
                             <FiCalendar /> {editId ? "Edit Table Reservation" : "New Table Reservation"}
                         </h2>
                         
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Select Table *</label>
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">Select Table *</label>
                                 <select
                                     name="tableName"
-                                    className="select select-bordered select-sm w-full dark:bg-zinc-850 dark:border-zinc-700"
+                                    className="select select-bordered select-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={formData.tableName}
                                     onChange={handleInputChange}
                                 >
@@ -308,10 +476,10 @@ function TableReservationContent() {
                             </div>
                             
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Status</label>
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">Status</label>
                                 <select
                                     name="status"
-                                    className="select select-bordered select-sm w-full dark:bg-zinc-850 dark:border-zinc-700"
+                                    className="select select-bordered select-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={formData.status}
                                     onChange={handleInputChange}
                                 >
@@ -323,73 +491,73 @@ function TableReservationContent() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1"><FiClock /> Start Time *</label>
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1 flex items-center gap-1"><FiClock /> Start Time *</label>
                                 <input
                                     type="datetime-local"
                                     name="startTime"
-                                    className="input input-bordered input-sm w-full dark:bg-zinc-850 dark:border-zinc-700 text-xs"
+                                    className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={formData.startTime}
                                     onChange={handleInputChange}
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1"><FiClock /> End Time *</label>
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1 flex items-center gap-1"><FiClock /> End Time *</label>
                                 <input
                                     type="datetime-local"
                                     name="endTime"
-                                    className="input input-bordered input-sm w-full dark:bg-zinc-850 dark:border-zinc-700 text-xs"
+                                    className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={formData.endTime}
                                     onChange={handleInputChange}
                                 />
                             </div>
 
                             <div className="sm:col-span-2">
-                                <hr className="border-gray-200 dark:border-zinc-800 my-2" />
+                                <hr className="border-brand-beige/30 dark:border-brand-beige/10 my-2" />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1"><FiUser /> Guest Name *</label>
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1 flex items-center gap-1"><FiUser /> Guest Name *</label>
                                 <input
                                     type="text"
                                     name="customerName"
                                     placeholder="Enter full name"
-                                    className="input input-bordered input-sm w-full dark:bg-zinc-850 dark:border-zinc-700"
+                                    className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={formData.customerName}
                                     onChange={handleInputChange}
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1"><FiPhone /> Guest Mobile *</label>
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1 flex items-center gap-1"><FiPhone /> Guest Mobile *</label>
                                 <input
                                     type="text"
                                     name="customerPhone"
                                     placeholder="Enter contact number"
-                                    className="input input-bordered input-sm w-full dark:bg-zinc-850 dark:border-zinc-700"
+                                    className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={formData.customerPhone}
                                     onChange={handleInputChange}
                                 />
                             </div>
 
                             <div className="sm:col-span-2">
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Guest Email</label>
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">Guest Email</label>
                                 <input
                                     type="email"
                                     name="customerEmail"
                                     placeholder="e.g. guest@example.com"
-                                    className="input input-bordered input-sm w-full dark:bg-zinc-850 dark:border-zinc-700"
+                                    className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={formData.customerEmail}
                                     onChange={handleInputChange}
                                 />
                             </div>
 
                             <div className="sm:col-span-2">
-                                <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center gap-1"><FiInfo /> Special Notes</label>
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1 flex items-center gap-1"><FiInfo /> Special Notes</label>
                                 <textarea
                                     name="additionalInfo"
                                     placeholder="Any details (e.g. birthday setup, allergen info)..."
-                                    className="textarea textarea-bordered textarea-sm w-full dark:bg-zinc-850 dark:border-zinc-700"
+                                    className="textarea textarea-bordered textarea-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs"
                                     rows={2}
                                     value={formData.additionalInfo}
                                     onChange={handleInputChange}
@@ -400,14 +568,14 @@ function TableReservationContent() {
                         <div className="flex justify-end gap-2 mt-6">
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="btn btn-sm btn-ghost dark:text-zinc-400 cursor-pointer"
+                                className="btn btn-sm btn-ghost cursor-pointer text-brand-sage text-xs"
                                 disabled={isLoading}
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleAddOrEditReservation}
-                                className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer"
+                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow"
                                 disabled={isLoading}
                             >
                                 {isLoading ? "Booking..." : "Book Reservation"}
@@ -416,13 +584,58 @@ function TableReservationContent() {
                     </div>
                 </div>
             )}
+
+            {/* Print Container */}
+            <div className="hidden">
+                {printReservations && (
+                    <PrintReportTemplate
+                        ref={printRef}
+                        title="Table Reservations Report"
+                        subtitle="Detailed record of restaurant table bookings and time-slots."
+                        dateRange={
+                            dateFilterType === "all" ? "All Dates" :
+                            dateFilterType === "custom" ? `Date: ${filterDate}` :
+                            `Date Range: ${dateFilterType.toUpperCase()}`
+                        }
+                    >
+                        <table className="print-table">
+                            <thead>
+                                <tr>
+                                    <th>SL</th>
+                                    <th>Table</th>
+                                    <th>Start Time</th>
+                                    <th>End Time</th>
+                                    <th>Guest Name</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {printReservations.map((r, idx) => (
+                                    <tr key={r._id || idx}>
+                                        <td>{idx + 1}</td>
+                                        <td style={{ fontWeight: "bold" }}>{r.tableName}</td>
+                                        <td>{new Date(r.startTime).toLocaleString("en-GB")}</td>
+                                        <td>{new Date(r.endTime).toLocaleString("en-GB")}</td>
+                                        <td>{r.customerName}</td>
+                                        <td>{r.customerPhone}</td>
+                                        <td>{r.customerEmail || "N/A"}</td>
+                                        <td style={{ fontWeight: "bold" }}>{r.status}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </PrintReportTemplate>
+                )}
+            </div>
         </div>
     );
 }
 
 export default function TableReservationPage() {
     return (
-        <Suspense fallback={<div className="flex justify-center items-center py-24"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+        <Suspense fallback={<div className="flex justify-center items-center py-24"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>}>
             <TableReservationContent />
         </Suspense>
     );

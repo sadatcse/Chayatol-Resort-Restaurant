@@ -115,7 +115,7 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
             <div>
                 <p style={styles.normalText}>Invoice: {invoiceData?.invoiceSerial || invoiceData?.invoiceNo || "N/A"}</p>
                 <p style={styles.normalText}>Date: {new Date(invoiceData?.dateTime || invoiceData?.createdAt || Date.now()).toLocaleString("en-GB")}</p>
-                <p style={styles.normalText}>Served By: {invoiceData?.loginUserName || "Staff"}</p>
+                <p style={styles.normalText}>Served By: {invoiceData?.loginUserName || invoiceData?.createdBy?.name || invoiceData?.waiterName || "Staff"}</p>
                 {invoiceData?.orderType?.toLowerCase() === "dine-in" && (invoiceData?.tableName || invoiceData?.tableNo) && (
                     <p style={styles.normalText}>Table: {invoiceData.tableName || invoiceData.tableNo}</p>
                 )}

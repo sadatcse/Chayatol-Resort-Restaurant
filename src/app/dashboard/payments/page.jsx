@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { FiSearch, FiCalendar, FiDollarSign, FiCreditCard, FiSmartphone, FiInbox, FiFilter } from "react-icons/fi";
+import { FiSearch, FiCalendar, FiDollarSign, FiCreditCard, FiSmartphone, FiInbox, FiFilter, FiTrash2 } from "react-icons/fi";
+import Swal from "sweetalert2";
 import { motion } from "framer-motion";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
@@ -15,6 +16,7 @@ const ReservationPaymentsPage = () => {
   const axiosSecure = useAxiosSecure();
   const [loading, setLoading] = useState(false);
   const [payments, setPayments] = useState([]);
+  const [paymentTypes, setPaymentTypes] = useState([]);
   const [stats, setStats] = useState({
     totalReceived: 0,
     cashTotal: 0,
@@ -108,11 +110,54 @@ const ReservationPaymentsPage = () => {
     fetchPayments();
   }, [startDate, endDate, dateFilter, source, paymentMethod]);
 
+  // Fetch dynamic payment types on mount
+  useEffect(() => {
+    const fetchPaymentTypes = async () => {
+      try {
+        const { data } = await axiosSecure.get("/paymenttype");
+        if (Array.isArray(data)) {
+          setPaymentTypes(data);
+        }
+      } catch (err) {
+        console.error("Failed to load payment types:", err);
+      }
+    };
+    fetchPaymentTypes();
+  }, [axiosSecure]);
+
   const handleSearchKeyPress = (e) => {
     if (e.key === "Enter") {
       fetchPayments();
     }
   };
+
+  const handleDelete = async (paymentId, paymentSource) => {
+    const result = await Swal.fire({
+      title: "Remove this payment?",
+      text: "This will permanently delete this payment record from the database.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#6c757d",
+      confirmButtonText: "Yes, delete it!",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+
+    // Optimistic: remove from UI immediately
+    setPayments((prev) => prev.filter((p) => (p.id || p._id) !== paymentId));
+
+    try {
+      await axiosSecure.delete(`/payments?id=${paymentId}&source=${encodeURIComponent(paymentSource)}`);
+      Swal.fire({ icon: "success", title: "Deleted!", text: "Payment record has been permanently deleted.", timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      console.error("Failed to delete payment from backend:", err);
+      // Re-fetch to restore accurate state if backend failed
+      fetchPayments();
+      Swal.fire("Error", err?.response?.data?.message || "Failed to delete. Please try again.", "error");
+    }
+  };
+
 
   const handlePresetChange = (preset) => {
     setDateFilter(preset);
@@ -249,10 +294,11 @@ const ReservationPaymentsPage = () => {
               className="select select-bordered select-sm border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
             >
               <option value="all">All Payment Methods</option>
-              <option value="cash">Cash Only</option>
-              <option value="card">Cards / POS</option>
-              <option value="mobile">Mobile Banking (bKash / Nagad / Rocket)</option>
-              <option value="other">Other / Bank Transfer</option>
+              {paymentTypes.map((pt) => (
+                <option key={pt._id} value={pt.name}>
+                  {pt.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -336,12 +382,13 @@ const ReservationPaymentsPage = () => {
                   <th className="py-5">Transaction Ref</th>
                   <th className="py-5">Notes / Description</th>
                   <th className="pr-8 py-5 text-right">Amount</th>
+                  <th className="py-5 text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {payments.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
+                    <td colSpan="9" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
                       No payments found matching the selected filters.
                     </td>
                   </tr>
@@ -398,6 +445,15 @@ const ReservationPaymentsPage = () => {
                         </td>
                         <td className={`pr-8 py-4 text-right font-black text-sm ${isRefund ? "text-red-500" : "text-green-600"}`}>
                           {isRefund ? "- " : "+ "}৳{Math.abs(p.amount)}
+                        </td>
+                        <td className="py-4 text-center">
+                          <button
+                            onClick={() => handleDelete(p.id || p._id, p.source)}
+                            title="Remove payment"
+                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 transition-colors duration-150 cursor-pointer"
+                          >
+                            <FiTrash2 size={15} />
+                          </button>
                         </td>
                       </tr>
                     );

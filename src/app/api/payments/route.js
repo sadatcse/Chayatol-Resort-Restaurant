@@ -203,3 +203,39 @@ export async function GET(req) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function DELETE(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
+  try {
+    await dbConnect();
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    const source = searchParams.get("source"); // "Stay Folio Payment" or "Pre-Booking Prepayment"
+
+    if (!id) {
+      return NextResponse.json({ message: "Payment ID is required." }, { status: 400 });
+    }
+
+    if (source === "Pre-Booking Prepayment") {
+      const deleted = await ReservationPayment.findByIdAndDelete(id);
+      if (!deleted) {
+        return NextResponse.json({ message: "Reservation payment not found." }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, message: "Reservation payment deleted." }, { status: 200 });
+    } else {
+      // Stay Folio Payment — delete FolioEntry
+      const deleted = await FolioEntry.findByIdAndDelete(id);
+      if (!deleted) {
+        return NextResponse.json({ message: "Folio entry not found." }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, message: "Folio payment entry deleted." }, { status: 200 });
+    }
+  } catch (err) {
+    console.error("DELETE payment error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

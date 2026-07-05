@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import ControlSettings from "@/models/ControlSettings";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -23,6 +24,16 @@ async function dbConnect() {
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {
+      // Dynamically fetch and set system-wide Node.js TZ environment variable
+      try {
+        ControlSettings.findOne({}).then(settings => {
+          if (settings && settings.timeZone) {
+            process.env.TZ = settings.timeZone;
+          }
+        }).catch(err => console.error("Error setting Node timezone on DB connect:", err));
+      } catch (e) {
+        console.warn("Dynamic timezone set failed:", e);
+      }
       return mongooseInstance;
     });
   }

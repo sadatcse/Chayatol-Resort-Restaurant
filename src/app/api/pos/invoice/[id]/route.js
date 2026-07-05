@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import Invoice from "@/models/Invoice";
+import User from "@/models/User";
 
 const MONGO_URI = process.env.MONGODB_URI;
 
@@ -14,7 +15,7 @@ export async function GET(req, { params }) {
     await connectToDatabase();
     const { id } = await params;
     
-    const invoice = await Invoice.findById(id);
+    const invoice = await Invoice.findById(id).populate("createdBy", "name");
     if (!invoice) {
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
     }
@@ -32,10 +33,72 @@ export async function PUT(req, { params }) {
     const { id } = await params;
     const updateData = await req.json();
     
-    const updatedInvoice = await Invoice.findByIdAndUpdate(id, updateData, { new: true });
+    // Map orderType to schema enums case-insensitively
+    if (updateData.orderType) {
+      const orderTypeMapping = {
+        "dine-in": "Dine In",
+        "takeaway": "Takeaway",
+        "delivery": "Delivery",
+        "room service": "Room Service",
+        "foodpanda": "Foodpanda",
+        "foodi": "Foodi",
+        "pathao": "Pathao",
+        "dine in": "Dine In",
+        "roomservice": "Room Service"
+      };
+      const key = updateData.orderType.toLowerCase().trim();
+      updateData.orderType = orderTypeMapping[key] || updateData.orderType;
+    }
+    if (updateData.sc !== undefined && updateData.serviceCharge === undefined) {
+      updateData.serviceCharge = updateData.sc;
+    }
+
+    if (updateData.tableName && !updateData.tableNo) {
+      updateData.tableNo = updateData.tableName;
+    } else if (updateData.tableNo && !updateData.tableName) {
+      updateData.tableName = updateData.tableNo;
+    }
+    
+    const updatedInvoice = await Invoice.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
     
     if (!updatedInvoice) {
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
+    }
+
+    // Sync with Stay Folio
+    try {
+      const FolioEntry = mongoose.models.FolioEntry || (await import("@/models/FolioEntry")).default;
+      if (updatedInvoice.orderType === "Room Service" && updatedInvoice.paymentMethod === "Room Bill" && updatedInvoice.roomNo) {
+        const Room = mongoose.models.Room || (await import("@/models/Room")).default;
+        const Stay = mongoose.models.Stay || (await import("@/models/Stay")).default;
+
+        const roomDoc = await Room.findOne({ roomNumber: updatedInvoice.roomNo });
+        if (roomDoc) {
+          const activeStay = await Stay.findOne({
+            status: "In House",
+            "rooms.room": roomDoc._id
+          });
+          if (activeStay) {
+            await FolioEntry.findOneAndUpdate(
+              { referenceId: updatedInvoice._id },
+              {
+                stayId: activeStay._id,
+                type: "Food Charge",
+                description: `POS Restaurant Invoice ${updatedInvoice.invoiceNo} (Room Service for Room ${updatedInvoice.roomNo})`,
+                debit: updatedInvoice.grandTotal,
+                credit: 0,
+                referenceId: updatedInvoice._id
+              },
+              { upsert: true, new: true }
+            );
+          }
+        }
+      } else {
+        // If it's no longer a room service order charged to room bill, remove from ledger
+        await FolioEntry.deleteMany({ referenceId: updatedInvoice._id });
+      }
+    } catch (err) {
+      console.error("Error syncing folio entry on PUT:", err);
     }
 
     return NextResponse.json({ success: true, data: updatedInvoice }, { status: 200 });
@@ -54,6 +117,14 @@ export async function DELETE(req, { params }) {
     
     if (!deletedInvoice) {
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
+    }
+
+    // Delete any associated Stay Folio Entry
+    try {
+      const FolioEntry = mongoose.models.FolioEntry || (await import("@/models/FolioEntry")).default;
+      await FolioEntry.deleteMany({ referenceId: id });
+    } catch (err) {
+      console.error("Error deleting associated folio entries:", err);
     }
 
     return NextResponse.json({ success: true, data: {} }, { status: 200 });

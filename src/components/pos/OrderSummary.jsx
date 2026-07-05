@@ -23,9 +23,11 @@ const OrderSummary = ({
     setDiscountType,
     tables, // list of table objects
     rooms,  // list of room objects
+    activeStays = [],
     TableNameState, setTableNameState,
     deliveryProviderState, setDeliveryProviderState,
     sc = 0,
+    deliveryCharge = 0,
     custSearchResults = [],
     setCustSearchResults,
     custSearchLoading = false,
@@ -216,13 +218,39 @@ const OrderSummary = ({
                                     <label className="block text-gray-500 mb-1">Guest Room</label>
                                     <select
                                         value={roomNo || ''}
-                                        onChange={(e) => setRoomNo(e.target.value)}
+                                        onChange={(e) => {
+                                            const selectedRoom = e.target.value;
+                                            setRoomNo(selectedRoom);
+                                            
+                                            // Automatically select the active guest staying in this room
+                                            if (selectedRoom) {
+                                                const associatedStay = activeStays.find(s => s.rooms?.some(sr => sr.room?.roomNumber === selectedRoom));
+                                                if (associatedStay && associatedStay.customer) {
+                                                    setCustomer(associatedStay.customer);
+                                                    setMobile(associatedStay.customer.phone || '');
+                                                    Swal.fire({
+                                                        title: 'Guest Selected',
+                                                        text: `Guest auto-selected: ${associatedStay.customer.fullName || associatedStay.customer.name}`,
+                                                        icon: 'success',
+                                                        timer: 1500,
+                                                        showConfirmButton: false
+                                                    });
+                                                }
+                                            }
+                                        }}
                                         className="select select-bordered select-sm w-full dark:bg-zinc-800 dark:border-zinc-700 bg-white"
                                     >
                                         <option value="">Select Room</option>
-                                        {rooms.map(r => (
-                                            <option key={r._id} value={r.roomNumber}>Room {r.roomNumber}</option>
-                                        ))}
+                                        {rooms
+                                            .filter(r => activeStays.some(s => s.rooms?.some(sr => sr.room?.roomNumber === r.roomNumber)))
+                                            .map(r => {
+                                                const occupiedStay = activeStays.find(s => s.rooms?.some(sr => sr.room?.roomNumber === r.roomNumber));
+                                                const guestName = occupiedStay?.customer?.fullName || occupiedStay?.customer?.name || "Guest";
+                                                const label = `Room ${r.roomNumber} - ${guestName}`;
+                                                return (
+                                                    <option key={r._id} value={r.roomNumber}>{label}</option>
+                                                );
+                                            })}
                                     </select>
                                 </div>
                             )}
@@ -266,6 +294,12 @@ const OrderSummary = ({
                                 <div className="flex justify-between">
                                     <span>SD:</span>
                                     <span>TK {sd.toFixed(0)}</span>
+                                </div>
+                            )}
+                            {deliveryCharge > 0 && (
+                                <div className="flex justify-between text-brand-primary dark:text-brand-sage font-bold">
+                                    <span>Delivery Charge:</span>
+                                    <span>TK {deliveryCharge.toFixed(0)}</span>
                                 </div>
                             )}
 

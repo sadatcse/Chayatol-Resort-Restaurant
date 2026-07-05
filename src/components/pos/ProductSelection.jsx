@@ -71,10 +71,9 @@ const ProductSelection = ({
         setSearchResults([]);
     };
 
-    // Determine product list source: search results or filtered products by category
     const displayProducts = searchQuery.trim().length > 0 
         ? searchResults 
-        : (products || []).filter(p => p.category === selectedCategory);
+        : (products || []).filter(p => selectedCategory === "All" || p.category === selectedCategory);
 
     const cardOptions = [
         { name: "Visa Card", icon: <FaCcVisa /> },

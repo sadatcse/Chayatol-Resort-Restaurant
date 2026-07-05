@@ -27,7 +27,17 @@ const invoiceSchema = new Schema(
       default: null,
     },
 
+    tableName: {
+      type: String,
+      default: null,
+    },
+
     roomNo: {
+      type: String,
+      default: null,
+    },
+
+    deliveryProvider: {
       type: String,
       default: null,
     },
@@ -101,6 +111,11 @@ const invoiceSchema = new Schema(
       default: 0,
     },
 
+    deliveryCharge: {
+      type: Number,
+      default: 0,
+    },
+
     grandTotal: {
       type: Number,
       required: true,
@@ -140,6 +155,7 @@ const invoiceSchema = new Schema(
         cookStatus: { type: String, default: "PENDING" },
         isComplimentary: { type: Boolean, default: false },
         drinkBar: { type: Boolean, default: false },
+        cookOn: { type: String, default: "MAIN KITCHEN" },
         history: [
           {
             updateNumber: { type: Number, default: 0 },
@@ -155,6 +171,12 @@ const invoiceSchema = new Schema(
     customerName: { type: String, default: "" },
     customerMobile: { type: String, default: "" },
     kotRound: { type: Number, default: 1 },
+    orderStatus: { type: String, default: "pending" },
+
+    loginUserName: {
+      type: String,
+      default: null,
+    },
 
     createdBy: {
       type: Schema.Types.ObjectId,

@@ -13,7 +13,6 @@ import ProductSelection from "@/components/pos/ProductSelection";
 import OrderSummary from "@/components/pos/OrderSummary";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import KitchenReceiptTemplate from "@/components/Receipt/KitchenReceiptTemplate";
-import BarReceiptTemplate from "@/components/Receipt/BarReceiptTemplate";
 import { FaUtensils, FaGift, FaTruck, FaHotel } from "react-icons/fa";
 
 function POSContent() {
@@ -31,7 +30,19 @@ function POSContent() {
     const { categories, isLoading: loadingCategories } = useFoodCategories(1, 100);
 
     // POS States
-    const [selectedCategory, setSelectedCategory] = useState("All");
+    const [selectedCategory, setSelectedCategory] = useState("");
+
+    // Auto-select first category on load to prevent rendering all foods at once
+    useEffect(() => {
+        if (categories && categories.length > 0 && !selectedCategory) {
+            const firstCat = typeof categories[0] === 'object' ? categories[0].categoryName : categories[0];
+            if (firstCat) {
+                Promise.resolve().then(() => {
+                    setSelectedCategory(firstCat);
+                });
+            }
+        }
+    }, [categories, selectedCategory]);
     const [addedProducts, setAddedProducts] = useState([]);
     const [orderType, setOrderType] = useState("");
     const [TableName, setTableName] = useState("");
@@ -40,7 +51,7 @@ function POSContent() {
     const [invoiceSummary, setInvoiceSummary] = useState({ discount: 0, paid: 0 });
     const [discountType, setDiscountType] = useState("Percent");
     const [kotRound, setKotRound] = useState(1);
-    
+
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("Cash");
     const [selectedSubMethod, setSelectedSubMethod] = useState('');
     const [selectedCardIcon, setSelectedCardIcon] = useState(null);
@@ -72,23 +83,50 @@ function POSContent() {
     // Print Refs & States
     const receiptRef = useRef();
     const kitchenReceiptRef = useRef();
-    const barReceiptRef = useRef();
     const [printData, setPrintData] = useState(null);
-    const [printKitchenData, setPrintKitchenData] = useState(null);
-    const [printBarData, setPrintBarData] = useState(null);
+
+    // KOT Queue: array of { kitchenName, invoiceData } printed one by one
+    const [kotQueue, setKotQueue] = useState([]);
+    const [currentKot, setCurrentKot] = useState(null); // what's currently printing
+    const [printKOTEnabled, setPrintKOTEnabled] = useState(true); // from /settings/controls
+    // Holds KOTs that should start AFTER customer receipt finishes (Pay & Print flow)
+    const pendingKotQueueRef = useRef([]);
+
+    // Auto-trigger thermal print when printData is set (Pay & Print flow)
+    useEffect(() => {
+        if (!printData) return;
+        // Allow React to re-render with ReceiptTemplate mounted, then print
+        const timer = setTimeout(() => {
+            if (receiptRef.current) {
+                receiptRef.current.printReceipt();
+            }
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [printData]);
+
+    // KOT Queue processor — feeds queue into currentKot one at a time
+    useEffect(() => {
+        if (currentKot) return; // already printing, wait for onPrintComplete
+        if (kotQueue.length === 0) return;
+        const [next, ...rest] = kotQueue;
+        setCurrentKot(next);
+        setKotQueue(rest);
+    }, [kotQueue, currentKot]);
 
     // Fetch auxiliary data
     useEffect(() => {
         const fetchAuxData = async () => {
             try {
-                const [tablesRes, roomsRes, companyRes, paymentRes, chargesRes, staysRes] = await Promise.all([
-                    axiosSecure.get("/restauranttable").catch(() => ({ data: [] })),
-                    axiosSecure.get("/room").catch(() => ({ data: [] })),
-                    axiosSecure.get("/company").catch(() => ({ data: [] })),
-                    axiosSecure.get("/paymenttype").catch(() => ({ data: [] })),
-                    axiosSecure.get("/settings/charges").catch(() => ({ data: null })),
-                    axiosSecure.get("/stays?status=In House&limit=1000").catch(() => ({ data: { data: [] } }))
+                const [tablesRes, roomsRes, companyRes, paymentRes, chargesRes, staysRes, controlRes] = await Promise.all([
+                    axiosSecure.get("/restauranttable").catch((err) => { console.error("POS tables error:", err); return { data: [] }; }),
+                    axiosSecure.get("/room?all=true").catch((err) => { console.error("POS rooms error:", err); return { data: [] }; }),
+                    axiosSecure.get("/company").catch((err) => { console.error("POS company error:", err); return { data: [] }; }),
+                    axiosSecure.get("/paymenttype").catch((err) => { console.error("POS paymenttype error:", err); return { data: [] }; }),
+                    axiosSecure.get("/settings/charges").catch((err) => { console.error("POS charges error:", err); return { data: null }; }),
+                    axiosSecure.get("/stays?status=In House&limit=1000").catch((err) => { console.error("POS stays error:", err); return { data: { data: [] } }; }),
+                    axiosSecure.get("/settings/controls").catch((err) => { console.error("POS controls error:", err); return { data: { printKOT: true } }; }),
                 ]);
+
                 if (tablesRes.data) setTables(tablesRes.data);
                 if (roomsRes.data) {
                     setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : (roomsRes.data.data || []));
@@ -104,6 +142,9 @@ function POSContent() {
                 }
                 if (staysRes.data && staysRes.data.data) {
                     setActiveStays(staysRes.data.data);
+                }
+                if (controlRes?.data) {
+                    setPrintKOTEnabled(controlRes.data.printKOT !== false);
                 }
             } catch (e) {
                 console.error("Auxiliary fetch failed", e);
@@ -122,12 +163,19 @@ function POSContent() {
                 if (data.success && data.data) {
                     const inv = data.data;
                     setCurrentInvoiceId(inv._id);
-                    setOrderType(inv.orderType || "dine-in");
-                    setTableName(inv.tableName || "");
+                    const normalizeOrderTypeForClient = (type) => {
+                        if (!type) return "dine-in";
+                        const t = type.toLowerCase().trim();
+                        if (t === "dine in" || t === "dine-in") return "dine-in";
+                        if (t === "room service" || t === "roomservice") return "room service";
+                        return t;
+                    };
+                    setOrderType(normalizeOrderTypeForClient(inv.orderType));
+                    setTableName(inv.tableName || inv.tableNo || "");
                     setRoomNo(inv.roomNo || "");
                     setDeliveryProvider(inv.deliveryProvider || "");
                     setKotRound((inv.kotRound || 1) + 1); // Increment KOT round for updates
-                    
+
                     if (inv.customerName) {
                         setCustomer({
                             fullName: inv.customerName,
@@ -212,11 +260,13 @@ function POSContent() {
 
     // Prompt for Order Type Modal on Mount / Reset
     useEffect(() => {
-        if (!orderType && !invoiceId) {
-            setIsOrderTypeModalOpen(true);
-        } else {
-            setIsOrderTypeModalOpen(false);
-        }
+        Promise.resolve().then(() => {
+            if (!orderType && !invoiceId) {
+                setIsOrderTypeModalOpen(true);
+            } else {
+                setIsOrderTypeModalOpen(false);
+            }
+        });
     }, [orderType, invoiceId]);
 
     const handleCustomerSearch = async () => {
@@ -269,6 +319,7 @@ function POSContent() {
                 cookStatus: 'PENDING',
                 isComplimentary: false,
                 drinkBar: food.category?.toLowerCase() === "drinks" || food.category?.toLowerCase() === "beverage" || food.drinkBar === true,
+                cookOn: food.cookOn || (food.category?.toLowerCase() === "juice" ? "JUICE BAR" : "MAIN KITCHEN"),
                 history: []
             }];
         });
@@ -302,7 +353,7 @@ function POSContent() {
     const totals = useMemo(() => {
         const nonComplimentary = addedProducts.filter(p => !p.isComplimentary);
         const subtotal = nonComplimentary.reduce((acc, p) => acc + p.price * p.quantity, 0);
-        
+
         const getApplicabilityKey = (type, provider) => {
             if (!type) return "Dine In";
             const t = type.toLowerCase();
@@ -329,9 +380,9 @@ function POSContent() {
 
         nonComplimentary.forEach(p => {
             // VAT
-            let vatPercent = p.vat !== undefined ? p.vat : 0;
-            if (vatPercent === 0 && chargeSettings?.vat?.enabled) {
-                const isApplicable = chargeSettings.vat.customApplicability 
+            let vatPercent = 0;
+            if (p.vat > 0 && chargeSettings?.vat?.enabled) {
+                const isApplicable = chargeSettings.vat.customApplicability
                     ? !!chargeSettings.vat.applicability?.[appKey]
                     : true;
                 if (isApplicable) {
@@ -341,9 +392,9 @@ function POSContent() {
             vatVal += (p.price * p.quantity * vatPercent) / 100;
 
             // SD
-            let sdPercent = p.sd !== undefined ? p.sd : 0;
-            if (sdPercent === 0 && chargeSettings?.sd?.enabled) {
-                const isApplicable = chargeSettings.sd.customApplicability 
+            let sdPercent = 0;
+            if (p.sd > 0 && chargeSettings?.sd?.enabled) {
+                const isApplicable = chargeSettings.sd.customApplicability
                     ? !!chargeSettings.sd.applicability?.[appKey]
                     : true;
                 if (isApplicable) {
@@ -353,9 +404,9 @@ function POSContent() {
             sdVal += (p.price * p.quantity * sdPercent) / 100;
 
             // SC
-            let scPercent = p.sc !== undefined ? p.sc : 0;
-            if (scPercent === 0 && chargeSettings?.sc?.enabled) {
-                const isApplicable = chargeSettings.sc.customApplicability 
+            let scPercent = 0;
+            if (p.sc > 0 && chargeSettings?.sc?.enabled) {
+                const isApplicable = chargeSettings.sc.customApplicability
                     ? !!chargeSettings.sc.applicability?.[appKey]
                     : true;
                 if (isApplicable) {
@@ -365,6 +416,15 @@ function POSContent() {
             scVal += (p.price * p.quantity * scPercent) / 100;
         });
 
+        let deliveryChargeVal = 0;
+        if (orderType?.toLowerCase() === 'delivery' && chargeSettings?.deliveryCharge?.enabled) {
+            if (chargeSettings.deliveryCharge.type === 'PERCENT') {
+                deliveryChargeVal = (subtotal * (chargeSettings.deliveryCharge.value || 0)) / 100;
+            } else {
+                deliveryChargeVal = chargeSettings.deliveryCharge.value || 0;
+            }
+        }
+
         let discountAmount = 0;
         const discountInput = parseFloat(invoiceSummary.discount || 0);
         if (discountType === 'Percent') {
@@ -373,12 +433,13 @@ function POSContent() {
             discountAmount = discountInput;
         }
 
-        const payable = subtotal + vatVal + sdVal + scVal - discountAmount;
+        const payable = subtotal + vatVal + sdVal + scVal + deliveryChargeVal - discountAmount;
         return {
             subtotal,
             vat: vatVal,
             sd: sdVal,
             sc: scVal,
+            deliveryCharge: deliveryChargeVal,
             discount: discountAmount,
             payable: roundAmount(payable)
         };
@@ -390,6 +451,50 @@ function POSContent() {
     const printInvoice = async (isPrintAction) => {
         if (addedProducts.length === 0) return;
         setIsProcessing(true);
+
+        let finalPaymentMethod = isPrintAction ? (selectedPaymentMethod || "Cash") : "Due";
+        let finalPaymentStatus = isPrintAction ? "Paid" : "Unpaid";
+
+        if (orderType?.toLowerCase() === "room service" || orderType?.toLowerCase() === "roomservice") {
+            if (!roomNo) {
+                Swal.fire("Room Required", "Please select a guest room first for Room Service.", "warning");
+                setIsProcessing(false);
+                return;
+            }
+
+            const result = await Swal.fire({
+                title: 'Room Service Payment Options',
+                text: `How would you like to settle the order for Room ${roomNo}?`,
+                icon: 'question',
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: 'Add to Room Bill',
+                denyButtonText: 'Pay Now',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#28a745',
+                denyButtonColor: '#007bff',
+                cancelButtonColor: '#6c757d',
+            });
+
+            if (result.isConfirmed) {
+                // Add to Room Bill
+                finalPaymentMethod = "Room Bill";
+                finalPaymentStatus = "Unpaid";
+            } else if (result.isDenied) {
+                // Pay Now
+                if (isPrintAction) {
+                    finalPaymentMethod = selectedPaymentMethod || "Cash";
+                    finalPaymentStatus = "Paid";
+                } else {
+                    finalPaymentMethod = "Due";
+                    finalPaymentStatus = "Unpaid";
+                }
+            } else {
+                // Cancelled
+                setIsProcessing(false);
+                return;
+            }
+        }
 
         const invoiceDetails = {
             orderType,
@@ -407,6 +512,7 @@ function POSContent() {
                 cookStatus: p.cookStatus || 'PENDING',
                 isComplimentary: p.isComplimentary,
                 drinkBar: p.drinkBar,
+                cookOn: p.cookOn || "MAIN KITCHEN",
                 history: p.history?.length > 0 ? p.history : [{
                     updateNumber: 0,
                     updateTime: new Date().toISOString(),
@@ -420,6 +526,8 @@ function POSContent() {
             vat: roundAmount(totals.vat),
             sd: roundAmount(totals.sd),
             sc: roundAmount(totals.sc),
+            serviceCharge: roundAmount(totals.sc),
+            deliveryCharge: roundAmount(totals.deliveryCharge || 0),
             grandTotal: totals.payable,
             totalAmount: totals.payable,
             loginUserEmail,
@@ -431,8 +539,8 @@ function POSContent() {
                 phone: mobile || "n/a"
             },
             counter: "Counter 1",
-            paymentMethod: isPrintAction ? (selectedPaymentMethod || "Cash") : "Due",
-            paymentStatus: isPrintAction ? "Paid" : "Unpaid",
+            paymentMethod: finalPaymentMethod,
+            paymentStatus: finalPaymentStatus,
             invoiceType: "Restaurant",
             orderStatus: isPrintAction ? "served" : "Pending"
         };
@@ -441,9 +549,13 @@ function POSContent() {
             invoiceDetails.dateTime = customDateTime;
             invoiceDetails.createdAt = customDateTime;
         }
-        if (orderType === "dine-in") invoiceDetails.tableName = TableName;
-        if (orderType === "delivery") invoiceDetails.deliveryProvider = deliveryProvider;
-        if (orderType === "room service") invoiceDetails.roomNo = roomNo;
+        const normalizedType = orderType?.toLowerCase();
+        if (normalizedType === "dine-in") {
+            invoiceDetails.tableName = TableName;
+            invoiceDetails.tableNo = TableName;
+        }
+        if (normalizedType === "delivery") invoiceDetails.deliveryProvider = deliveryProvider;
+        if (normalizedType === "room service") invoiceDetails.roomNo = roomNo;
 
         try {
             let res;
@@ -461,11 +573,27 @@ function POSContent() {
                     invoiceSerial: res.data.data?.invoiceSerial || res.data.data?.invoiceNo || res.data.data?._id
                 };
 
-                if (isPrintAction && receiptRef.current) {
+                if (isPrintAction) {
+                    // Build per-kitchen KOT queue BEFORE resetting cart
+                    if (printKOTEnabled && addedProducts.length > 0) {
+                        const kitchenMap = {};
+                        addedProducts.forEach(p => {
+                            const kitchen = (p.cookOn || "MAIN KITCHEN").toUpperCase();
+                            if (!kitchenMap[kitchen]) kitchenMap[kitchen] = [];
+                            kitchenMap[kitchen].push({ ...p, qty: p.quantity });
+                        });
+                        // Store in ref — will be flushed when customer receipt onPrintComplete fires
+                        pendingKotQueueRef.current = Object.entries(kitchenMap).map(([kitchen, items]) => ({
+                            kitchenName: kitchen,
+                            invoiceData: {
+                                ...savedInvoice,
+                                kitchenName: kitchen,
+                                kotRound,
+                                products: items,
+                            }
+                        }));
+                    }
                     setPrintData(savedInvoice);
-                    setTimeout(() => {
-                        receiptRef.current.printReceipt();
-                    }, 300);
                 }
 
                 // Reset
@@ -486,7 +614,7 @@ function POSContent() {
         }
     };
 
-    // Kitchen Send (KOT)
+    // Kitchen Send (KOT) — groups items by cookOn kitchen, prints one KOT per kitchen
     const handleKitchenClick = async () => {
         if (addedProducts.length === 0) {
             toast.warn("Please add products first.");
@@ -495,22 +623,20 @@ function POSContent() {
 
         setIsProcessing(true);
 
-        // Find items that need printing to Kitchen/Bar (qty > printedQty)
-        const unprintedKitchenItems = addedProducts.filter(p => !p.drinkBar && p.quantity > (p.printedQty || 0));
-        const unprintedBarItems = addedProducts.filter(p => p.drinkBar && p.quantity > (p.printedQty || 0));
+        // Find items that haven't been fully printed yet (qty > printedQty)
+        const unprintedItems = addedProducts.filter(p => p.quantity > (p.printedQty || 0));
 
-        if (unprintedKitchenItems.length === 0 && unprintedBarItems.length === 0) {
-            toast.info("All items have already been sent to the kitchen/bar.");
+        if (unprintedItems.length === 0) {
+            toast.info("All items have already been sent to the kitchen.");
             setIsProcessing(false);
             return;
         }
 
-        // Update local cart printed amounts
+        // Update local cart: mark all as printed
         const updatedProducts = addedProducts.map(p => ({
             ...p,
             printedQty: p.quantity,
             addedInRound: p.addedInRound || kotRound,
-            // populate history
             history: p.history?.length > 0 ? p.history : [{
                 updateNumber: 0,
                 updateTime: new Date().toISOString(),
@@ -535,6 +661,7 @@ function POSContent() {
                 cookStatus: p.cookStatus || 'PENDING',
                 isComplimentary: p.isComplimentary,
                 drinkBar: p.drinkBar,
+                cookOn: p.cookOn || "MAIN KITCHEN",
                 history: p.history || []
             })),
             subTotal: roundAmount(totals.subtotal),
@@ -549,10 +676,7 @@ function POSContent() {
             loginUserName,
             customerName: customer?.fullName || customer?.name || "Guest",
             customerMobile: mobile || "n/a",
-            customer: {
-                name: customer?.fullName || customer?.name || "Guest",
-                phone: mobile || "n/a"
-            },
+            customer: { name: customer?.fullName || customer?.name || "Guest", phone: mobile || "n/a" },
             counter: "Counter 1",
             paymentMethod: "Due",
             paymentStatus: "Unpaid",
@@ -560,9 +684,13 @@ function POSContent() {
             orderStatus: "Pending"
         };
 
-        if (orderType === "dine-in") invoiceDetails.tableName = TableName;
-        if (orderType === "delivery") invoiceDetails.deliveryProvider = deliveryProvider;
-        if (orderType === "room service") invoiceDetails.roomNo = roomNo;
+        const normalizedType = orderType?.toLowerCase();
+        if (normalizedType === "dine-in") {
+            invoiceDetails.tableName = TableName;
+            invoiceDetails.tableNo = TableName;
+        }
+        if (normalizedType === "delivery") invoiceDetails.deliveryProvider = deliveryProvider;
+        if (normalizedType === "room service") invoiceDetails.roomNo = roomNo;
 
         try {
             let res;
@@ -573,7 +701,7 @@ function POSContent() {
             }
 
             if (res.data?.success) {
-                toast.success("Sent to kitchen board!");
+                toast.success("Order sent to kitchen!");
                 const savedInvoice = {
                     ...invoiceDetails,
                     ...res.data.data,
@@ -582,25 +710,30 @@ function POSContent() {
 
                 setCurrentInvoiceId(savedInvoice._id);
                 setAddedProducts(updatedProducts);
-
-                // Print Kitchen ticket if any
-                if (unprintedKitchenItems.length > 0 && kitchenReceiptRef.current) {
-                    setPrintKitchenData({
-                        ...savedInvoice,
-                        products: unprintedKitchenItems.map(p => ({ ...p, qty: p.quantity - (p.printedQty || 0) }))
-                    });
-                }
-
-                // Print Bar ticket if any
-                if (unprintedBarItems.length > 0 && barReceiptRef.current) {
-                    setPrintBarData({
-                        ...savedInvoice,
-                        products: unprintedBarItems.map(p => ({ ...p, qty: p.quantity - (p.printedQty || 0) }))
-                    });
-                }
-
-                // Increment Round for any additions
                 setKotRound(prev => prev + 1);
+
+                // --- Build per-kitchen KOT queue (same mechanism as Pay & Print) ---
+                if (printKOTEnabled) {
+                    const kitchenMap = {};
+                    unprintedItems.forEach(p => {
+                        const kitchen = (p.cookOn || "MAIN KITCHEN").toUpperCase();
+                        if (!kitchenMap[kitchen]) kitchenMap[kitchen] = [];
+                        kitchenMap[kitchen].push({ ...p, qty: p.quantity - (p.printedQty || 0) });
+                    });
+
+                    const newQueue = Object.entries(kitchenMap).map(([kitchen, items]) => ({
+                        kitchenName: kitchen,
+                        invoiceData: {
+                            ...savedInvoice,
+                            kitchenName: kitchen,
+                            kotRound,
+                            products: items,
+                        }
+                    }));
+
+                    // Flush immediately — no delay, prints as soon as React renders the component
+                    setKotQueue(q => [...q, ...newQueue]);
+                }
             }
         } catch (e) {
             console.error("KOT save error", e);
@@ -624,13 +757,19 @@ function POSContent() {
         setIsTableModalOpen(false);
         setIsDeliveryModalOpen(false);
         setIsRoomModalOpen(false);
+        if (categories && categories.length > 0) {
+            const firstCat = typeof categories[0] === 'object' ? categories[0].categoryName : categories[0];
+            setSelectedCategory(firstCat || "All");
+        } else {
+            setSelectedCategory("All");
+        }
         toast.info("POS Order Reset!");
     };
 
     return (
         <div className="flex flex-col lg:flex-row gap-4 p-4 min-h-screen bg-slate-50 dark:bg-zinc-950 font-sans">
             {/* Left: Product Selector */}
-            <ProductSelection 
+            <ProductSelection
                 products={foods}
                 categories={categories}
                 selectedCategory={selectedCategory}
@@ -647,7 +786,7 @@ function POSContent() {
             />
 
             {/* Right: Order Summary Details */}
-            <OrderSummary 
+            <OrderSummary
                 user={user}
                 customDateTime={customDateTime}
                 setCustomDateTime={setCustomDateTime}
@@ -671,6 +810,7 @@ function POSContent() {
                 vat={totals.vat}
                 sd={totals.sd}
                 sc={totals.sc}
+                deliveryCharge={totals.deliveryCharge}
                 payable={totals.payable}
                 paid={invoiceSummary.paid}
                 change={change}
@@ -685,6 +825,7 @@ function POSContent() {
                 setDiscountType={setDiscountType}
                 tables={tables}
                 rooms={rooms}
+                activeStays={activeStays}
                 TableNameState={TableName}
                 setTableNameState={setTableName}
                 deliveryProviderState={deliveryProvider}
@@ -697,7 +838,7 @@ function POSContent() {
             />
 
             {/* Customer Add Modal */}
-            <CustomerModal 
+            <CustomerModal
                 isOpen={isCustomerModalOpen}
                 onClose={() => setIsCustomerModalOpen(false)}
                 onSuccess={(newCustomer) => {
@@ -754,7 +895,7 @@ function POSContent() {
                                 Close
                             </button>
                         </div>
-                        
+
                         {tables && tables.length > 0 ? (
                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
                                 {tables.map((table) => {
@@ -767,8 +908,8 @@ function POSContent() {
                                                 setIsTableModalOpen(false);
                                             }}
                                             className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105
-                                                ${isSelected 
-                                                    ? "bg-brand-primary border-brand-primary text-white" 
+                                                ${isSelected
+                                                    ? "bg-brand-primary border-brand-primary text-white"
                                                     : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
                                         >
                                             <FaUtensils size={16} className={isSelected ? "text-white" : "text-brand-primary dark:text-brand-sage"} />
@@ -817,8 +958,8 @@ function POSContent() {
                                             setIsDeliveryModalOpen(false);
                                         }}
                                         className={`p-5 rounded-xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105
-                                            ${isSelected 
-                                                ? "bg-brand-primary border-brand-primary text-white" 
+                                            ${isSelected
+                                                ? "bg-brand-primary border-brand-primary text-white"
                                                 : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
                                     >
                                         <span className="text-sm font-bold text-center leading-tight">{provider.label}</span>
@@ -845,9 +986,10 @@ function POSContent() {
                                 Close
                             </button>
                         </div>
-                        
+
                         {(() => {
                             const occupiedRoomNumbers = activeStays.map(s => s.rooms?.map(sr => sr.room?.roomNumber)).flat().filter(Boolean);
+
                             const displayedRooms = orderType?.toLowerCase() === 'room service'
                                 ? rooms.filter(r => occupiedRoomNumbers.includes(r.roomNumber))
                                 : rooms;
@@ -872,7 +1014,7 @@ function POSContent() {
                                                 onClick={() => {
                                                     setRoomNo(r.roomNumber);
                                                     setIsRoomModalOpen(false);
-                                                    
+
                                                     // Automatically select the active guest staying in this room
                                                     if (orderType?.toLowerCase() === 'room service') {
                                                         const associatedStay = activeStays.find(s => s.rooms?.some(sr => sr.room?.roomNumber === r.roomNumber));
@@ -883,8 +1025,8 @@ function POSContent() {
                                                     }
                                                 }}
                                                 className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-105
-                                                    ${isSelected 
-                                                        ? "bg-brand-primary border-brand-primary text-white" 
+                                                    ${isSelected
+                                                        ? "bg-brand-primary border-brand-primary text-white"
                                                         : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
                                             >
                                                 <span className="text-xs font-bold text-center leading-tight">Room {r.roomNumber}</span>
@@ -904,27 +1046,28 @@ function POSContent() {
             {/* Print Render Containers (Invisible to user) */}
             <div className="hidden">
                 {printData && (
-                    <ReceiptTemplate 
+                    <ReceiptTemplate
                         ref={receiptRef}
                         profileData={companyInfo}
                         invoiceData={printData}
-                        onPrintComplete={() => setPrintData(null)}
+                        onPrintComplete={() => {
+                            setPrintData(null);
+                            // After customer receipt is done, flush any pending KOTs
+                            if (pendingKotQueueRef.current.length > 0) {
+                                setKotQueue(prev => [...prev, ...pendingKotQueueRef.current]);
+                                pendingKotQueueRef.current = [];
+                            }
+                        }}
                     />
                 )}
-                {printKitchenData && (
-                    <KitchenReceiptTemplate 
+                {/* KOT per-kitchen sequential printer */}
+                {currentKot && currentKot.invoiceData && (
+                    <KitchenReceiptTemplate
                         ref={kitchenReceiptRef}
                         profileData={companyInfo}
-                        invoiceData={printKitchenData}
-                        onPrintComplete={() => setPrintKitchenData(null)}
-                    />
-                )}
-                {printBarData && (
-                    <BarReceiptTemplate 
-                        ref={barReceiptRef}
-                        profileData={companyInfo}
-                        invoiceData={printBarData}
-                        onPrintComplete={() => setPrintBarData(null)}
+                        invoiceData={currentKot.invoiceData}
+                        kitchenName={currentKot.kitchenName}
+                        onPrintComplete={() => setCurrentKot(null)}
                     />
                 )}
             </div>

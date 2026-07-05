@@ -6,6 +6,10 @@ import { FiSearch, FiRefreshCw, FiEye, FiX, FiPrinter } from "react-icons/fi";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import useStandardPrint from "@/hooks/useStandardPrint";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 function CustomOrdersContent() {
     const axiosSecure = useAxiosSecure();
@@ -26,6 +30,14 @@ function CustomOrdersContent() {
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [companyInfo, setCompanyInfo] = useState(null);
+
+    const {
+        printData,
+        setPrintData,
+        printRef,
+    } = useStandardPrint({
+        documentTitle: "Custom_Orders_Report"
+    });
 
     const [filters, setFilters] = useState({
         orderType: "",
@@ -94,8 +106,41 @@ function CustomOrdersContent() {
     }, [axiosSecure, fromDate, toDate, filters]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         handleSearch();
     }, [handleSearch]);
+
+    const handleExportExcel = () => {
+        const formatted = orders.map((order, idx) => ({
+            "Sl No": idx + 1,
+            "Invoice No": order.invoiceSerial || order.invoiceNo,
+            "Date": new Date(order.dateTime || order.createdAt).toLocaleString("en-GB"),
+            "Customer": order.customerName || order.customer?.name || "Walk-in Guest",
+            "Type": order.orderType,
+            "Table/Room": order.tableName || order.roomNo || order.tableNo || "N/A",
+            "Amount": order.totalAmount || order.grandTotal || 0,
+            "Status": order.paymentStatus || "Unpaid"
+        }));
+        exportToExcel(formatted, "Custom_Orders_Report");
+    };
+
+    const handleExportCsv = () => {
+        const formatted = orders.map((order, idx) => ({
+            "Sl No": idx + 1,
+            "Invoice No": order.invoiceSerial || order.invoiceNo,
+            "Date": new Date(order.dateTime || order.createdAt).toLocaleString("en-GB"),
+            "Customer": order.customerName || order.customer?.name || "Walk-in Guest",
+            "Type": order.orderType,
+            "Table/Room": order.tableName || order.roomNo || order.tableNo || "N/A",
+            "Amount": order.totalAmount || order.grandTotal || 0,
+            "Status": order.paymentStatus || "Unpaid"
+        }));
+        exportToCsv(formatted, "Custom_Orders_Report");
+    };
+
+    const handlePrintClick = () => {
+        setPrintData(orders);
+    };
 
     const resetFilters = () => {
         setFromDate(getFormattedDate(new Date()));
@@ -134,11 +179,19 @@ function CustomOrdersContent() {
     return (
         <div className="p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 min-h-screen font-sans transition-colors duration-200">
             <div className="max-w-7xl mx-auto">
-                <header className="mb-6 flex justify-between items-center">
+                <header className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1 className="text-3xl font-black tracking-tight">Custom Order Report</h1>
                         <p className="text-sm text-gray-500 mt-1">Run advanced sales query logs from the transaction database</p>
                     </div>
+                    {orders.length > 0 && (
+                        <ExportButtons
+                            onExportExcel={handleExportExcel}
+                            onExportCsv={handleExportCsv}
+                            onPrint={handlePrintClick}
+                            isLoading={isLoading}
+                        />
+                    )}
                 </header>
 
                 {/* Filters Board */}
@@ -219,7 +272,7 @@ function CustomOrdersContent() {
                             </button>
                             <button
                                 onClick={handleSearch}
-                                className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer shadow flex-1"
+                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer shadow flex-1 border-none"
                             >
                                 Search
                             </button>
@@ -231,7 +284,7 @@ function CustomOrdersContent() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-gray-250 dark:border-zinc-800 shadow">
                         <span className="text-[10px] uppercase font-bold text-gray-400">Filtered Sales Count</span>
-                        <h3 className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{summary.count} Orders</h3>
+                        <h3 className="text-2xl font-black text-brand-primary dark:text-brand-sage mt-1">{summary.count} Orders</h3>
                     </div>
                     <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-gray-250 dark:border-zinc-800 shadow">
                         <span className="text-[10px] uppercase font-bold text-gray-400">Total Filtered Net Revenue</span>
@@ -271,10 +324,10 @@ function CustomOrdersContent() {
                                                     </td>
                                                     <td className="p-3 text-left">{order.customerName || order.customer?.name || "Walk-in Guest"}</td>
                                                     <td className="p-3 text-left capitalize">{order.orderType}</td>
-                                                    <td className="p-3 text-left">
+                                                    <td className="p-3 text-right">
                                                         {order.tableName || order.roomNo || order.tableNo || "N/A"}
                                                     </td>
-                                                    <td className="p-3 text-right font-extrabold text-blue-650 dark:text-blue-400">
+                                                    <td className="p-3 text-right font-extrabold text-brand-primary dark:text-brand-sage">
                                                         ৳ {(order.totalAmount || order.grandTotal || 0).toFixed(0)}
                                                     </td>
                                                     <td className="p-3 text-left text-xs">
@@ -285,7 +338,7 @@ function CustomOrdersContent() {
                                                     <td className="p-3 text-right">
                                                         <button
                                                             onClick={() => handleViewDetails(order)}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-bold cursor-pointer"
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary hover:bg-brand-secondary text-white rounded-md text-xs font-bold cursor-pointer border-none"
                                                         >
                                                             <FiEye /> View
                                                         </button>
@@ -374,13 +427,13 @@ function CustomOrdersContent() {
                             {selectedOrder.vat > 0 && <p>VAT: ৳ {selectedOrder.vat.toFixed(0)}</p>}
                             {selectedOrder.sd > 0 && <p>SD: ৳ {selectedOrder.sd.toFixed(0)}</p>}
                             {selectedOrder.discount > 0 && <p className="text-green-600 font-bold">Discount: -৳ {selectedOrder.discount.toFixed(0)}</p>}
-                            <p className="text-base font-extrabold text-blue-600 dark:text-blue-400 mt-1">Total Amount: ৳ {(selectedOrder.totalAmount || selectedOrder.grandTotal || 0).toFixed(0)}</p>
+                            <p className="text-base font-extrabold text-brand-primary dark:text-brand-sage mt-1">Total Amount: ৳ {(selectedOrder.totalAmount || selectedOrder.grandTotal || 0).toFixed(0)}</p>
                         </div>
 
                         <div className="flex justify-end gap-3 mt-6">
                             <button
                                 onClick={handlePrintOrder}
-                                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs cursor-pointer shadow"
+                                className="flex items-center gap-1.5 px-4 py-2 bg-brand-primary hover:bg-brand-secondary text-white rounded-lg font-bold text-xs cursor-pointer shadow border-none"
                             >
                                 <FiPrinter /> Print Receipt
                             </button>
@@ -405,6 +458,46 @@ function CustomOrdersContent() {
                         invoiceData={selectedOrder}
                     />
                 )}
+                {printData && (
+                    <PrintReportTemplate
+                        ref={printRef}
+                        title="Custom Order Report"
+                        subtitle="Advanced POS sales query logs from database"
+                        dateRange={`From: ${new Date(fromDate).toLocaleDateString("en-GB")} To: ${new Date(toDate).toLocaleDateString("en-GB")}`}
+                    >
+                        <table className="print-table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice No</th>
+                                    <th>Date & Time</th>
+                                    <th>Customer</th>
+                                    <th>Type</th>
+                                    <th>Table/Room</th>
+                                    <th style={{ textAlign: "right" }}>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {printData.map((order) => (
+                                    <tr key={order._id}>
+                                        <td style={{ fontWeight: "bold" }}>{order.invoiceSerial || order.invoiceNo}</td>
+                                        <td>{new Date(order.dateTime || order.createdAt).toLocaleString("en-GB")}</td>
+                                        <td>{order.customerName || order.customer?.name || "Walk-in Guest"}</td>
+                                        <td style={{ textTransform: "capitalize" }}>{order.orderType}</td>
+                                        <td>{order.tableName || order.roomNo || order.tableNo || "N/A"}</td>
+                                        <td style={{ textAlign: "right", fontWeight: "bold" }}>৳ {(order.totalAmount || order.grandTotal || 0).toFixed(0)}</td>
+                                        <td style={{ fontWeight: "bold" }}>{order.paymentStatus || "Unpaid"}</td>
+                                    </tr>
+                                ))}
+                                <tr style={{ fontWeight: "bold", backgroundColor: "#f3f4f6" }}>
+                                    <td colSpan={5}>Summary Totals ({summary.count} Orders)</td>
+                                    <td style={{ textAlign: "right" }}>৳ {summary.totalAmount.toFixed(0)}</td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </PrintReportTemplate>
+                )}
             </div>
         </div>
     );
@@ -412,7 +505,7 @@ function CustomOrdersContent() {
 
 export default function CustomOrdersPage() {
     return (
-        <Suspense fallback={<div className="flex justify-center items-center py-24"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+        <Suspense fallback={<div className="flex justify-center items-center py-24"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>}>
             <CustomOrdersContent />
         </Suspense>
     );

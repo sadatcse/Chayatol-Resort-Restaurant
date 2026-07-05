@@ -64,6 +64,8 @@ const CustomersPage = () => {
 
   const [customers, setCustomers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewCustomer, setViewCustomer] = useState(null);
   const [activeTab, setActiveTab] = useState("basic");
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
   const [editId, setEditId] = useState(null);
@@ -73,6 +75,40 @@ const CustomersPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPageLoading, setPageLoading] = useState(true);
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+
+  const openViewModal = (customer) => {
+    setViewCustomer(customer);
+    setIsViewModalOpen(true);
+  };
+
+  const closeViewModal = () => {
+    setViewCustomer(null);
+    setIsViewModalOpen(false);
+  };
+
+  const getProfileCompletionRatio = (cust) => {
+    if (!cust) return 0;
+    const fields = [
+      cust.fullName,
+      cust.phoneNumber,
+      cust.emailAddress,
+      cust.nationality,
+      cust.maritalStatus,
+      cust.gender,
+      cust.dateOfBirth,
+      cust.address?.line1,
+      cust.address?.city,
+      cust.address?.country,
+      cust.occupation,
+      cust.identificationNumber,
+      cust.customerPhoto,
+      cust.uploadIdCopy,
+      cust.emergencyContact?.name,
+      cust.emergencyContact?.phoneNumber
+    ];
+    const filled = fields.filter(f => f && String(f).trim() !== "").length;
+    return Math.round((filled / fields.length) * 100);
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -595,7 +631,8 @@ const CustomersPage = () => {
                 <tr>
                   <th className="pl-8 py-5">Guest Profile</th>
                   <th className="py-5">Gender</th>
-                  <th className="py-5">Nationality</th>
+                  <th className="py-5">Mobile</th>
+                  <th className="py-5 text-center">Profile Completeness</th>
                   <th className="py-5">Identification</th>
                   <th className="py-5">Emergency Contact</th>
                   <th className="pr-8 text-center py-5">Manage</th>
@@ -604,7 +641,7 @@ const CustomersPage = () => {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
+                    <td colSpan="7" className="text-center py-20 text-brand-sage text-sm font-bold tracking-widest uppercase bg-white dark:bg-brand-charcoal">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-brand-offwhite dark:bg-brand-offwhite/5 rounded-full">
                           <FiUsers className="w-12 h-12 text-brand-sage opacity-50" />
@@ -641,11 +678,35 @@ const CustomersPage = () => {
                         </div>
                       </td>
 
-                      <td className="py-4">
-                        <div className="flex items-center gap-2.5 text-xs font-semibold text-brand-dark-grey dark:text-brand-offwhite/70 capitalize">
-                          <div className="p-2 bg-brand-offwhite dark:bg-brand-offwhite/5 rounded-lg text-brand-bronze"><FiGlobe size={14} /></div>
-                          {customer.nationality || "Bangladeshi"}
+                      <td className="py-4 font-mono text-xs font-semibold text-brand-dark-grey dark:text-brand-offwhite/70">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-brand-offwhite dark:bg-brand-offwhite/5 rounded-lg text-brand-primary"><FiPhone size={14} /></div>
+                          {customer.phoneNumber || "N/A"}
                         </div>
+                      </td>
+
+                      <td className="py-4">
+                        {(() => {
+                          const ratio = getProfileCompletionRatio(customer);
+                          return (
+                            <div className="flex flex-col gap-1 items-center justify-center">
+                              <span className={`text-[11px] font-bold ${
+                                ratio >= 80 ? 'text-green-600 dark:text-green-400' :
+                                ratio >= 50 ? 'text-amber-600 dark:text-amber-400' :
+                                'text-red-500'
+                              }`}>{ratio}% Complete</span>
+                              <progress 
+                                className={`progress w-24 h-1.5 ${
+                                  ratio >= 80 ? '[&::-webkit-progress-value]:bg-green-500 [&::-moz-progress-bar]:bg-green-500' :
+                                  ratio >= 50 ? '[&::-webkit-progress-value]:bg-amber-500 [&::-moz-progress-bar]:bg-amber-500' :
+                                  '[&::-webkit-progress-value]:bg-red-500 [&::-moz-progress-bar]:bg-red-500'
+                                }`} 
+                                value={ratio} 
+                                max="100"
+                              ></progress>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       <td className="py-4 font-mono text-xs font-medium text-brand-dark-grey dark:text-brand-offwhite/70">
@@ -668,6 +729,9 @@ const CustomersPage = () => {
 
                       <td className="pr-8 py-4">
                         <div className="flex justify-center items-center gap-2">
+                          <button onClick={() => openViewModal(customer)} className="btn btn-sm btn-circle btn-ghost text-brand-primary hover:text-brand-secondary hover:bg-brand-primary/10 transition-colors" title="View Profile Details">
+                            <FiSearch size={16} />
+                          </button>
                           {canPerformAction ? (
                             <>
                               <button onClick={() => openModal(customer)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors" title="Edit Customer">
@@ -1149,6 +1213,109 @@ const CustomersPage = () => {
           <form method="dialog" className="modal-backdrop">
             <button onClick={closeModal}>close</button>
           </form>
+        </dialog>
+      )}
+      {/* Detail View Modal */}
+      {isViewModalOpen && viewCustomer && (
+        <dialog className="modal modal-open modal-bottom sm:modal-middle bg-brand-charcoal/40 backdrop-blur-sm">
+          <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-2xl rounded-2xl shadow-2xl border border-brand-beige/25 dark:border-brand-beige/25 text-brand-charcoal dark:text-brand-offwhite">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest flex items-center gap-2">
+                <FiUsers className="text-brand-primary" /> Guest Details Profile
+              </h3>
+              <button onClick={closeViewModal} className="btn btn-sm btn-circle btn-ghost text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-beige dark:hover:bg-brand-offwhite/10">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            {/* Profile Content */}
+            <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div className="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-brand-beige/15 dark:border-brand-beige/10">
+                <div className="avatar">
+                  <div className="w-28 h-28 rounded-full ring-4 ring-brand-primary ring-offset-4 ring-offset-white dark:ring-offset-brand-charcoal shadow-md overflow-hidden">
+                    {viewCustomer.customerPhoto ? (
+                      <img src={viewCustomer.customerPhoto} alt={viewCustomer.fullName} className="object-cover w-full h-full" />
+                    ) : (
+                      <div className="bg-brand-offwhite dark:bg-brand-offwhite/5 w-full h-full flex items-center justify-center text-brand-primary font-bold text-3xl">
+                        {viewCustomer.fullName?.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex-grow text-center sm:text-left space-y-2">
+                  <h2 className="text-2xl font-black uppercase text-brand-black dark:text-brand-offwhite tracking-wide">{viewCustomer.fullName}</h2>
+                  <p className="text-sm font-semibold text-brand-sage flex items-center justify-center sm:justify-start gap-1.5"><FiBriefcase /> {viewCustomer.occupation || "No Occupation Listed"}</p>
+                  <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                    <span className="badge bg-brand-primary/10 text-brand-primary border-brand-primary/20 text-xs font-bold px-3 py-2 rounded-full capitalize">{viewCustomer.gender}</span>
+                    <span className="badge bg-brand-bronze/10 text-brand-bronze border-brand-bronze/20 text-xs font-bold px-3 py-2 rounded-full">{viewCustomer.nationality || "Bangladeshi"}</span>
+                    <span className="badge bg-purple-500/10 text-purple-600 border-purple-500/20 text-xs font-bold px-3 py-2 rounded-full">{viewCustomer.maritalStatus || "Single"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid of detailed information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-semibold">
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-bold text-brand-sage uppercase tracking-widest border-b border-brand-beige/10 pb-1">Contact Information</h4>
+                  <div className="space-y-2.5">
+                    <p className="flex items-center gap-2"><FiPhone className="text-brand-primary" /> <strong>Phone:</strong> <span className="font-mono">{viewCustomer.phoneNumber || "N/A"}</span></p>
+                    <p className="flex items-center gap-2"><FiGlobe className="text-brand-primary" /> <strong>Email:</strong> <span>{viewCustomer.emailAddress || "N/A"}</span></p>
+                    <p className="flex items-center gap-2"><FiMapPin className="text-brand-primary animate-bounce" /> <strong>City/District:</strong> <span>{viewCustomer.address?.city || "N/A"}</span></p>
+                    <p className="flex items-center gap-2"><FiMapPin className="text-brand-primary" /> <strong>Country:</strong> <span>{viewCustomer.address?.country || "N/A"}</span></p>
+                    {viewCustomer.address?.line1 && (
+                      <p className="flex items-start gap-2"><FiMapPin className="text-brand-primary mt-0.5" /> <strong>Full Address:</strong> <span className="flex-1 font-medium">{viewCustomer.address.line1}{viewCustomer.address.line2 ? `, ${viewCustomer.address.line2}` : ''}</span></p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-bold text-brand-sage uppercase tracking-widest border-b border-brand-beige/10 pb-1">Identification & Key Dates</h4>
+                  <div className="space-y-2.5">
+                    <p><strong>ID Type:</strong> <span className="badge bg-brand-primary/10 text-brand-primary border-none font-bold uppercase py-1 px-2.5 rounded text-[10px]">{viewCustomer.identificationType || "NID"}</span></p>
+                    <p><strong>ID Number:</strong> <span className="font-mono">{viewCustomer.identificationNumber || "N/A"}</span></p>
+                    {viewCustomer.dateOfBirth && (
+                      <p><strong>Date of Birth:</strong> <span>{new Date(viewCustomer.dateOfBirth).toLocaleDateString("en-GB")}</span></p>
+                    )}
+                    {viewCustomer.anniversaryDate && (
+                      <p><strong>Anniversary Date:</strong> <span>{new Date(viewCustomer.anniversaryDate).toLocaleDateString("en-GB")}</span></p>
+                    )}
+                    {viewCustomer.companyName && (
+                      <p><strong>Company:</strong> <span>{viewCustomer.companyName}</span></p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4 md:col-span-2">
+                  <h4 className="text-[10px] font-bold text-brand-sage uppercase tracking-widest border-b border-brand-beige/10 pb-1">Emergency Contact</h4>
+                  {viewCustomer.emergencyContact?.name ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-brand-offwhite/50 dark:bg-brand-offwhite/5 p-4 rounded-xl border border-brand-beige/15 dark:border-brand-beige/10">
+                      <p><strong>Name:</strong> <span className="block mt-1 font-bold">{viewCustomer.emergencyContact.name}</span></p>
+                      <p><strong>Relation:</strong> <span className="block mt-1 font-bold">{viewCustomer.emergencyContact.relation}</span></p>
+                      <p><strong>Phone Number:</strong> <span className="block mt-1 font-mono font-bold text-brand-sage">{viewCustomer.emergencyContact.phoneNumber}</span></p>
+                    </div>
+                  ) : (
+                    <p className="text-brand-sage italic text-xs">No emergency contact information provided.</p>
+                  )}
+                </div>
+
+                {viewCustomer.uploadIdCopy && (
+                  <div className="space-y-4 md:col-span-2">
+                    <h4 className="text-[10px] font-bold text-brand-sage uppercase tracking-widest border-b border-brand-beige/10 pb-1">Uploaded Identification copy</h4>
+                    <div className="flex justify-center p-4 bg-brand-offwhite/20 dark:bg-brand-charcoal/20 rounded-xl border border-brand-beige/10">
+                      <img src={viewCustomer.uploadIdCopy} alt="ID Copy document" className="max-h-72 w-auto object-contain rounded-lg shadow-md border border-brand-beige/10" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <button onClick={closeViewModal} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">Close</button>
+            </div>
+          </div>
         </dialog>
       )}
     </div>

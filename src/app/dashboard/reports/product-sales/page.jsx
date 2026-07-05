@@ -6,6 +6,10 @@ import { FiSearch, FiCalendar } from "react-icons/fi";
 import { FaSort, FaSortUp, FaSortDown } from "react-icons/fa";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import ExportButtons from "@/components/Comon/ExportButtons";
+import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import useStandardPrint from "@/hooks/useStandardPrint";
+import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 function ProductSalesContent() {
     const axiosSecure = useAxiosSecure();
@@ -23,6 +27,14 @@ function ProductSalesContent() {
     const [displays, setDisplays] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+
+    const {
+        printData,
+        setPrintData,
+        printRef,
+    } = useStandardPrint({
+        documentTitle: "Product_Sales_Report"
+    });
 
     // Fetch categories
     useEffect(() => {
@@ -78,6 +90,7 @@ function ProductSalesContent() {
     }, [axiosSecure, selectedCategory, selectedProduct, startDate, endDate]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         handleSearch();
     }, [handleSearch]);
 
@@ -97,6 +110,32 @@ function ProductSalesContent() {
         return sortableItems;
     }, [displays, sortConfig]);
 
+    const handleExportExcel = () => {
+        const formatted = sortedDisplays.map((item, idx) => ({
+            "Sl No": idx + 1,
+            "Product Name": item.productName,
+            "Unit Price": item.rate,
+            "Total Sold": item.qty,
+            "Revenue": item.qty * item.rate
+        }));
+        exportToExcel(formatted, "Product_Sales_Report");
+    };
+
+    const handleExportCsv = () => {
+        const formatted = sortedDisplays.map((item, idx) => ({
+            "Sl No": idx + 1,
+            "Product Name": item.productName,
+            "Unit Price": item.rate,
+            "Total Sold": item.qty,
+            "Revenue": item.qty * item.rate
+        }));
+        exportToCsv(formatted, "Product_Sales_Report");
+    };
+
+    const handlePrintClick = () => {
+        setPrintData(sortedDisplays);
+    };
+
     const requestSort = (key) => {
         let direction = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -110,9 +149,9 @@ function ProductSalesContent() {
             return <FaSort className="inline-block ml-1 text-slate-400" />;
         }
         return sortConfig.direction === 'ascending' ? (
-            <FaSortUp className="inline-block ml-1 text-blue-500" />
+            <FaSortUp className="inline-block ml-1 text-brand-primary" />
         ) : (
-            <FaSortDown className="inline-block ml-1 text-blue-500" />
+            <FaSortDown className="inline-block ml-1 text-brand-primary" />
         );
     };
 
@@ -123,11 +162,19 @@ function ProductSalesContent() {
         <div className="p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 min-h-screen font-sans transition-colors duration-200">
             <div className="max-w-7xl mx-auto">
                 
-                <header className="mb-6 flex justify-between items-center">
+                <header className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1 className="text-3xl font-black text-gray-800 dark:text-zinc-100 tracking-tight">Product Sales Report</h1>
                         <p className="text-sm text-gray-500 mt-1">Item-wise details of items sold</p>
                     </div>
+                    {displays.length > 0 && (
+                        <ExportButtons
+                            onExportExcel={handleExportExcel}
+                            onExportCsv={handleExportCsv}
+                            onPrint={handlePrintClick}
+                            isLoading={isLoading}
+                        />
+                    )}
                 </header>
 
                 <motion.div
@@ -187,7 +234,7 @@ function ProductSalesContent() {
 
                             <button 
                                 onClick={handleSearch} 
-                                className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow w-full" 
+                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow w-full border-none" 
                                 disabled={isLoading}
                             >
                                 <FiSearch /> Search
@@ -208,7 +255,7 @@ function ProductSalesContent() {
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
-                                    <thead className="bg-slate-50 dark:bg-zinc-800 text-xs text-gray-500 dark:text-zinc-200 font-bold uppercase border-b border-gray-200 dark:border-zinc-700">
+                                    <thead className="bg-slate-50 dark:bg-zinc-800 text-xs text-gray-550 dark:text-zinc-200 font-bold uppercase border-b border-gray-200 dark:border-zinc-700">
                                         <tr>
                                             <th className="p-3 text-left rounded-tl-lg">SL.No</th>
                                             <th className="p-3">
@@ -237,7 +284,7 @@ function ProductSalesContent() {
                                                         <td className="p-3 text-left">{index + 1}</td>
                                                         <td className="p-3 text-left font-bold text-gray-800 dark:text-zinc-150">{prod.productName}</td>
                                                         <td className="p-3 text-right">৳ {prod.rate.toFixed(0)}</td>
-                                                        <td className="p-3 text-center text-blue-600 dark:text-blue-400 font-extrabold">{prod.qty}</td>
+                                                        <td className="p-3 text-center text-brand-primary dark:text-brand-sage font-extrabold">{prod.qty}</td>
                                                         <td className="p-3 text-right font-extrabold text-gray-900 dark:text-zinc-200">৳ {(prod.qty * prod.rate).toFixed(0)}</td>
                                                     </tr>
                                                 ))
@@ -254,7 +301,7 @@ function ProductSalesContent() {
                                         <tfoot className="font-extrabold bg-slate-100 dark:bg-zinc-850 text-slate-800 dark:text-zinc-200">
                                             <tr>
                                                 <td className="p-3 rounded-bl-lg" colSpan={3}>Summary Totals</td>
-                                                <td className="p-3 text-center text-blue-650 dark:text-blue-400">{totalQuantity}</td>
+                                                <td className="p-3 text-center text-brand-primary dark:text-brand-sage">{totalQuantity}</td>
                                                 <td className="p-3 text-right text-gray-900 dark:text-zinc-200 rounded-br-lg">৳ {totalRevenue.toFixed(0)}</td>
                                             </tr>
                                         </tfoot>
@@ -265,13 +312,53 @@ function ProductSalesContent() {
                     </div>
                 </motion.div>
             </div>
+
+            {/* Hidden Print Container */}
+            <div className="hidden">
+                {printData && (
+                    <PrintReportTemplate
+                        ref={printRef}
+                        title="Product Sales Report"
+                        subtitle={`Item-wise details of items sold | Category: ${selectedCategory}`}
+                        dateRange={`From: ${new Date(startDate).toLocaleDateString("en-GB")} To: ${new Date(endDate).toLocaleDateString("en-GB")}`}
+                    >
+                        <table className="print-table">
+                            <thead>
+                                <tr>
+                                    <th>SL.No</th>
+                                    <th>Product Name</th>
+                                    <th style={{ textAlign: "right" }}>Unit Price</th>
+                                    <th style={{ textAlign: "center" }}>Total Sold</th>
+                                    <th style={{ textAlign: "right" }}>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {printData.map((prod, idx) => (
+                                    <tr key={idx}>
+                                        <td>{idx + 1}</td>
+                                        <td style={{ fontWeight: "bold" }}>{prod.productName}</td>
+                                        <td style={{ textAlign: "right" }}>৳ {prod.rate.toFixed(0)}</td>
+                                        <td style={{ textAlign: "center", fontWeight: "bold" }}>{prod.qty}</td>
+                                        <td style={{ textAlign: "right" }}>৳ {(prod.qty * prod.rate).toFixed(0)}</td>
+                                    </tr>
+                                ))}
+                                <tr style={{ fontWeight: "bold", backgroundColor: "#f3f4f6" }}>
+                                    <td colSpan={3}>Summary Totals</td>
+                                    <td style={{ textAlign: "center" }}>{totalQuantity}</td>
+                                    <td style={{ textAlign: "right" }}>৳ {totalRevenue.toFixed(0)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </PrintReportTemplate>
+                )}
+            </div>
         </div>
     );
 }
 
 export default function ProductSalesPage() {
     return (
-        <Suspense fallback={<div className="flex justify-center items-center py-24"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+        <Suspense fallback={<div className="flex justify-center items-center py-24"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>}>
             <ProductSalesContent />
         </Suspense>
     );

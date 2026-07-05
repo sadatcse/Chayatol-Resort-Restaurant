@@ -80,6 +80,12 @@ const ReceiptPrint = React.forwardRef(({ invoice }, ref) => {
               <span>{invoice.serviceCharge.toFixed(2)}</span>
             </div>
           )}
+          {invoice.deliveryCharge > 0 && (
+            <div className="flex justify-between">
+              <span>Delivery Chg:</span>
+              <span>{invoice.deliveryCharge.toFixed(2)}</span>
+            </div>
+          )}
           
           <div className="flex justify-between font-bold text-sm mt-2 border-t border-dashed border-black pt-1">
             <span>TOTAL:</span>

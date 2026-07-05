@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useContext, useRef, useCallback, Suspense } from "react";
 import {
-    FiSearch, FiRefreshCw, FiX, FiEye, FiPrinter, FiChevronLeft, FiChevronRight, FiFilter
+    FiSearch, FiRefreshCw, FiX, FiEye, FiPrinter, FiChevronLeft, FiChevronRight, FiFilter,
+    FiClock
 } from "react-icons/fi";
 import { FaCalendarAlt, FaUser as FaUserAlt, FaHashtag, FaMoneyBillWave, FaQrcode } from "react-icons/fa";
 import Swal from "sweetalert2";
@@ -10,14 +11,17 @@ import { toast } from "react-toastify";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
+import A4ReceiptTemplate from "@/components/Receipt/A4ReceiptTemplate";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import QRCodeGenerator from "@/components/pos/QRCodeGenerator";
+import SectionHeader from "@/components/Comon/SectionHeader";
 
 const ITEMS_PER_PAGE = 15;
 
 function FinishedOrdersContent() {
     const axiosSecure = useAxiosSecure();
     const receiptRef = useRef();
+    const a4ReceiptRef = useRef();
     const { user } = useContext(AuthContext);
 
     const [orders, setOrders] = useState([]);
@@ -36,13 +40,24 @@ function FinishedOrdersContent() {
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [isQrModalOpen, setIsQrModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [printType, setPrintType] = useState("thermal"); // thermal or a4
     const [companyInfo, setCompanyInfo] = useState(null);
+
+    const getTodayDateString = () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, "0");
+        const day = String(today.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+
+    const todayStr = getTodayDateString();
 
     // Filters
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
+    const [startDate, setStartDate] = useState(todayStr);
+    const [endDate, setEndDate] = useState(todayStr);
     const [filters, setFilters] = useState({
         orderType: "",
         paymentStatus: "Paid" // Default to showing paid/finished orders
@@ -75,7 +90,9 @@ function FinishedOrdersContent() {
 
     // Reset pagination to 1 when filters change
     useEffect(() => {
-        setCurrentPage(1);
+        Promise.resolve().then(() => {
+            setCurrentPage(1);
+        });
     }, [debouncedSearchTerm, startDate, endDate, filters]);
 
     const fetchOrders = useCallback(async (pageToFetch) => {
@@ -110,7 +127,9 @@ function FinishedOrdersContent() {
     }, [axiosSecure, debouncedSearchTerm, startDate, endDate, filters]);
 
     useEffect(() => {
-        fetchOrders(currentPage);
+        Promise.resolve().then(() => {
+            fetchOrders(currentPage);
+        });
     }, [fetchOrders, currentPage]);
 
     const handleFilterChange = (e) => {
@@ -121,8 +140,8 @@ function FinishedOrdersContent() {
     const clearFilters = () => {
         setFilters({ orderType: "", paymentStatus: "Paid" });
         setSearchTerm("");
-        setStartDate("");
-        setEndDate("");
+        setStartDate(todayStr);
+        setEndDate(todayStr);
         setIsFilterOpen(false);
         setCurrentPage(1);
     };
@@ -132,7 +151,8 @@ function FinishedOrdersContent() {
         setIsViewModalOpen(true);
     };
 
-    const handlePrintOrder = () => {
+    const handlePrintOrder = (type = "thermal") => {
+        setPrintType(type);
         setIsViewModalOpen(false);
         setIsPrintModalOpen(true);
     };
@@ -143,49 +163,57 @@ function FinishedOrdersContent() {
     };
 
     useEffect(() => {
-        if (isPrintModalOpen && selectedOrder && receiptRef.current) {
+        if (isPrintModalOpen && selectedOrder) {
             const timer = setTimeout(() => {
-                receiptRef.current.printReceipt();
+                if (printType === "a4" && a4ReceiptRef.current) {
+                    a4ReceiptRef.current.printReceipt();
+                } else if (printType === "thermal" && receiptRef.current) {
+                    receiptRef.current.printReceipt();
+                }
             }, 500);
             return () => clearTimeout(timer);
         }
-    }, [isPrintModalOpen, selectedOrder]);
+    }, [isPrintModalOpen, selectedOrder, printType]);
 
     const handlePrintComplete = () => {
         setIsPrintModalOpen(false);
     };
 
+    // Calculate stats
+    const totalOrdersCount = orders.length;
+    const totalRevenueSum = orders.reduce((sum, order) => sum + (order.totalAmount || order.grandTotal || 0), 0);
+    const averageOrderAmt = totalOrdersCount > 0 ? (totalRevenueSum / totalOrdersCount) : 0;
+
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-150 p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-200">
-            <div>
+        <div className="min-h-screen bg-brand-offwhite dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-200 animate-scale-in">
+            <div className="max-w-7xl mx-auto">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-                    <div>
-                        <h1 className="text-3xl font-black tracking-tight text-gray-800 dark:text-zinc-100">Finished Orders</h1>
-                        <p className="text-sm text-gray-500 mt-1">Complete historic record of sales invoices</p>
-                    </div>
+                <SectionHeader
+                    title="Finished Orders"
+                    subtitle="Complete historic record of sales invoices"
+                >
                     <button
                         onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        className={`mt-3 sm:mt-0 inline-flex items-center gap-2 px-4 py-2 border rounded-lg shadow-sm text-sm font-semibold cursor-pointer transition-colors duration-200
-                            ${isFilterOpen ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-300 hover:bg-gray-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-250 dark:hover:bg-zinc-800"}`}
+                        className={`inline-flex items-center gap-2 px-4 py-2 border rounded-lg shadow-sm text-sm font-semibold cursor-pointer transition-all duration-200
+                            ${isFilterOpen ? "bg-brand-primary border-brand-primary text-white" : "bg-white border-brand-beige dark:bg-brand-charcoal dark:border-brand-beige/25 dark:text-brand-offwhite dark:hover:bg-brand-beige/10"}`}
                     >
                         <FiFilter /> Filters {isFilterOpen ? "Open" : ""}
                     </button>
-                </div>
+                </SectionHeader>
 
                 {/* Filter Section */}
                 {isFilterOpen && (
-                    <section className="mb-6 p-4 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 shadow-md rounded-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-fadeIn">
+                    <section className="mb-6 p-4 bg-white dark:bg-brand-charcoal border border-brand-beige dark:border-brand-beige/25 shadow-md rounded-2xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-scale-in">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-550 mb-1">Search Keyword</label>
+                            <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">Search Keyword</label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <FiSearch className="text-gray-400" />
+                                    <FiSearch className="text-brand-sage" size={14} />
                                 </div>
                                 <input
                                     type="text"
                                     placeholder="Invoice, Customer, Table..."
-                                    className="input input-bordered input-sm w-full pl-9 dark:bg-zinc-800 dark:border-zinc-700"
+                                    className="input input-bordered input-sm w-full pl-9 border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -193,32 +221,32 @@ function FinishedOrdersContent() {
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-gray-550 mb-1">Start Date</label>
+                            <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">Start Date</label>
                             <input
                                 type="date"
-                                className="input input-bordered input-sm w-full dark:bg-zinc-800 dark:border-zinc-700"
+                                className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                 value={startDate}
                                 onChange={(e) => setStartDate(e.target.value)}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-gray-550 mb-1">End Date</label>
+                            <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">End Date</label>
                             <input
                                 type="date"
-                                className="input input-bordered input-sm w-full dark:bg-zinc-800 dark:border-zinc-700"
+                                className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                 value={endDate}
                                 onChange={(e) => setEndDate(e.target.value)}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-gray-550 mb-1">Order Type</label>
+                            <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">Order Type</label>
                             <select
                                 name="orderType"
                                 value={filters.orderType}
                                 onChange={handleFilterChange}
-                                className="select select-bordered select-sm w-full dark:bg-zinc-800 dark:border-zinc-700"
+                                className="select select-bordered select-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                             >
                                 <option value="">All Types</option>
                                 <option value="dine-in">Dine In</option>
@@ -229,12 +257,12 @@ function FinishedOrdersContent() {
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-gray-550 mb-1">Payment Status</label>
+                            <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1">Payment Status</label>
                             <select
                                 name="paymentStatus"
                                 value={filters.paymentStatus}
                                 onChange={handleFilterChange}
-                                className="select select-bordered select-sm w-full dark:bg-zinc-800 dark:border-zinc-700"
+                                className="select select-bordered select-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                             >
                                 <option value="">All Payments</option>
                                 <option value="Paid">Paid / Finished</option>
@@ -245,13 +273,13 @@ function FinishedOrdersContent() {
                         <div className="sm:col-span-2 md:col-span-3 flex justify-end items-end gap-2">
                             <button
                                 onClick={clearFilters}
-                                className="btn btn-sm btn-ghost dark:text-zinc-400 cursor-pointer"
+                                className="btn btn-sm btn-ghost text-brand-sage text-xs cursor-pointer"
                             >
                                 Clear All
                             </button>
                             <button
                                 onClick={() => setIsFilterOpen(false)}
-                                className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer"
+                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow"
                             >
                                 Apply Filters
                             </button>
@@ -259,67 +287,139 @@ function FinishedOrdersContent() {
                     </section>
                 )}
 
+                {/* Stats Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8 mt-4 animate-scale-in">
+                    {/* Card 1: Total Completed Orders */}
+                    <div className="relative overflow-hidden bg-white dark:bg-brand-charcoal border border-brand-beige/50 dark:border-zinc-800 shadow-md hover:shadow-lg transition-all duration-300 rounded-2xl p-6 flex items-center justify-between group">
+                        <div className="absolute top-0 left-0 h-full w-1.5 bg-brand-primary" />
+                        <div>
+                            <p className="text-xs font-extrabold uppercase tracking-wider text-brand-sage dark:text-zinc-400">Total Orders</p>
+                            <p className="text-3xl font-black text-brand-charcoal dark:text-brand-offwhite mt-2 font-mono group-hover:scale-105 transition-transform duration-300 origin-left">
+                                {totalOrdersCount}
+                            </p>
+                            <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1">Matched under filters</p>
+                        </div>
+                        <div className="p-3 bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-2xl group-hover:rotate-12 transition-transform duration-300">
+                            <FiFilter size={24} />
+                        </div>
+                    </div>
+
+                    {/* Card 2: Total Revenue */}
+                    <div className="relative overflow-hidden bg-white dark:bg-brand-charcoal border border-brand-beige/50 dark:border-zinc-800 shadow-md hover:shadow-lg transition-all duration-300 rounded-2xl p-6 flex items-center justify-between group">
+                        <div className="absolute top-0 left-0 h-full w-1.5 bg-emerald-500" />
+                        <div>
+                            <p className="text-xs font-extrabold uppercase tracking-wider text-brand-sage dark:text-zinc-400">Total Revenue</p>
+                            <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-2 font-mono group-hover:scale-105 transition-transform duration-300 origin-left">
+                                ৳ {totalRevenueSum.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </p>
+                            <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1">Sum of order totals</p>
+                        </div>
+                        <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 rounded-2xl group-hover:rotate-12 transition-transform duration-300">
+                            <span className="text-xl font-bold font-mono">৳</span>
+                        </div>
+                    </div>
+
+                    {/* Card 3: Avg Order Value */}
+                    <div className="relative overflow-hidden bg-white dark:bg-brand-charcoal border border-brand-beige/50 dark:border-zinc-800 shadow-md hover:shadow-lg transition-all duration-300 rounded-2xl p-6 flex items-center justify-between group">
+                        <div className="absolute top-0 left-0 h-full w-1.5 bg-amber-500" />
+                        <div>
+                            <p className="text-xs font-extrabold uppercase tracking-wider text-brand-sage dark:text-zinc-400">Avg Order Value</p>
+                            <p className="text-3xl font-black text-amber-600 dark:text-amber-400 mt-2 font-mono group-hover:scale-105 transition-transform duration-300 origin-left">
+                                ৳ {averageOrderAmt.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </p>
+                            <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-1">Average per sale ticket</p>
+                        </div>
+                        <div className="p-3 bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-2xl group-hover:rotate-12 transition-transform duration-300">
+                            <FiClock size={24} />
+                        </div>
+                    </div>
+                </div>
+
                 {/* Table View */}
                 {isLoading ? <MtableLoading data={null} /> : (
                     <>
-                        <section className="overflow-x-auto border border-gray-200 dark:border-zinc-800 shadow-sm rounded-lg p-4 bg-white dark:bg-zinc-900">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
-                                <thead className="bg-slate-100 dark:bg-zinc-800">
+                        <section className="overflow-x-auto border border-brand-beige/50 dark:border-zinc-800 shadow-lg rounded-2xl bg-white dark:bg-brand-charcoal">
+                            <table className="min-w-full divide-y divide-brand-beige/30 dark:divide-zinc-800">
+                                <thead className="bg-brand-offwhite/80 dark:bg-zinc-850">
                                     <tr>
-                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-zinc-200 uppercase tracking-wider rounded-tl-lg">Invoice No</th>
-                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-zinc-200 uppercase tracking-wider">Date & Time</th>
-                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-zinc-200 uppercase tracking-wider">Guest</th>
-                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-zinc-200 uppercase tracking-wider">Order Type</th>
-                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-zinc-200 uppercase tracking-wider">Table / Room</th>
-                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-zinc-200 uppercase tracking-wider">Amount</th>
-                                        <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-zinc-200 uppercase tracking-wider">Payment Status</th>
-                                        <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-zinc-200 uppercase tracking-wider rounded-tr-lg">Action</th>
+                                        <th scope="col" className="px-5 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider rounded-tl-lg">Invoice No</th>
+                                        <th scope="col" className="px-5 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Date & Time</th>
+                                        <th scope="col" className="px-5 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Guest</th>
+                                        <th scope="col" className="px-5 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Order Type</th>
+                                        <th scope="col" className="px-5 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Table / Room</th>
+                                        <th scope="col" className="px-5 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Amount</th>
+                                        <th scope="col" className="px-5 py-4 text-left text-xs font-bold text-brand-sage uppercase tracking-wider">Payment Status</th>
+                                        <th scope="col" className="px-5 py-4 text-right text-xs font-bold text-brand-sage uppercase tracking-wider rounded-tr-lg">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white dark:bg-zinc-900 divide-y divide-gray-200 dark:divide-zinc-800">
+                                <tbody className="bg-white/50 dark:bg-brand-charcoal/30 divide-y divide-brand-beige/20 dark:divide-zinc-800 text-sm font-semibold">
                                     {orders.length === 0 ? (
                                         <tr>
-                                            <td colSpan="8" className="px-4 py-8 text-sm text-gray-500 dark:text-zinc-400 text-center">
+                                            <td colSpan="8" className="px-5 py-10 text-center text-brand-sage font-bold">
                                                 No finished orders found.
                                             </td>
                                         </tr>
                                     ) : (
-                                        orders.map((order) => (
-                                            <tr key={order._id} className="hover:bg-gray-50 dark:hover:bg-zinc-850/50 transition-colors duration-200 border-b border-gray-250 dark:border-zinc-800/80">
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800 dark:text-zinc-200 font-bold">
-                                                    {order.invoiceSerial || order.invoiceNo}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-zinc-400">
-                                                    {new Date(order.dateTime || order.createdAt).toLocaleString("en-GB")}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-zinc-250">
-                                                    {order.customerName || order.customer?.name || "Walk-in Guest"}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm capitalize">
-                                                    {order.orderType}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">
-                                                    {order.tableName || order.roomNo || order.tableNo || order.deliveryProvider || "N/A"}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-extrabold text-blue-600 dark:text-blue-400">
-                                                    ৳ {(order.totalAmount || order.grandTotal || 0).toFixed(0)}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-xs">
-                                                    <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider
-                                                        ${(order.paymentStatus === 'Paid' || order.paymentMethod !== 'Due') ? 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'}`}>
-                                                        {order.paymentStatus === 'Paid' ? 'Paid' : 'Due'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                                                    <button
-                                                        onClick={() => handleViewOrder(order)}
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-bold text-xs cursor-pointer"
-                                                    >
-                                                        <FiEye /> View
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
+                                        orders.map((order) => {
+                                            // Dynamic order type styles
+                                            const typeLower = (order.orderType || "").toLowerCase().trim();
+                                            let orderTypeBadge = "bg-brand-primary/10 text-brand-primary dark:text-brand-sage border border-brand-primary/20";
+                                            if (typeLower === "takeaway") {
+                                                orderTypeBadge = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20";
+                                            } else if (typeLower === "delivery") {
+                                                orderTypeBadge = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20";
+                                            } else if (typeLower === "room service") {
+                                                orderTypeBadge = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20";
+                                            }
+
+                                            const isPaid = order.paymentStatus === 'Paid' || order.paymentMethod !== 'Due';
+
+                                            return (
+                                                <tr key={order._id} className="hover:bg-brand-beige/15 dark:hover:bg-zinc-800/40 transition-colors duration-200 border-b border-brand-beige/10 dark:border-zinc-800/30">
+                                                    <td className="px-5 py-4 whitespace-nowrap">
+                                                        <span 
+                                                            onClick={() => handleViewOrder(order)}
+                                                            className="text-brand-primary dark:text-brand-sage font-black hover:underline cursor-pointer transition-colors duration-200"
+                                                        >
+                                                            {order.invoiceSerial || order.invoiceNo}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-4 whitespace-nowrap text-brand-sage dark:text-zinc-400 font-medium font-mono text-xs">
+                                                        {new Date(order.dateTime || order.createdAt).toLocaleString("en-GB")}
+                                                    </td>
+                                                    <td className="px-5 py-4 whitespace-nowrap text-brand-charcoal dark:text-zinc-200 font-bold">
+                                                        {order.customerName || order.customer?.name || "Walk-in Guest"}
+                                                    </td>
+                                                    <td className="px-5 py-4 whitespace-nowrap text-xs">
+                                                        <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${orderTypeBadge}`}>
+                                                            {order.orderType}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-4 whitespace-nowrap text-brand-charcoal dark:text-zinc-300 font-semibold">
+                                                        {order.tableName || order.roomNo || order.tableNo || order.deliveryProvider || "N/A"}
+                                                    </td>
+                                                    <td className="px-5 py-4 whitespace-nowrap text-brand-charcoal dark:text-brand-offwhite font-black text-base">
+                                                        ৳ {(order.totalAmount || order.grandTotal || 0).toFixed(0)}
+                                                    </td>
+                                                    <td className="px-5 py-4 whitespace-nowrap text-xs">
+                                                        <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border
+                                                            ${isPaid 
+                                                                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400 border-emerald-500/20' 
+                                                                : 'bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400 border-rose-500/20'}`}>
+                                                            {isPaid ? 'Paid' : 'Due'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-4 whitespace-nowrap text-right text-xs">
+                                                        <button
+                                                            onClick={() => handleViewOrder(order)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage rounded-lg font-bold text-xs cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
+                                                        >
+                                                            <FiEye size={13} /> View
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
@@ -328,19 +428,19 @@ function FinishedOrdersContent() {
                         {/* Pagination */}
                         {paginationInfo.totalPages > 1 && (
                             <div className="flex justify-between items-center mt-6">
-                                <span className="text-sm text-gray-500">Page {currentPage} of {paginationInfo.totalPages}</span>
+                                <span className="text-sm font-bold text-brand-sage">Page {currentPage} of {paginationInfo.totalPages}</span>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                         disabled={!paginationInfo.hasPrevPage}
-                                        className="btn btn-sm btn-outline disabled:opacity-50 cursor-pointer"
+                                        className="btn btn-sm btn-outline border-brand-primary hover:bg-brand-primary text-brand-primary hover:text-white rounded-md disabled:opacity-50 cursor-pointer"
                                     >
                                         <FiChevronLeft /> Prev
                                     </button>
                                     <button
                                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, paginationInfo.totalPages))}
                                         disabled={!paginationInfo.hasNextPage}
-                                        className="btn btn-sm btn-outline disabled:opacity-50 cursor-pointer"
+                                        className="btn btn-sm btn-outline border-brand-primary hover:bg-brand-primary text-brand-primary hover:text-white rounded-md disabled:opacity-50 cursor-pointer"
                                     >
                                         Next <FiChevronRight />
                                     </button>
@@ -351,47 +451,47 @@ function FinishedOrdersContent() {
                 )}
             </div>
 
-            {/* View Modal */}
+            {/* View Order Modal */}
             {isViewModalOpen && selectedOrder && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-zinc-900 border dark:border-zinc-800 w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto text-gray-800 dark:text-zinc-150">
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-brand-charcoal border border-brand-beige/25 dark:border-brand-beige/25 w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto animate-scale-in">
                         <button
                             onClick={() => setIsViewModalOpen(false)}
-                            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-200 cursor-pointer"
+                            className="absolute top-4 right-4 text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite cursor-pointer"
                         >
                             <FiX size={24} />
                         </button>
-
-                        <h2 className="text-2xl font-black text-gray-900 dark:text-zinc-100 flex items-center gap-2 mb-4">
+                        
+                        <h2 className="text-2xl font-black text-brand-charcoal dark:text-brand-offwhite uppercase tracking-widest flex items-center gap-2 mb-4">
                             <FaHashtag /> {selectedOrder.invoiceSerial || selectedOrder.invoiceNo}
                         </h2>
 
-                        <div className="grid grid-cols-2 gap-4 border-b border-gray-200 dark:border-zinc-850 pb-4 mb-4 text-xs font-semibold">
+                        <div className="grid grid-cols-2 gap-4 border-b border-brand-beige/20 dark:border-brand-beige/10 pb-4 mb-4 text-xs font-semibold">
                             <div>
-                                <p className="text-gray-500 flex items-center gap-1.5"><FaCalendarAlt /> Date & Time</p>
-                                <p className="text-gray-800 dark:text-zinc-250 mt-0.5">{new Date(selectedOrder.dateTime || selectedOrder.createdAt).toLocaleString("en-GB")}</p>
+                                <p className="text-brand-sage flex items-center gap-1.5 uppercase tracking-wider"><FaCalendarAlt /> DateTime</p>
+                                <p className="text-brand-charcoal dark:text-brand-offwhite mt-0.5 font-bold">{new Date(selectedOrder.dateTime || selectedOrder.createdAt).toLocaleString("en-GB")}</p>
                             </div>
                             <div>
-                                <p className="text-gray-550 flex items-center gap-1.5"><FaUserAlt /> Guest Name</p>
-                                <p className="text-gray-800 dark:text-zinc-250 mt-0.5">{selectedOrder.customerName || selectedOrder.customer?.name || "Walk-in Guest"}</p>
+                                <p className="text-brand-sage flex items-center gap-1.5 uppercase tracking-wider"><FaUserAlt /> Guest</p>
+                                <p className="text-brand-charcoal dark:text-brand-offwhite mt-0.5 font-bold">{selectedOrder.customerName || selectedOrder.customer?.name || "Walk-in Guest"}</p>
                             </div>
                             <div>
-                                <p className="text-gray-550 flex items-center gap-1.5">Order Type</p>
-                                <p className="text-gray-800 dark:text-zinc-250 mt-0.5 uppercase">{selectedOrder.orderType}</p>
+                                <p className="text-brand-sage flex items-center gap-1.5 uppercase tracking-wider"><FiClock /> Order Type</p>
+                                <p className="text-brand-charcoal dark:text-brand-offwhite mt-0.5 font-bold uppercase">{selectedOrder.orderType}</p>
                             </div>
                             <div>
-                                <p className="text-gray-550 flex items-center gap-1.5">Payment Method</p>
-                                <p className="text-green-600 mt-0.5 font-bold uppercase">{selectedOrder.paymentMethod || "Cash"}</p>
+                                <p className="text-brand-sage flex items-center gap-1.5 uppercase tracking-wider"><FaMoneyBillWave /> Payment Status</p>
+                                <p className="text-brand-primary dark:text-brand-sage mt-0.5 font-extrabold uppercase">{selectedOrder.paymentStatus || "Paid"}</p>
                             </div>
                         </div>
 
                         {/* Items */}
                         <div className="mb-4">
-                            <h3 className="text-sm font-bold text-gray-600 dark:text-zinc-450 mb-2 uppercase tracking-wider">Order Items</h3>
-                            <div className="bg-gray-50 dark:bg-zinc-850 rounded-xl p-3">
-                                <table className="min-w-full text-xs font-semibold text-gray-700 dark:text-zinc-250">
+                            <h3 className="text-xs font-extrabold text-brand-sage mb-2 uppercase tracking-widest">Order Items</h3>
+                            <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 border border-brand-beige/25 dark:border-brand-beige/10 rounded-2xl p-4">
+                                <table className="min-w-full text-xs font-semibold text-brand-charcoal dark:text-brand-offwhite">
                                     <thead>
-                                        <tr className="border-b border-gray-200 dark:border-zinc-800">
+                                        <tr className="border-b border-brand-beige dark:border-brand-beige/20 text-brand-sage uppercase text-[10px] tracking-wider">
                                             <th className="text-left pb-2">Item Name</th>
                                             <th className="text-center pb-2">Qty</th>
                                             <th className="text-right pb-2">Rate</th>
@@ -401,18 +501,18 @@ function FinishedOrdersContent() {
                                     <tbody>
                                         {Array.isArray(selectedOrder.products) && selectedOrder.products.length > 0 ? (
                                             selectedOrder.products.map((item, index) => (
-                                                <tr key={index}>
+                                                <tr key={index} className="border-b border-brand-beige/10">
                                                     <td className="py-2 text-left">{item.productName}</td>
-                                                    <td className="py-2 text-center">{item.qty || item.quantity}</td>
+                                                    <td className="py-2 text-center font-extrabold">{item.qty || item.quantity}</td>
                                                     <td className="py-2 text-right">৳ {(item.rate || item.unitPrice || 0).toFixed(0)}</td>
                                                     <td className="py-2 text-right">৳ {(item.subtotal || item.totalPrice || 0).toFixed(0)}</td>
                                                 </tr>
                                             ))
                                         ) : Array.isArray(selectedOrder.orderBatches) && selectedOrder.orderBatches.length > 0 ? (
                                             selectedOrder.orderBatches.flatMap(b => b.items || []).map((item, index) => (
-                                                <tr key={index}>
+                                                <tr key={index} className="border-b border-brand-beige/10">
                                                     <td className="py-2 text-left">{item.itemName}</td>
-                                                    <td className="py-2 text-center">{item.quantity}</td>
+                                                    <td className="py-2 text-center font-extrabold">{item.quantity}</td>
                                                     <td className="py-2 text-right">৳ {(item.unitPrice || 0).toFixed(0)}</td>
                                                     <td className="py-2 text-right">৳ {(item.totalPrice || 0).toFixed(0)}</td>
                                                 </tr>
@@ -427,31 +527,41 @@ function FinishedOrdersContent() {
                             </div>
                         </div>
 
-                        {/* Summary Calculations */}
-                        <div className="flex flex-col items-end gap-1.5 text-xs font-semibold border-t border-gray-200 dark:border-zinc-800 pt-3">
+                        {/* Order Summary Calculations */}
+                        <div className="flex flex-col items-end gap-1.5 text-xs font-semibold border-t border-brand-beige/25 dark:border-brand-beige/10 pt-4">
                             <p>Subtotal: ৳ {(selectedOrder.subtotal || selectedOrder.subTotal || 0).toFixed(0)}</p>
                             {selectedOrder.vat > 0 && <p>VAT: ৳ {selectedOrder.vat.toFixed(0)}</p>}
                             {selectedOrder.sd > 0 && <p>SD: ৳ {selectedOrder.sd.toFixed(0)}</p>}
-                            {selectedOrder.discount > 0 && <p className="text-green-600 font-bold">Discount: -৳ {selectedOrder.discount.toFixed(0)}</p>}
-                            <p className="text-base font-extrabold text-blue-600 dark:text-blue-400 mt-1">Total Amount: ৳ {(selectedOrder.totalAmount || selectedOrder.grandTotal || 0).toFixed(0)}</p>
+                            {selectedOrder.serviceCharge > 0 && <p>Service Charge: ৳ {selectedOrder.serviceCharge.toFixed(0)}</p>}
+                            {selectedOrder.deliveryCharge > 0 && <p>Delivery Charge: ৳ {selectedOrder.deliveryCharge.toFixed(0)}</p>}
+                            {selectedOrder.discount > 0 && <p className="text-green-600">Discount: -৳ {selectedOrder.discount.toFixed(0)}</p>}
+                            <p className="text-lg font-black text-brand-primary dark:text-brand-sage mt-1 uppercase tracking-wider">Total Payable: ৳ {(selectedOrder.totalAmount || selectedOrder.grandTotal || 0).toFixed(0)}</p>
                         </div>
 
                         <div className="flex justify-end gap-3 mt-6">
                             <button
-                                onClick={handlePrintOrder}
-                                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs cursor-pointer shadow"
+                                onClick={() => handlePrintOrder("thermal")}
+                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-3 shadow flex items-center gap-1"
+                                title="Print POS Thermal Receipt (80mm)"
                             >
-                                <FiPrinter /> Print Receipt
+                                <FiPrinter /> Print Thermal
+                            </button>
+                            <button
+                                onClick={() => handlePrintOrder("a4")}
+                                className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-3 shadow flex items-center gap-1"
+                                title="Print A4 Page Invoice"
+                            >
+                                <FiPrinter /> Print A4
                             </button>
                             <button
                                 onClick={handleQRCodeClick}
-                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-xs cursor-pointer shadow"
+                                className="btn btn-sm bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary dark:bg-brand-primary/20 dark:text-brand-sage font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
                             >
                                 <FaQrcode /> Review QR
                             </button>
                             <button
                                 onClick={() => setIsViewModalOpen(false)}
-                                className="px-4 py-2 bg-gray-250 dark:bg-zinc-850 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-800 text-xs font-bold cursor-pointer"
+                                className="btn btn-sm bg-transparent hover:bg-brand-beige/25 text-brand-sage font-bold text-[10px] uppercase tracking-wider px-4 py-2 cursor-pointer border-none shadow-none"
                             >
                                 Close
                             </button>
@@ -462,11 +572,11 @@ function FinishedOrdersContent() {
 
             {/* QR Modal */}
             {isQrModalOpen && selectedOrder && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="relative">
+                <div className="fixed inset-0 z-50 bg-brand-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="relative animate-scale-in">
                         <button
                             onClick={() => setIsQrModalOpen(false)}
-                            className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-750 cursor-pointer shadow"
+                            className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-750 cursor-pointer shadow z-50"
                         >
                             <FiX size={18} />
                         </button>
@@ -475,15 +585,22 @@ function FinishedOrdersContent() {
                 </div>
             )}
 
-            {/* Print template container */}
             <div className="hidden">
                 {isPrintModalOpen && selectedOrder && (
-                    <ReceiptTemplate
-                        ref={receiptRef}
-                        onPrintComplete={handlePrintComplete}
-                        profileData={companyInfo}
-                        invoiceData={selectedOrder}
-                    />
+                    <>
+                        <ReceiptTemplate
+                            ref={receiptRef}
+                            onPrintComplete={handlePrintComplete}
+                            profileData={companyInfo}
+                            invoiceData={selectedOrder ? { ...selectedOrder, loginUserName: selectedOrder.loginUserName || user?.name || "Staff" } : null}
+                        />
+                        <A4ReceiptTemplate
+                            ref={a4ReceiptRef}
+                            onPrintComplete={handlePrintComplete}
+                            profileData={companyInfo}
+                            invoiceData={selectedOrder}
+                        />
+                    </>
                 )}
             </div>
         </div>
@@ -492,7 +609,7 @@ function FinishedOrdersContent() {
 
 export default function FinishedOrdersPage() {
     return (
-        <Suspense fallback={<div className="flex items-center justify-center min-h-[400px] w-full"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-[400px] w-full"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>}>
             <FinishedOrdersContent />
         </Suspense>
     );
