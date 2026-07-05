@@ -5,10 +5,30 @@ import { verifyToken } from "@/lib/auth";
 
 import User from "@/models/User";
 
+import Permission from "@/models/Permission";
+
 export async function GET(req) {
   const auth = verifyToken(req);
   if (auth.error) {
     return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
+  if (auth.user.role !== "superadmin" && auth.user.role !== "admin") {
+    try {
+      await dbConnect();
+      const permission = await Permission.findOne({
+        role: auth.user.role,
+        path: "/dashboard/user-access",
+      });
+
+      const isAllowed = permission && (permission.isAllowed || permission.canView === true);
+      if (!isAllowed) {
+        return NextResponse.json({ message: "Forbidden: You do not have permission to view user logs." }, { status: 403 });
+      }
+    } catch (err) {
+      console.error("Permission check error in paginated user logs API:", err);
+      return NextResponse.json({ error: "Failed to verify permission" }, { status: 500 });
+    }
   }
 
   try {
