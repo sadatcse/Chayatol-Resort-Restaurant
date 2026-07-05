@@ -34,7 +34,7 @@ const RoomTypesPage = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const debouncedSearch = useDebounce(searchTerm, 500);
+  const [debouncedSearch] = useDebounce(searchTerm, 500);
   const { roomTypes, totalItems, totalPages, isLoading, refetch } = useRoomTypes(
     currentPage,
     itemsPerPage,
