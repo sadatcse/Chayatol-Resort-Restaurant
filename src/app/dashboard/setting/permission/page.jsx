@@ -165,8 +165,14 @@ const UserPermission = () => {
       canAdd: perm?.canAdd ?? false,
       canEdit: perm?.canEdit ?? false,
       canDelete: perm?.canDelete ?? false,
-    };
   }, [permissions]);
+
+  const getBulkStatus = useCallback((group, action) => {
+    const childrenList = group.children || [group];
+    const every = childrenList.every(c => getRoutePermissions(c.path)[action]);
+    const some = childrenList.some(c => getRoutePermissions(c.path)[action]);
+    return { every, some };
+  }, [getRoutePermissions]);
 
   // Statistics summaries
   const stats = useMemo(() => {
@@ -235,8 +241,14 @@ const UserPermission = () => {
     setExpandedGroups(nextState);
   };
 
-  // Group-level bulk/master permission toggling
-  const handleBulkToggle = async (group, action, forceValue) => {
+  // Group-level bulk/master permission toggling (Sequential to avoid database write locking)
+  const handleBulkToggle = async (group, action) => {
+    const childrenList = group.children || [group];
+    
+    // Check if ALL are currently true. If yes, toggle to false. Otherwise, toggle to true.
+    const isAllActive = childrenList.every(c => getRoutePermissions(c.path)[action]);
+    const forceValue = !isAllActive;
+
     const pathsToUpdate = [];
     if (group.children) {
       group.children.forEach(child => pathsToUpdate.push({ path: child.path, title: child.title }));
@@ -246,7 +258,8 @@ const UserPermission = () => {
 
     try {
       setLoading(true);
-      const updatePromises = pathsToUpdate.map(async (p) => {
+      // Run updates sequentially
+      for (const p of pathsToUpdate) {
         const currentPerms = getRoutePermissions(p.path);
         const permissionPayload = {
           title: p.title,
@@ -258,11 +271,10 @@ const UserPermission = () => {
           canEdit: action === "canEdit" ? forceValue : currentPerms.canEdit,
           canDelete: action === "canDelete" ? forceValue : currentPerms.canDelete,
         };
-        return axiosSecure.put(`/permissions`, permissionPayload);
-      });
+        await axiosSecure.put(`/permissions`, permissionPayload);
+      }
 
-      await Promise.all(updatePromises);
-      toast.success(`Bulk updated '${action.replace("can", "")}' for '${group.title}'.`);
+      toast.success(`Bulk updated '${action.replace("can", "")}' permissions for '${group.title}'.`);
       await fetchPermissions(false);
     } catch (error) {
       console.error("Bulk toggle error:", error);
@@ -436,51 +448,95 @@ const UserPermission = () => {
                     <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <span className="text-[10px] font-bold text-brand-dark-grey dark:text-brand-sage uppercase tracking-wider mr-1">Bulk:</span>
                       
+                      {(() => {
+                        const { every: viewEvery, some: viewSome } = getBulkStatus(menuGroup, "canView");
+                        const { every: addEvery, some: addSome } = getBulkStatus(menuGroup, "canAdd");
+                        const { every: editEvery, some: editSome } = getBulkStatus(menuGroup, "canEdit");
+                        const { every: deleteEvery, some: deleteSome } = getBulkStatus(menuGroup, "canDelete");
+
+                        return (
+                          <>
+                            <button
+                              onClick={() => handleBulkToggle(menuGroup, "canView")}
+                              className={`btn btn-xs border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer transition-all duration-200 ${
+                                viewEvery 
+                                  ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm" 
+                                  : viewSome 
+                                    ? "bg-blue-500/30 hover:bg-blue-500/40 text-blue-800 dark:text-blue-200" 
+                                    : "bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-500"
+                              }`}
+                              title={viewEvery ? "Unselect View Access for All" : "Select View Access for All"}
+                            >
+                              All View
+                            </button>
+                            <button
+                              onClick={() => handleBulkToggle(menuGroup, "canAdd")}
+                              className={`btn btn-xs border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer transition-all duration-200 ${
+                                addEvery 
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm" 
+                                  : addSome 
+                                    ? "bg-emerald-500/30 hover:bg-emerald-500/40 text-emerald-800 dark:text-emerald-200" 
+                                    : "bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-500"
+                              }`}
+                              title={addEvery ? "Unselect Create Action for All" : "Select Create Action for All"}
+                            >
+                              All Add
+                            </button>
+                            <button
+                              onClick={() => handleBulkToggle(menuGroup, "canEdit")}
+                              className={`btn btn-xs border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer transition-all duration-200 ${
+                                editEvery 
+                                  ? "bg-amber-600 text-white hover:bg-amber-700 shadow-sm" 
+                                  : editSome 
+                                    ? "bg-amber-500/30 hover:bg-amber-500/40 text-amber-800 dark:text-amber-200" 
+                                    : "bg-amber-500/10 hover:bg-amber-500 hover:text-white text-amber-500"
+                              }`}
+                              title={editEvery ? "Unselect Update Action for All" : "Select Update Action for All"}
+                            >
+                              All Edit
+                            </button>
+                            <button
+                              onClick={() => handleBulkToggle(menuGroup, "canDelete")}
+                              className={`btn btn-xs border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer transition-all duration-200 ${
+                                deleteEvery 
+                                  ? "bg-rose-600 text-white hover:bg-rose-700 shadow-sm" 
+                                  : deleteSome 
+                                    ? "bg-rose-500/30 hover:bg-rose-500/40 text-rose-800 dark:text-rose-200" 
+                                    : "bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-500"
+                              }`}
+                              title={deleteEvery ? "Unselect Delete Action for All" : "Select Delete Action for All"}
+                            >
+                              All Delete
+                            </button>
+                          </>
+                        );
+                      })()}
+
                       <button
-                        onClick={() => handleBulkToggle(menuGroup, "canView", true)}
-                        className="btn btn-xs bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-500 border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer"
-                      >
-                        All View
-                      </button>
-                      <button
-                        onClick={() => handleBulkToggle(menuGroup, "canAdd", true)}
-                        className="btn btn-xs bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-500 border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer"
-                      >
-                        All Add
-                      </button>
-                      <button
-                        onClick={() => handleBulkToggle(menuGroup, "canEdit", true)}
-                        className="btn btn-xs bg-amber-500/10 hover:bg-amber-500 hover:text-white text-amber-500 border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer"
-                      >
-                        All Edit
-                      </button>
-                      <button
-                        onClick={() => handleBulkToggle(menuGroup, "canDelete", true)}
-                        className="btn btn-xs bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-500 border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer"
-                      >
-                        All Delete
-                      </button>
-                      <button
-                        onClick={() => {
-                          // Clear all perms inside this category
-                          setLoading(true);
-                          const updatePromises = childrenList.map(async (c) => {
-                            const permissionPayload = {
-                              title: c.title,
-                              role,
-                              group_name: menuGroup.title,
-                              path: c.path,
-                              canView: false,
-                              canAdd: false,
-                              canEdit: false,
-                              canDelete: false,
-                            };
-                            return axiosSecure.put(`/permissions`, permissionPayload);
-                          });
-                          Promise.all(updatePromises).then(() => {
+                        onClick={async () => {
+                          try {
+                            setLoading(true);
+                            for (const c of childrenList) {
+                              const permissionPayload = {
+                                title: c.title,
+                                role,
+                                group_name: menuGroup.title,
+                                path: c.path,
+                                canView: false,
+                                canAdd: false,
+                                canEdit: false,
+                                canDelete: false,
+                              };
+                              await axiosSecure.put(`/permissions`, permissionPayload);
+                            }
                             toast.info(`Cleared all permissions inside ${menuGroup.title}.`);
-                            fetchPermissions(false);
-                          }).finally(() => setLoading(false));
+                            await fetchPermissions(false);
+                          } catch (err) {
+                            console.error("Reset perms error:", err);
+                            toast.error("Failed to reset category permissions.");
+                          } finally {
+                            setLoading(false);
+                          }
                         }}
                         className="btn btn-xs bg-brand-dark-grey/10 hover:bg-brand-dark-grey hover:text-white text-brand-dark-grey dark:text-brand-sage border-none rounded-lg text-[9px] uppercase font-bold tracking-wider cursor-pointer"
                         title="Reset Category Permissions"
