@@ -53,50 +53,68 @@ const PermissionItem = ({ item, groupName, role, initialPermissions, onPermissio
   };
 
   const actions = [
-    { key: "canView", label: "View", icon: <FiEye size={13} />, color: "text-blue-500", bg: "bg-blue-500/10 hover:bg-blue-500/20", activeBg: "bg-blue-600 text-white" },
-    { key: "canAdd", label: "Add", icon: <FiPlus size={13} />, color: "text-emerald-500", bg: "bg-emerald-500/10 hover:bg-emerald-500/20", activeBg: "bg-emerald-600 text-white" },
-    { key: "canEdit", label: "Edit", icon: <FiEdit2 size={13} />, color: "text-amber-500", bg: "bg-amber-500/10 hover:bg-amber-500/20", activeBg: "bg-amber-600 text-white" },
-    { key: "canDelete", label: "Delete", icon: <FiTrash2 size={13} />, color: "text-rose-500", bg: "bg-rose-500/10 hover:bg-rose-500/20", activeBg: "bg-rose-600 text-white" }
+    { key: "canView", label: "View Access", icon: <FiEye size={14} />, color: "text-blue-500", activeColor: "text-blue-600 dark:text-blue-400" },
+    { key: "canAdd", label: "Create Action", icon: <FiPlus size={14} />, color: "text-emerald-500", activeColor: "text-emerald-600 dark:text-emerald-400" },
+    { key: "canEdit", label: "Update Action", icon: <FiEdit2 size={14} />, color: "text-amber-500", activeColor: "text-amber-600 dark:text-amber-400" },
+    { key: "canDelete", label: "Delete Action", icon: <FiTrash2 size={14} />, color: "text-rose-500", activeColor: "text-rose-600 dark:text-rose-400" }
   ];
 
   return (
     <motion.div 
       layout
-      className="bg-brand-white dark:bg-brand-charcoal/80 p-4 rounded-2xl border border-brand-beige/30 dark:border-brand-dark-grey/40 shadow-sm hover:shadow-md transition-all duration-200"
+      className="bg-brand-white dark:bg-brand-charcoal/80 p-5 rounded-2xl border border-brand-beige/30 dark:border-brand-dark-grey/40 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col"
     >
-      <div className="flex justify-between items-center mb-3">
-        <span className="font-bold text-xs uppercase tracking-wider text-brand-charcoal dark:text-brand-offwhite">
+      <div className="flex justify-between items-start mb-4 border-b border-brand-beige/10 dark:border-brand-dark-grey/10 pb-3 gap-2">
+        <span className="font-extrabold text-sm uppercase tracking-wider text-brand-charcoal dark:text-brand-offwhite">
           {item.title}
         </span>
-        <span className="text-[10px] font-mono text-brand-dark-grey/60 dark:text-brand-sage/60 max-w-[150px] truncate">
+        <span className="text-[10px] font-mono text-brand-dark-grey/50 dark:text-brand-sage/50 bg-brand-offwhite/50 dark:bg-brand-dark-grey/30 px-2 py-0.5 rounded-md truncate max-w-[150px]" title={item.path}>
           {item.path}
         </span>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="space-y-3 flex-1 flex flex-col justify-center">
         {actions.map((act) => {
-          const isAllowed = perms[act.key];
+          const isAllowed = !!perms[act.key];
           const isSaving = savingAction === act.key;
 
           return (
-            <button
+            <div 
               key={act.key}
-              onClick={() => handleToggle(act.key)}
-              className={`flex flex-col items-center justify-center py-2.5 rounded-xl border border-transparent text-center transition-all duration-300 active:scale-95 cursor-pointer ${
-                isAllowed 
-                  ? act.activeBg 
-                  : `text-brand-dark-grey dark:text-brand-sage ${act.bg} border-brand-beige/10 dark:border-brand-dark-grey/25`
-              }`}
+              className="flex items-center justify-between py-2 border-b border-brand-beige/10 dark:border-brand-dark-grey/10 last:border-none gap-4"
             >
-              {isSaving ? (
-                <span className="loading loading-spinner loading-xs text-current"></span>
-              ) : (
-                <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2.5">
+                <span className={isAllowed ? act.activeColor : "text-brand-dark-grey/40 dark:text-brand-sage/40"}>
                   {act.icon}
-                  <span className="text-[10px] font-bold uppercase tracking-wider">{act.label}</span>
-                </div>
-              )}
-            </button>
+                </span>
+                <span className="text-xs font-bold text-brand-charcoal dark:text-brand-offwhite/90">
+                  {act.label}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                {/* Status Badge */}
+                <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
+                  isAllowed 
+                    ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400" 
+                    : "bg-brand-dark-grey/10 text-brand-dark-grey/60 dark:bg-brand-dark-grey/25 dark:text-brand-sage/60"
+                }`}>
+                  {isAllowed ? "Allowed" : "Restricted"}
+                </span>
+                
+                {/* Switch Toggle */}
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isAllowed}
+                    onChange={() => handleToggle(act.key)}
+                    className="sr-only peer"
+                    disabled={isSaving}
+                  />
+                  <div className="w-8 h-4 bg-brand-beige/60 dark:bg-brand-dark-grey/60 rounded-full peer peer-focus:ring-0 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#346E36]"></div>
+                </label>
+              </div>
+            </div>
           );
         })}
       </div>
