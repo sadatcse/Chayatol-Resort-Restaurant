@@ -10,9 +10,11 @@ import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const CashFlowReport = () => {
   const axiosSecure = useAxiosSecure();
+  const { canEdit } = usePagePermission();
 
   const today = new Date();
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
@@ -155,17 +157,19 @@ const CashFlowReport = () => {
             </div>
           </div>
 
-          <div className="flex gap-2.5">
-            <button onClick={handleExportExcel} className="btn btn-outline border-brand-sage/50 text-brand-sage hover:bg-brand-sage/10 btn-sm rounded-full gap-2 px-5 h-10 font-bold uppercase tracking-wider text-[10px]" disabled={isLoading}>
-              <FiDownload size={14} /> Excel
-            </button>
-            <button onClick={handleExportCsv} className="btn btn-outline border-brand-sage/50 text-brand-sage hover:bg-brand-sage/10 btn-sm rounded-full gap-2 px-5 h-10 font-bold uppercase tracking-wider text-[10px]" disabled={isLoading}>
-              <FiDownload size={14} /> CSV
-            </button>
-            <button onClick={() => setPrintData(reportData)} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full gap-2 px-5 h-10 font-bold uppercase tracking-wider text-[10px]" disabled={isLoading}>
-              <FiPrinter size={14} /> Print
-            </button>
-          </div>
+          {canEdit && (
+            <div className="flex gap-2.5">
+              <button onClick={handleExportExcel} className="btn btn-outline border-brand-sage/50 text-brand-sage hover:bg-brand-sage/10 btn-sm rounded-full gap-2 px-5 h-10 font-bold uppercase tracking-wider text-[10px] cursor-pointer" disabled={isLoading}>
+                <FiDownload size={14} /> Excel
+              </button>
+              <button onClick={handleExportCsv} className="btn btn-outline border-brand-sage/50 text-brand-sage hover:bg-brand-sage/10 btn-sm rounded-full gap-2 px-5 h-10 font-bold uppercase tracking-wider text-[10px] cursor-pointer" disabled={isLoading}>
+                <FiDownload size={14} /> CSV
+              </button>
+              <button onClick={() => setPrintData(reportData)} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full gap-2 px-5 h-10 font-bold uppercase tracking-wider text-[10px] cursor-pointer" disabled={isLoading}>
+                <FiPrinter size={14} /> Print
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

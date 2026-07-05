@@ -9,6 +9,7 @@ import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   category: "",
@@ -26,6 +27,7 @@ const INITIAL_FORM_DATA = {
 const RecurringExpensesPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [categories, setCategories] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -114,6 +116,18 @@ const RecurringExpensesPage = () => {
       return;
     }
 
+    if (editId) {
+      if (!canEdit) {
+        Swal.fire("Restricted", "You do not have permission to edit recurring templates.", "warning");
+        return;
+      }
+    } else {
+      if (!canAdd) {
+        Swal.fire("Restricted", "You do not have permission to add recurring templates.", "warning");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     const payload = {
       ...formData,
@@ -147,8 +161,8 @@ const RecurringExpensesPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
-      Swal.fire("Access Denied", "You do not have permission to delete template records.", "error");
+    if (!canDelete) {
+      Swal.fire("Restricted", "You do not have permission to delete template records.", "warning");
       return;
     }
 
@@ -174,6 +188,10 @@ const RecurringExpensesPage = () => {
   };
 
   const handleTrigger = async (id, name, amount) => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to trigger recurring payments.", "warning");
+      return;
+    }
     Swal.fire({
       title: "Process Outstanding Bill?",
       text: `Do you want to log an expense of ৳${amount.toLocaleString()} for '${name}' and advance the next due date?`,
@@ -209,8 +227,6 @@ const RecurringExpensesPage = () => {
     return due <= today;
   };
 
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
-
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
       <SectionHeader
@@ -231,8 +247,8 @@ const RecurringExpensesPage = () => {
 
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-sm font-bold uppercase tracking-widest text-brand-sage">Standing Templates ({templates.length})</h2>
-        {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+        {canAdd && (
+          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
             <FiPlus className="text-lg" />
             <span className="uppercase tracking-widest text-xs font-bold">New Template</span>
           </button>
@@ -315,22 +331,26 @@ const RecurringExpensesPage = () => {
                           </td>
                           <td className="pr-6 py-4">
                             <div className="flex justify-center items-center gap-1.5">
-                              {template.status === "Active" && canPerformAction && (
+                               {template.status === "Active" && canEdit && (
                                 <button
                                   onClick={() => handleTrigger(template._id, template.subcategory || template.category?.name, template.amount)}
-                                  className="btn btn-xs btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white rounded-full px-3 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"
+                                  className="btn btn-xs btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white rounded-full px-3 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
                                 >
                                   <FiPlay size={10} /> Post Now
                                 </button>
                               )}
-                              {canPerformAction ? (
+                              {(canEdit || canDelete) ? (
                                 <>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(template)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Template">
-                                    <FiEdit size={16} />
-                                  </motion.button>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(template._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Template">
-                                    <FiTrash2 size={16} />
-                                  </motion.button>
+                                  {canEdit && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(template)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Template">
+                                      <FiEdit size={16} />
+                                    </motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(template._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Template">
+                                      <FiTrash2 size={16} />
+                                    </motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage">Restricted</div>

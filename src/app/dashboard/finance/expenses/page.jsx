@@ -15,6 +15,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import { AuthContext } from "@/providers/AuthProvider";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   expenseDate: new Date().toISOString().split("T")[0],
@@ -31,6 +32,7 @@ const INITIAL_FORM_DATA = {
 const ExpensesPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -246,6 +248,18 @@ const ExpensesPage = () => {
       return;
     }
 
+    if (editId) {
+      if (!canEdit) {
+        Swal.fire("Restricted", "You do not have permission to edit expenses.", "warning");
+        return;
+      }
+    } else {
+      if (!canAdd) {
+        Swal.fire("Restricted", "You do not have permission to add expenses.", "warning");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     const payload = {
       ...formData,
@@ -279,8 +293,8 @@ const ExpensesPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
-      Swal.fire("Access Denied", "You do not have permission to delete expense records.", "error");
+    if (!canDelete) {
+      Swal.fire("Restricted", "You do not have permission to delete expense records.", "warning");
       return;
     }
 
@@ -313,8 +327,6 @@ const ExpensesPage = () => {
     setSearchTerm("");
     setCurrentPage(1);
   };
-
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
 
   const activePaymentMethods = paymentTypes.length > 0 
     ? paymentTypes.map(pt => pt.name) 
@@ -463,17 +475,21 @@ const ExpensesPage = () => {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button onClick={handleExportExcel} className="btn btn-outline border-brand-sage/50 text-brand-sage hover:bg-brand-sage/10 btn-sm rounded-full gap-2 px-4 h-10 font-bold uppercase tracking-wider text-[10px]" disabled={isLoading}>
-              <FiDownload size={14} /> Excel
-            </button>
-            <button onClick={handleExportCsv} className="btn btn-outline border-brand-sage/50 text-brand-sage hover:bg-brand-sage/10 btn-sm rounded-full gap-2 px-4 h-10 font-bold uppercase tracking-wider text-[10px]" disabled={isLoading}>
-              <FiDownload size={14} /> CSV
-            </button>
-            <button onClick={handlePrintReport} className="btn btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary/10 btn-sm rounded-full gap-2 px-4 h-10 font-bold uppercase tracking-wider text-[10px]" disabled={isLoading || isPrinting}>
-              <FiPrinter size={14} /> Print
-            </button>
-            {canPerformAction && (
-              <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+            {canEdit && (
+              <>
+                <button onClick={handleExportExcel} className="btn btn-outline border-brand-sage/50 text-brand-sage hover:bg-brand-sage/10 btn-sm rounded-full gap-2 px-4 h-10 font-bold uppercase tracking-wider text-[10px] cursor-pointer" disabled={isLoading}>
+                  <FiDownload size={14} /> Excel
+                </button>
+                <button onClick={handleExportCsv} className="btn btn-outline border-brand-sage/50 text-brand-sage hover:bg-brand-sage/10 btn-sm rounded-full gap-2 px-4 h-10 font-bold uppercase tracking-wider text-[10px] cursor-pointer" disabled={isLoading}>
+                  <FiDownload size={14} /> CSV
+                </button>
+                <button onClick={handlePrintReport} className="btn btn-outline border-brand-primary text-brand-primary hover:bg-brand-primary/10 btn-sm rounded-full gap-2 px-4 h-10 font-bold uppercase tracking-wider text-[10px] cursor-pointer" disabled={isLoading || isPrinting}>
+                  <FiPrinter size={14} /> Print
+                </button>
+              </>
+            )}
+            {canAdd && (
+              <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
                 <FiPlus className="text-lg" />
                 <span className="uppercase tracking-widest text-xs font-bold">Record Expense</span>
               </button>
@@ -557,14 +573,18 @@ const ExpensesPage = () => {
                         </td>
                         <td className="pr-6 py-4 print:hidden">
                           <div className="flex justify-center items-center gap-1.5">
-                            {canPerformAction ? (
+                            {(canEdit || canDelete) ? (
                               <>
-                                <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(expense)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Expense">
-                                  <FiEdit size={16} />
-                                </motion.button>
-                                <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(expense._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Expense">
-                                  <FiTrash2 size={16} />
-                                </motion.button>
+                                {canEdit && (
+                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(expense)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Expense">
+                                    <FiEdit size={16} />
+                                  </motion.button>
+                                )}
+                                {canDelete && (
+                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(expense._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Expense">
+                                    <FiTrash2 size={16} />
+                                  </motion.button>
+                                )}
                               </>
                             ) : (
                               <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage">Restricted</div>
