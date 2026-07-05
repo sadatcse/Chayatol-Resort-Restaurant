@@ -12,6 +12,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useFoodCategories from "@/hooks/useFoodCategories";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   categoryName: "",
@@ -22,6 +23,7 @@ const INITIAL_FORM_DATA = {
 const FoodCategoriesPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -118,6 +120,16 @@ const FoodCategoriesPage = () => {
   };
 
   const handleAddOrEditCategory = async () => {
+    if (editId ? !canEdit : !canAdd) {
+      Swal.fire({
+        title: "Access Denied",
+        text: `You do not have permission to ${editId ? "update" : "create"} food categories.`,
+        icon: "error",
+        confirmButtonColor: "#8C5A35",
+      });
+      return;
+    }
+
     // 1. Validation: Category Name
     if (!formData.categoryName || !formData.categoryName.trim()) {
       Swal.fire({
@@ -177,7 +189,7 @@ const FoodCategoriesPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire({
         title: "Access Denied",
         text: "You do not have permission to delete food categories.",
@@ -213,8 +225,6 @@ const FoodCategoriesPage = () => {
       }
     });
   };
-
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
 
   // Quick statistics
   const activeCount = useMemo(() => {
@@ -292,13 +302,13 @@ const FoodCategoriesPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
+        {canAdd && (
           <div className="flex gap-2">
-            <button onClick={() => openBulkUiModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10">
+            <button onClick={() => openBulkUiModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10 cursor-pointer">
               <FiPlus className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">Bulk Add Form</span>
             </button>
-            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
               <FiPlus className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">New Category</span>
             </button>
@@ -362,14 +372,18 @@ const FoodCategoriesPage = () => {
                           </td>
                           <td className="pr-8 py-4">
                             <div className="flex justify-center items-center gap-2">
-                              {canPerformAction ? (
+                              {canEdit || canDelete ? (
                                 <>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(category)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Category">
-                                    <FiEdit size={16} />
-                                  </motion.button>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(category._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Category">
-                                    <FiTrash2 size={16} />
-                                  </motion.button>
+                                  {canEdit && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(category)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Category">
+                                      <FiEdit size={16} />
+                                    </motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(category._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Category">
+                                      <FiTrash2 size={16} />
+                                    </motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>

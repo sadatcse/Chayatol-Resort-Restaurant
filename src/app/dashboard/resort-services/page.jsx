@@ -15,6 +15,7 @@ import useDebounce from "@/hooks/useDebounce";
 import useResortServices from "@/hooks/useResortServices";
 import useResortServiceCategories from "@/hooks/useResortServiceCategories";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   serviceName: "",
@@ -47,6 +48,7 @@ const customSelectStyles = {
 const ResortServicesPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -134,6 +136,11 @@ const ResortServicesPage = () => {
   };
 
   const handleAddOrEditService = async () => {
+    if (editId ? !canEdit : !canAdd) {
+      Swal.fire("Access Denied", `You do not have permission to ${editId ? "update" : "create"} services.`, "error");
+      return;
+    }
+
     if (!formData.serviceName || !formData.serviceName.trim()) {
       Swal.fire("Validation Error", "Please provide the service name.", "warning");
       return;
@@ -184,7 +191,7 @@ const ResortServicesPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire("Access Denied", "You do not have permission to delete services.", "error");
       return;
     }
@@ -209,8 +216,6 @@ const ResortServicesPage = () => {
       }
     });
   };
-
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
 
   const availableCount = useMemo(() => services.filter(s => s.status === "Available").length, [services]);
   const unavailableCount = useMemo(() => services.filter(s => s.status === "Unavailable").length, [services]);
@@ -254,9 +259,9 @@ const ResortServicesPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
+        {canAdd && (
           <div className="flex gap-2">
-            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
               <FiPlus className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">New Service</span>
             </button>
@@ -306,10 +311,14 @@ const ResortServicesPage = () => {
                           </td>
                           <td className="pr-8 py-4">
                             <div className="flex justify-center items-center gap-2">
-                              {canPerformAction ? (
+                              {canEdit || canDelete ? (
                                 <>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(service)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary" title="Edit"><FiEdit size={16} /></motion.button>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(service._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500" title="Delete"><FiTrash2 size={16} /></motion.button>
+                                  {canEdit && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(service)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary cursor-pointer" title="Edit"><FiEdit size={16} /></motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(service._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 cursor-pointer" title="Delete"><FiTrash2 size={16} /></motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite border-none">Restricted</div>

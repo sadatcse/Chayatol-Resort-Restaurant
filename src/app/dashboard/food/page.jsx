@@ -18,19 +18,20 @@ import useFood from "@/hooks/useFood";
 import { AuthContext } from "@/providers/AuthProvider";
 import useFoodCategories from "@/hooks/useFoodCategories";
 import foodTypes from "@/data/foodCategories.json";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   foodName: "",
   category: "",
   foodType: "Fast Food",
   details: "",
-  image: "",
   price: "",
+  image: "",
   status: "Available",
-  cookOn: "MAIN KITCHEN",
   vat: 0,
   sc: 0,
   sd: 0,
+  cookOn: "MAIN KITCHEN"
 };
 
 const customSelectStyles = {
@@ -53,6 +54,7 @@ const customSelectStyles = {
 const FoodPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -372,6 +374,11 @@ const FoodPage = () => {
   };
 
   const handleAddOrEditFood = async () => {
+    if (editId ? !canEdit : !canAdd) {
+      Swal.fire("Access Denied", `You do not have permission to ${editId ? "update" : "create"} food items.`, "error");
+      return;
+    }
+
     if (!formData.foodName || !formData.foodName.trim()) {
       Swal.fire("Validation Error", "Please provide the food name.", "warning");
       return;
@@ -423,7 +430,7 @@ const FoodPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire("Access Denied", "You do not have permission to delete food items.", "error");
       return;
     }
@@ -492,17 +499,17 @@ const FoodPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
 
-        {canPerformAction && (
+        {canAdd && (
           <div className="flex gap-2">
-            <button onClick={() => openBulkModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10">
+            <button onClick={() => openBulkModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10 cursor-pointer">
               <FiUpload className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">Bulk Add XL File</span>
             </button>
-            <button onClick={() => openBulkUiModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10">
+            <button onClick={() => openBulkUiModal()} className="btn bg-white text-brand-charcoal hover:bg-gray-100 border border-gray-200 btn-sm rounded-full shadow-sm gap-2 px-6 h-10 cursor-pointer">
               <FiPlus className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">Bulk Add Form</span>
             </button>
-            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+            <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
               <FiPlus className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">New Food</span>
             </button>
@@ -588,14 +595,18 @@ const FoodPage = () => {
                           </td>
                           <td className="pr-8 py-4">
                             <div className="flex justify-center items-center gap-2">
-                              {canPerformAction ? (
+                              {canEdit || canDelete ? (
                                 <>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(food)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit">
-                                    <FiEdit size={16} />
-                                  </motion.button>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(food._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete">
-                                    <FiTrash2 size={16} />
-                                  </motion.button>
+                                  {canEdit && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(food)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit">
+                                      <FiEdit size={16} />
+                                    </motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(food._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete">
+                                      <FiTrash2 size={16} />
+                                    </motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite border-none">Restricted</div>
