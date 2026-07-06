@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useContext, useMemo, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { FiEye, FiTrash2, FiX, FiSearch, FiPlus, FiArrowRight, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiPrinter } from "react-icons/fi";
+import { FiEye, FiTrash2, FiX, FiSearch, FiPlus, FiArrowRight, FiBriefcase, FiDollarSign, FiClock, FiFileText, FiPrinter, FiEdit } from "react-icons/fi";
 import { MdRestaurant } from "react-icons/md";
 import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
@@ -277,6 +277,9 @@ const StaysPage = () => {
 
   const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
   const [extendFormData, setExtendFormData] = useState({ newCheckOutDate: "" });
+
+  const [isAdjustCheckoutModalOpen, setIsAdjustCheckoutModalOpen] = useState(false);
+  const [adjustCheckoutFormData, setAdjustCheckoutFormData] = useState({ newCheckOutDate: "", adjustmentType: "none", adjustmentAmount: 0, reason: "" });
 
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutPayment, setCheckoutPayment] = useState({ paymentType: "", amount: "", transactionRef: "" });
@@ -615,6 +618,42 @@ const StaysPage = () => {
       Swal.fire("Stay Extended", "Stay extended and additional night charges posted.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to extend stay", "error");
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
+  const handleAdjustCheckout = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to modify active stay folios.", "warning");
+      return;
+    }
+    if (isPosting) return;
+    if (!adjustCheckoutFormData.newCheckOutDate) {
+      Swal.fire("Error", "Please select a new check-out date.", "warning");
+      return;
+    }
+    if (adjustCheckoutFormData.adjustmentType !== "none" && (!adjustCheckoutFormData.adjustmentAmount || adjustCheckoutFormData.adjustmentAmount <= 0)) {
+      Swal.fire("Error", "Please enter a valid positive adjustment amount.", "warning");
+      return;
+    }
+
+    setIsPosting(true);
+    try {
+      const { data } = await axiosSecure.post(`/stays/${selectedStay._id}/adjust-checkout`, {
+        newCheckOutDate: adjustCheckoutFormData.newCheckOutDate,
+        adjustmentType: adjustCheckoutFormData.adjustmentType,
+        adjustmentAmount: Number(adjustCheckoutFormData.adjustmentAmount || 0),
+        reason: adjustCheckoutFormData.reason
+      });
+      setSelectedStay(data);
+      await fetchFolio(selectedStay._id);
+      setIsAdjustCheckoutModalOpen(false);
+      setAdjustCheckoutFormData({ newCheckOutDate: "", adjustmentType: "none", adjustmentAmount: 0, reason: "" });
+      refetch();
+      Swal.fire("Stay Adjusted", "Stay check-out date and ledger balance successfully updated.", "success");
+    } catch (err) {
+      Swal.fire("Failed", err.response?.data?.message || "Failed to adjust stay", "error");
     } finally {
       setIsPosting(false);
     }
@@ -1065,15 +1104,28 @@ const StaysPage = () => {
                     </button>
                   )}
                   {canEdit && (
-                    <button onClick={() => setIsExtendModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 col-span-2">
+                    <button onClick={() => setIsExtendModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 col-span-1">
                       <FiClock /> Extend Stay
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => {
+                      setAdjustCheckoutFormData({
+                        newCheckOutDate: selectedStay.expectedCheckOutDate ? new Date(selectedStay.expectedCheckOutDate).toISOString().split("T")[0] : "",
+                        adjustmentType: "none",
+                        adjustmentAmount: 0,
+                        reason: ""
+                      });
+                      setIsAdjustCheckoutModalOpen(true);
+                    }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 col-span-1">
+                      <FiEdit /> Adjust Check-out
                     </button>
                   )}
                   {canEdit && (
                     <button onClick={() => {
                       setCheckoutPayment({ paymentType: "", amount: outstandingDue > 0 ? outstandingDue : "", transactionRef: "" });
                       setIsCheckoutModalOpen(true);
-                    }} className="btn btn-sm bg-brand-primary text-white border-none w-full col-span-2 rounded-full cursor-pointer mt-2 font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow">
+                    }} className="btn btn-sm bg-brand-primary text-white border-none w-full col-span-2 rounded-full cursor-pointer font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow">
                       Checkout Guest <FiArrowRight />
                     </button>
                   )}
@@ -1307,6 +1359,72 @@ const StaysPage = () => {
                   ) : (
                     "Extend Date"
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {/* Adjust Stay Modal */}
+      {isAdjustCheckoutModalOpen && (
+        <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
+          <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-md rounded-2xl border animate-scale-in">
+            <div className="p-6 border-b border-brand-beige bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <span className="font-bold text-sm uppercase tracking-widest text-brand-charcoal dark:text-brand-offwhite">Adjust Stay Check-Out & Ledger</span>
+            </div>
+            <div className="p-8 space-y-4 text-xs font-bold text-brand-sage">
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">New Expected Check-Out Date *</span></label>
+                <input
+                  type="date"
+                  value={adjustCheckoutFormData.newCheckOutDate}
+                  onChange={(e) => setAdjustCheckoutFormData({ ...adjustCheckoutFormData, newCheckOutDate: e.target.value })}
+                  className="input input-bordered border-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-9"
+                />
+              </div>
+
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Adjustment Type</span></label>
+                <select
+                  value={adjustCheckoutFormData.adjustmentType}
+                  onChange={(e) => setAdjustCheckoutFormData({ ...adjustCheckoutFormData, adjustmentType: e.target.value })}
+                  className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-8"
+                >
+                  <option value="none">No Ledger Adjustment</option>
+                  <option value="credit">Reduce Bill (Credit Entry)</option>
+                  <option value="debit">Increase Bill (Debit Entry)</option>
+                </select>
+              </div>
+
+              {adjustCheckoutFormData.adjustmentType !== "none" && (
+                <div className="form-control w-full animate-fade-in">
+                  <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Adjustment Amount (৳) *</span></label>
+                  <input
+                    type="number"
+                    value={adjustCheckoutFormData.adjustmentAmount === 0 ? "" : adjustCheckoutFormData.adjustmentAmount}
+                    onChange={(e) => setAdjustCheckoutFormData({ ...adjustCheckoutFormData, adjustmentAmount: Number(e.target.value) })}
+                    className="input input-bordered border-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-9"
+                    placeholder="Enter manual amount"
+                    min="1"
+                  />
+                </div>
+              )}
+
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Reason / Notes</span></label>
+                <textarea
+                  value={adjustCheckoutFormData.reason}
+                  onChange={(e) => setAdjustCheckoutFormData({ ...adjustCheckoutFormData, reason: e.target.value })}
+                  className="textarea textarea-bordered border-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-20"
+                  placeholder="e.g. Guest checked out early"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-brand-beige/10">
+                <button onClick={() => { setIsAdjustCheckoutModalOpen(false); setAdjustCheckoutFormData({ newCheckOutDate: "", adjustmentType: "none", adjustmentAmount: 0, reason: "" }); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
+                <button onClick={handleAdjustCheckout} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
+                  {isPosting ? "Adjusting..." : "Confirm Adjustment"}
                 </button>
               </div>
             </div>

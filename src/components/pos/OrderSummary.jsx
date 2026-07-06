@@ -35,6 +35,7 @@ const OrderSummary = ({
     setCustomer
 }) => {
     const [activeTab, setActiveTab] = useState('invoiceDetails');
+    const [searchType, setSearchType] = useState('mobile'); // 'mobile' or 'room'
 
     const cardOptions = [
         { name: "Visa Card", icon: <FaCcVisa /> },
@@ -174,7 +175,7 @@ const OrderSummary = ({
                                                         </button>
                                                     </div>
                                                 )}
-                                                
+
                                                 <button
                                                     onClick={() => removeProduct(product._id)}
                                                     className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 cursor-pointer"
@@ -231,7 +232,7 @@ const OrderSummary = ({
                                         onChange={(e) => {
                                             const selectedRoom = e.target.value;
                                             setRoomNo(selectedRoom);
-                                            
+
                                             // Automatically select the active guest staying in this room
                                             if (selectedRoom) {
                                                 const associatedStay = activeStays.find(s => s.rooms?.some(sr => sr.room?.roomNumber === selectedRoom));
@@ -318,8 +319,8 @@ const OrderSummary = ({
                                 <div className="flex items-center justify-between mb-2">
                                     <span>Discount ({discountType}):</span>
                                     <div className="flex items-center gap-2">
-                                        <select 
-                                            value={discountType} 
+                                        <select
+                                            value={discountType}
                                             onChange={(e) => setDiscountType(e.target.value)}
                                             className="select select-bordered select-xs dark:bg-zinc-800 dark:border-zinc-700 text-xs"
                                         >
@@ -364,7 +365,7 @@ const OrderSummary = ({
 
                         {/* Action buttons */}
                         <div className="grid grid-cols-2 gap-3 mt-4">
-                            <button
+                            {/* <button
                                 onClick={() => handleFinalizeOrder((p) => printInvoice(p), false)}
                                 className="bg-[#346E36] hover:bg-[#346E36]/90 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isProcessing}
@@ -377,10 +378,10 @@ const OrderSummary = ({
                                 ) : (
                                     <><FaSave /> Save Due</>
                                 )}
-                            </button>
+                            </button> */}
                             <button
                                 onClick={() => handleFinalizeOrder((p) => printInvoice(p), true)}
-                                className="bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="col-span-2 bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isProcessing}
                             >
                                 {isProcessing ? (
@@ -420,59 +421,123 @@ const OrderSummary = ({
                     <div className="space-y-4 animate-fade-in">
                         <h2 className="text-lg font-bold">Additional Settings</h2>
 
-                        {/* Search / Set Customer Phone */}
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1">Customer Search</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={mobile}
-                                    onChange={(e) => {
-                                        setMobile(e.target.value);
-                                        setCustSearchResults([]);
-                                    }}
-                                    className="input input-bordered flex-1 dark:bg-zinc-800 dark:border-zinc-700"
-                                    placeholder="Search by phone/mobile"
-                                />
-                                <button
-                                    onClick={handleCustomerSearch}
-                                    disabled={custSearchLoading}
-                                    className="btn bg-brand-primary hover:bg-brand-secondary text-white cursor-pointer"
-                                >
-                                    {custSearchLoading ? "..." : <FaSearch />}
-                                </button>
-                            </div>
+                        {/* Search Type Toggle */}
+                        <div className="flex gap-2 p-1 bg-gray-100 dark:bg-zinc-800 rounded-lg text-xs">
+                            <button
+                                type="button"
+                                onClick={() => { setSearchType('room'); setMobile(''); setCustSearchResults([]); }}
+                                className={`flex-1 py-1.5 text-center font-bold rounded-md transition-all cursor-pointer ${searchType === 'room' ? 'bg-white dark:bg-zinc-700 shadow text-brand-primary' : 'text-gray-500 hover:text-gray-800'}`}
+                            >
+                                <span className="flex items-center justify-center gap-1"><FaHotel /> Room Stay Guest</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setSearchType('mobile'); setMobile(''); setCustSearchResults([]); }}
+                                className={`flex-1 py-1.5 text-center font-bold rounded-md transition-all cursor-pointer ${searchType === 'mobile' ? 'bg-white dark:bg-zinc-700 shadow text-brand-primary' : 'text-gray-500 hover:text-gray-800'}`}
+                            >
+                                <span className="flex items-center justify-center gap-1"><FaMobileAlt /> Walk-in Guest</span>
+                            </button>
                         </div>
 
-                        {custSearchResults && custSearchResults.length > 0 && (
-                            <div className="flex flex-col gap-2 mt-2 p-3 bg-gray-50 dark:bg-zinc-850 border border-gray-200 dark:border-zinc-800 rounded-lg max-h-60 overflow-y-auto">
-                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Search Results</div>
-                                {custSearchResults.map((cust) => (
-                                    <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-zinc-900 p-2 rounded-lg border border-gray-100 dark:border-zinc-800">
-                                        <div className="flex flex-col text-xs">
-                                            <span className="font-bold text-gray-800 dark:text-zinc-200">{cust.fullName}</span>
-                                            <span className="text-gray-400 font-mono">{cust.phoneNumber}</span>
-                                        </div>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => {
-                                                setCustomer(cust);
-                                                setMobile(cust.fullName || cust.name || "");
+                        {/* Search Input or Dropdown */}
+                        {searchType === 'mobile' ? (
+                            <>
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-500 mb-1">Customer Search (Mobile)</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={mobile}
+                                            onChange={(e) => {
+                                                setMobile(e.target.value);
                                                 setCustSearchResults([]);
-                                            }} 
-                                            className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
+                                            }}
+                                            className="input input-bordered flex-1 dark:bg-zinc-800 dark:border-zinc-700"
+                                            placeholder="Search by phone/mobile"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleCustomerSearch}
+                                            disabled={custSearchLoading}
+                                            className="btn bg-brand-primary hover:bg-brand-secondary text-white cursor-pointer"
                                         >
-                                            Select
+                                            {custSearchLoading ? "..." : <FaSearch />}
                                         </button>
                                     </div>
-                                ))}
-                                <button 
-                                    type="button" 
-                                    onClick={() => { setCustSearchResults([]); setIsCustomerModalOpen(true); }} 
-                                    className="text-xs text-blue-500 font-bold hover:underline self-start mt-1"
+                                </div>
+
+                                {custSearchResults && custSearchResults.length > 0 && (
+                                    <div className="flex flex-col gap-2 mt-2 p-3 bg-gray-50 dark:bg-zinc-850 border border-gray-200 dark:border-zinc-800 rounded-lg max-h-60 overflow-y-auto">
+                                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Search Results</div>
+                                        {custSearchResults.map((cust) => (
+                                            <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-zinc-900 p-2 rounded-lg border border-gray-100 dark:border-zinc-800">
+                                                <div className="flex flex-col text-xs">
+                                                    <span className="font-bold text-gray-800 dark:text-zinc-200">{cust.fullName || cust.name}</span>
+                                                    <span className="text-gray-400 font-mono">{cust.phoneNumber}</span>
+                                                </div>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => {
+                                                        setCustomer(cust);
+                                                        setMobile(cust.fullName || cust.name || "");
+                                                        setRoomNo("");
+                                                        setCustSearchResults([]);
+                                                    }} 
+                                                    className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3"
+                                                >
+                                                    Select
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button 
+                                            type="button" 
+                                            onClick={() => { setCustSearchResults([]); setIsCustomerModalOpen(true); }} 
+                                            className="text-xs text-blue-500 font-bold hover:underline self-start mt-1"
+                                        >
+                                            + Add New Customer
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 mb-1">Select Occupied Room / Guest</label>
+                                <select
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val) {
+                                            const selectedStay = activeStays.find(s => s._id === val);
+                                            if (selectedStay && selectedStay.customer) {
+                                                const roomNumbers = selectedStay.rooms?.map(sr => sr.room?.roomNumber).filter(Boolean).join(", ") || "N/A";
+                                                const roomGuest = {
+                                                    ...selectedStay.customer,
+                                                    roomNumber: roomNumbers,
+                                                    stayNo: selectedStay.stayNo
+                                                };
+                                                setCustomer(roomGuest);
+                                                setRoomNo(roomNumbers);
+                                                setMobile(`Room ${roomNumbers} - ${roomGuest.fullName || roomGuest.name}`);
+                                            }
+                                        } else {
+                                            setCustomer(null);
+                                            setRoomNo("");
+                                            setMobile("");
+                                        }
+                                    }}
+                                    className="select select-bordered w-full text-xs dark:bg-zinc-800 dark:border-zinc-700 bg-white"
+                                    value={customer?.stayNo ? activeStays.find(s => s.stayNo === customer.stayNo)?._id || "" : ""}
                                 >
-                                    + Add New Customer
-                                </button>
+                                    <option value="">-- Select Guest / Room --</option>
+                                    {activeStays.map((stay) => {
+                                        const roomNumbers = stay.rooms?.map(sr => sr.room?.roomNumber).filter(Boolean).join(", ") || "N/A";
+                                        const guestName = stay.customer?.fullName || stay.customer?.name || "Guest";
+                                        return (
+                                            <option key={stay._id} value={stay._id}>
+                                                Room {roomNumbers} - {guestName}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
                             </div>
                         )}
 
@@ -485,6 +550,7 @@ const OrderSummary = ({
                                     onClick={() => {
                                         setCustomer(null);
                                         setMobile("");
+                                        setRoomNo("");
                                     }}
                                     className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-xs"
                                 >

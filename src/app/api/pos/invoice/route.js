@@ -116,8 +116,8 @@ export async function POST(req) {
       throw saveError;
     }
 
-    // Sync with Stay Folio if Room Service and charged to Room Bill
-    if (newInvoice.orderType === "Room Service" && newInvoice.paymentMethod === "Room Bill" && newInvoice.roomNo) {
+    // Sync with Stay Folio if charged to Room Bill
+    if (newInvoice.paymentMethod === "Room Bill" && newInvoice.roomNo) {
       try {
         const Room = mongoose.models.Room || (await import("@/models/Room")).default;
         const Stay = mongoose.models.Stay || (await import("@/models/Stay")).default;
@@ -133,7 +133,7 @@ export async function POST(req) {
             await FolioEntry.create({
               stayId: activeStay._id,
               type: "Food Charge",
-              description: `POS Restaurant Invoice ${newInvoice.invoiceNo} (Room Service for Room ${newInvoice.roomNo})`,
+              description: `POS Restaurant Invoice ${newInvoice.invoiceNo} (Room ${newInvoice.roomNo})`,
               debit: newInvoice.grandTotal,
               credit: 0,
               referenceId: newInvoice._id

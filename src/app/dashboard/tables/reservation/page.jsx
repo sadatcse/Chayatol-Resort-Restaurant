@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useContext, useCallback, Suspense } from "react";
-import { FiEdit, FiTrash2, FiX, FiPlus, FiCalendar, FiPhone, FiUser, FiInfo, FiClock, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiX, FiPlus, FiCalendar, FiPhone, FiUser, FiInfo, FiClock, FiChevronLeft, FiChevronRight, FiSearch } from 'react-icons/fi';
 import Swal from 'sweetalert2';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -12,7 +12,16 @@ import SectionHeader from "@/components/Comon/SectionHeader";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
-import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
+import CustomerModal from "@/components/CustomerModal";
+import { calculateCompleteness } from "@/lib/customerHelper";
+
+const toLocalISOString = (dateInput) => {
+    if (!dateInput) return "";
+    const date = new Date(dateInput);
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+};
 
 function TableReservationContent() {
     const axiosSecure = useAxiosSecure();
@@ -84,11 +93,70 @@ function TableReservationContent() {
         customerEmail: "",
         additionalInfo: "",
         status: "Pending",
+        customer: "",
     });
 
     const [editId, setEditId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    // Customer search & Modal states
+    const [phoneSearch, setPhoneSearch] = useState("");
+    const [custSearchLoading, setCustSearchLoading] = useState(false);
+    const [custSearchResults, setCustSearchResults] = useState([]);
+    const [selectedCust, setSelectedCust] = useState(null);
+    const [isCustModalOpen, setIsCustModalOpen] = useState(false);
+
+    const handleSearchCustomer = async () => {
+        if (!phoneSearch || phoneSearch.trim().length < 3) {
+            Swal.fire("Warning", "Please enter at least 3 digits to search.", "warning");
+            return;
+        }
+        setCustSearchLoading(true);
+        setCustSearchResults([]);
+        try {
+            const res = await axiosSecure.get(`/customer/paginated?search=${encodeURIComponent(phoneSearch)}&limit=5`);
+            if (res.data.customers && res.data.customers.length > 0) {
+                setCustSearchResults(res.data.customers);
+            } else {
+                setCustSearchResults([]);
+                setIsCustModalOpen(true);
+            }
+        } catch (e) {
+            console.error("Search customer error:", e);
+        } finally {
+            setCustSearchLoading(false);
+        }
+    };
+
+    const selectCust = (cust) => {
+        setSelectedCust(cust);
+        setFormData(prev => ({
+            ...prev,
+            customer: cust._id,
+            customerName: cust.fullName,
+            customerPhone: cust.phoneNumber,
+            customerEmail: cust.emailAddress || ""
+        }));
+        setPhoneSearch(cust.phoneNumber);
+        setCustSearchResults([]);
+    };
+
+    const clearSelectedCust = () => {
+        setSelectedCust(null);
+        setFormData(prev => ({
+            ...prev,
+            customer: "",
+            customerName: "",
+            customerPhone: "",
+            customerEmail: ""
+        }));
+        setPhoneSearch("");
+    };
+
+    const handleCustomerCreateSuccess = (newCust) => {
+        selectCust(newCust);
+    };
 
     const fetchReservations = useCallback(async () => {
         setLoading(true);
@@ -166,7 +234,7 @@ function TableReservationContent() {
                 bookedBy: user?._id || user?.uid,
             };
 
-            if (editId) {
+             if (editId) {
                 await axiosSecure.put(`/tablereservation/${editId}`, reservationData);
                 Swal.fire("Updated!", "Reservation has been updated.", "success");
             } else {
@@ -185,7 +253,11 @@ function TableReservationContent() {
                 customerEmail: "",
                 additionalInfo: "",
                 status: "Pending",
+                customer: "",
             });
+            setSelectedCust(null);
+            setPhoneSearch("");
+            setCustSearchResults([]);
         } catch (error) {
             console.error("Error saving reservation:", error);
             Swal.fire({ icon: "error", title: "Error!", text: "Failed to save reservation." });
@@ -198,14 +270,23 @@ function TableReservationContent() {
         setEditId(res._id);
         setFormData({
             tableName: res.tableName,
-            startTime: res.startTime ? new Date(res.startTime).toISOString().slice(0, 16) : "",
-            endTime: res.endTime ? new Date(res.endTime).toISOString().slice(0, 16) : "",
+            startTime: res.startTime ? toLocalISOString(res.startTime) : "",
+            endTime: res.endTime ? toLocalISOString(res.endTime) : "",
             customerName: res.customerName || "",
             customerPhone: res.customerPhone || "",
             customerEmail: res.customerEmail || "",
             additionalInfo: res.additionalInfo || "",
             status: res.status || "Pending",
+            customer: res.customer?._id || res.customer || "",
         });
+        if (res.customer && typeof res.customer === "object") {
+            setSelectedCust(res.customer);
+            setPhoneSearch(res.customer.phoneNumber);
+        } else {
+            setSelectedCust(null);
+            setPhoneSearch(res.customerPhone || "");
+        }
+        setCustSearchResults([]);
         setIsModalOpen(true);
     };
 
@@ -320,7 +401,11 @@ function TableReservationContent() {
                                     customerEmail: "",
                                     additionalInfo: "",
                                     status: "Pending",
+                                    customer: "",
                                 });
+                                setSelectedCust(null);
+                                setPhoneSearch("");
+                                setCustSearchResults([]);
                                 setIsModalOpen(true);
                             }}
                             className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
@@ -436,7 +521,24 @@ function TableReservationContent() {
                                                     {new Date(res.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-brand-charcoal dark:text-brand-offwhite">
-                                                    {res.customerName}
+                                                    <div className="flex flex-col">
+                                                        <span className="font-extrabold">{res.customerName}</span>
+                                                        {res.customer && (() => {
+                                                            const score = calculateCompleteness(res.customer);
+                                                            const badgeClass = score <= 3 
+                                                                ? "text-red-500 bg-red-500/10" 
+                                                                : score <= 7 
+                                                                ? "text-amber-500 bg-amber-500/10" 
+                                                                : score <= 9 
+                                                                ? "text-lime-500 bg-lime-500/10" 
+                                                                : "text-emerald-500 bg-emerald-500/10";
+                                                            return (
+                                                                <span className={`inline-flex items-center self-start px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider mt-0.5 ${badgeClass}`}>
+                                                                    Profile: {score}/10
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-brand-charcoal dark:text-brand-offwhite">
                                                     {res.customerPhone}
@@ -548,6 +650,127 @@ function TableReservationContent() {
                                 <hr className="border-brand-beige/30 dark:border-brand-beige/10 my-2" />
                             </div>
 
+                            {/* Customer Search Section */}
+                            <div className="sm:col-span-2 space-y-3">
+                                <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1 flex items-center gap-1">
+                                    <FiSearch /> Search Guest in Customer Database (Optional)
+                                </label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Type name or phone number..." 
+                                        value={phoneSearch} 
+                                        onChange={(e) => setPhoneSearch(e.target.value)} 
+                                        className="input input-bordered input-sm grow border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={handleSearchCustomer} 
+                                        disabled={custSearchLoading} 
+                                        className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white border-none px-4 h-9 cursor-pointer"
+                                    >
+                                        {custSearchLoading ? "..." : "Search"}
+                                    </button>
+                                </div>
+
+                                {custSearchResults.length > 0 && (
+                                    <div className="flex flex-col gap-2 p-3 bg-gray-50 dark:bg-brand-charcoal/30 border border-brand-beige/50 dark:border-brand-beige/20 rounded-lg animate-fade-in max-h-48 overflow-y-auto">
+                                        <div className="text-[10px] font-bold text-brand-sage uppercase tracking-wider">Search Results</div>
+                                        {custSearchResults.map((cust) => {
+                                            const score = calculateCompleteness(cust);
+                                            const badgeClass = score <= 3 
+                                                ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                                                : score <= 7 
+                                                ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                                                : score <= 9 
+                                                ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                                                : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+                                            
+                                            return (
+                                                <div key={cust._id} className="flex justify-between items-center bg-white dark:bg-brand-charcoal p-2 rounded-lg border border-brand-beige/30 dark:border-brand-beige/10">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-bold text-gray-800 dark:text-brand-offwhite">{cust.fullName}</span>
+                                                        <span className="text-xs text-brand-sage font-mono">{cust.phoneNumber}</span>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                                                Profile: {score}/10
+                                                            </span>
+                                                            <div className="w-12 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                                        score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                                                                    }`}
+                                                                    style={{ width: `${score * 10}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => selectCust(cust)} 
+                                                        className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none px-3 cursor-pointer"
+                                                    >
+                                                        Select
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        <button 
+                                            type="button" 
+                                            onClick={() => { setCustSearchResults([]); setIsCustModalOpen(true); }} 
+                                            className="text-xs text-blue-500 font-bold hover:underline self-start mt-1 cursor-pointer"
+                                        >
+                                            + Add New Customer
+                                        </button>
+                                    </div>
+                                )}
+
+                                {selectedCust && custSearchResults.length === 0 && (() => {
+                                    const score = calculateCompleteness(selectedCust);
+                                    const badgeClass = score <= 3 
+                                        ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-900/50" 
+                                        : score <= 7 
+                                        ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50" 
+                                        : score <= 9 
+                                        ? "bg-lime-50 text-lime-600 dark:bg-lime-950/30 dark:text-lime-400 border border-lime-200 dark:border-lime-900/50" 
+                                        : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
+                                    
+                                    return (
+                                        <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 p-3 rounded-lg border border-brand-beige dark:border-brand-beige/20 mt-2 flex justify-between items-center text-brand-charcoal dark:text-brand-offwhite">
+                                            <div>
+                                                <div className="text-[10px] text-brand-sage font-bold uppercase tracking-widest mb-1">Selected Guest Profile</div>
+                                                <div className="font-bold text-brand-black dark:text-brand-offwhite flex items-center gap-2">
+                                                    {selectedCust.fullName}
+                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                                        Profile: {score}/10
+                                                    </span>
+                                                </div>
+                                                <div className="text-xs text-brand-sage font-mono mt-0.5">{selectedCust.phoneNumber}</div>
+                                                <div className="w-24 bg-gray-200 dark:bg-gray-700 h-1 rounded-full overflow-hidden mt-1.5">
+                                                    <div 
+                                                        className={`h-full rounded-full transition-all duration-300 ${
+                                                            score <= 3 ? "bg-red-500" : score <= 7 ? "bg-amber-500" : score <= 9 ? "bg-lime-500" : "bg-emerald-500"
+                                                        }`}
+                                                        style={{ width: `${score * 10}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={clearSelectedCust} 
+                                                className="text-xs text-red-500 font-bold hover:underline cursor-pointer"
+                                            >
+                                                Change / Clear
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
+                            <div className="sm:col-span-2">
+                                <hr className="border-brand-beige/30 dark:border-brand-beige/10 my-2" />
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-bold text-brand-sage uppercase tracking-wider mb-1 flex items-center gap-1"><FiUser /> Guest Name *</label>
                                 <input
@@ -557,6 +780,7 @@ function TableReservationContent() {
                                     className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
                                     value={formData.customerName}
                                     onChange={handleInputChange}
+                                    required
                                 />
                             </div>
 
@@ -566,9 +790,10 @@ function TableReservationContent() {
                                     type="text"
                                     name="customerPhone"
                                     placeholder="Enter contact number"
-                                    className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9"
+                                    className="input input-bordered input-sm w-full border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite text-xs h-9 font-mono"
                                     value={formData.customerPhone}
                                     onChange={handleInputChange}
+                                    required
                                 />
                             </div>
 
@@ -668,6 +893,13 @@ function TableReservationContent() {
                     </PrintReportTemplate>
                 )}
             </div>
+            {/* Customer Add/Edit Modal */}
+            <CustomerModal
+                isOpen={isCustModalOpen}
+                onClose={() => setIsCustModalOpen(false)}
+                onSuccess={handleCustomerCreateSuccess}
+                initialPhoneNumber={phoneSearch}
+            />
         </div>
     );
 }

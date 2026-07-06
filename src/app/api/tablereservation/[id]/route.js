@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import TableReservation from "@/models/TableReservation";
+import Customer from "@/models/Customer";
 
 const MONGO_URI = process.env.MONGODB_URI;
 
@@ -18,7 +19,7 @@ export async function PUT(req, { params }) {
     const updated = await TableReservation.findByIdAndUpdate(id, body, {
       new: true,
       runValidators: true,
-    });
+    }).populate("customer");
 
     if (!updated) {
       return NextResponse.json({ error: "Reservation not found" }, { status: 404 });

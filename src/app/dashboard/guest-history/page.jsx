@@ -1125,7 +1125,6 @@ function GuestHistoryContent() {
                                     <p style={{ margin: "2px 0" }}><strong>Booking ID:</strong> {finalInvoiceRes.reservationNo || finalInvoiceRes.stayNo}</p>
                                     <p style={{ margin: "2px 0" }}><strong>Check-In:</strong> {new Date(finalInvoiceRes.checkInDate).toLocaleDateString("en-GB")} 14:00</p>
                                     <p style={{ margin: "2px 0" }}><strong>Check-Out:</strong> {finalInvoiceRes.actualCheckOutDate ? new Date(finalInvoiceRes.actualCheckOutDate).toLocaleDateString("en-GB") : new Date(finalInvoiceRes.expectedCheckOutDate).toLocaleDateString("en-GB")} 12:00</p>
-                                    <p style={{ margin: "2px 0" }}><strong>Payment Mode:</strong> {finalInvoiceRes.bookingSource || "Walk-in"}</p>
                                 </div>
                             </div>
 

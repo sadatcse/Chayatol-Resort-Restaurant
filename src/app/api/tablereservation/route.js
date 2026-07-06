@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import TableReservation from "@/models/TableReservation";
+import Customer from "@/models/Customer";
 
 const MONGO_URI = process.env.MONGODB_URI;
 
@@ -37,7 +38,7 @@ export async function GET(req) {
       query.tableName = tableName;
     }
 
-    const result = await TableReservation.find(query).sort({ startTime: 1 });
+    const result = await TableReservation.find(query).populate("customer").sort({ startTime: 1 });
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error("Error fetching table reservations:", error);

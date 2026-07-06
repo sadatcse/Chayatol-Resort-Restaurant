@@ -278,9 +278,7 @@ const StockLedgerPage = () => {
       {/* Selector Panel */}
       <div className="bg-white dark:bg-brand-charcoal rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 p-6 mb-6">
         <p className="text-xs font-bold text-brand-sage uppercase tracking-widest mb-4">Select Ingredient to View Ledger</p>
-
-        {/* Row 1: Category + Search */}
-        <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-4">
           {/* Category filter */}
           <select
             value={selectedCategory}
@@ -293,88 +291,86 @@ const StockLedgerPage = () => {
             ))}
           </select>
 
+          {/* Ingredient Selection */}
+          <select
+            value={selectedIngredient?._id || ""}
+            onChange={(e) => {
+              const ing = ingredients.find(i => i._id === e.target.value);
+              setSelectedIngredient(ing || null);
+              setLedger(null);
+            }}
+            className="select select-bordered border-brand-primary focus:outline-none rounded-xl text-sm bg-white dark:bg-brand-charcoal text-brand-charcoal dark:text-brand-offwhite font-semibold h-12 w-48"
+          >
+            <option value="">Select Ingredient</option>
+            {filteredIngredients.map((i) => (
+              <option key={i._id} value={i._id}>{i.name} ({i.unit})</option>
+            ))}
+          </select>
+
           {/* Search */}
-          <label className="input input-bordered border-brand-primary focus:outline-none flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-xl px-4 h-12 w-72">
+          <label className="input input-bordered border-brand-primary focus:outline-none flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-xl px-4 h-12 w-56">
             <FiSearch className="text-brand-sage flex-shrink-0" />
             <input
               type="text"
-              className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none text-sm"
-              placeholder="Search ingredient or SKU..."
+              className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none text-xs"
+              placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </label>
-        </div>
 
-        {/* Row 2: Date filters */}
-        <div className="flex flex-wrap items-center gap-3 mb-1">
-          <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Month:</span>
-          <select
-            value={selectedMonth}
-            onChange={handleMonthChange}
-            className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-xl h-12 text-xs font-semibold px-4 w-36 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
-          >
-            <option value="all">All Months</option>
-            {monthOptions.map((opt) => (
-              <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
-                {opt.label}
-              </option>
-            ))}
-            <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
-          </select>
-
-          <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Date Range:</span>
-          <div className="flex-shrink-0">
-            <DatePicker
-              selected={fromDate}
-              onChange={setFromDate}
-              dateFormat="dd/MM/yyyy"
-              placeholderText="From Date"
-              isClearable
-              wrapperClassName="block"
-              className="input input-bordered border-brand-primary focus:outline-none rounded-xl h-12 text-xs font-semibold px-4 w-36 text-center bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
-            />
-          </div>
-          <span className="text-brand-sage text-sm font-bold">→</span>
-          <div className="flex-shrink-0">
-            <DatePicker
-              selected={toDate}
-              onChange={setToDate}
-              dateFormat="dd/MM/yyyy"
-              placeholderText="To Date"
-              isClearable
-              wrapperClassName="block"
-              className="input input-bordered border-brand-primary focus:outline-none rounded-xl h-12 text-xs font-semibold px-4 w-36 text-center bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
-            />
-          </div>
-          {(fromDate || toDate) && (
-            <button
-              onClick={() => { setFromDate(null); setToDate(null); }}
-              className="btn btn-xs btn-ghost text-brand-sage hover:text-red-500 font-bold uppercase tracking-widest"
+          {/* Month select group */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-brand-sage uppercase tracking-wider shrink-0">Month:</span>
+            <select
+              value={selectedMonth}
+              onChange={handleMonthChange}
+              className="select select-bordered border-brand-primary focus:outline-none focus:border-brand-primary bg-white dark:bg-brand-charcoal/50 rounded-xl h-12 text-xs font-semibold px-4 w-36 text-brand-charcoal dark:text-brand-offwhite shadow-sm border-brand-beige shrink-0"
             >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {/* Ingredient Pills */}
-        {filteredIngredients.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-brand-beige dark:border-brand-beige/20">
-            {filteredIngredients.map((i) => (
-              <button
-                key={i._id}
-                onClick={() => { setSelectedIngredient(i); setLedger(null); }}
-                className={`badge badge-lg border font-semibold text-xs px-4 py-3 cursor-pointer transition-all ${
-                  selectedIngredient?._id === i._id
-                    ? "bg-brand-primary text-white border-brand-primary shadow-md"
-                    : "bg-brand-offwhite dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite border-brand-beige dark:border-brand-beige/20 hover:border-brand-primary hover:text-brand-primary"
-                }`}
-              >
-                {i.name} <span className="opacity-60 ml-1">({i.unit})</span>
-              </button>
-            ))}
+              <option value="all">All Months</option>
+              {monthOptions.map((opt) => (
+                <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
+                  {opt.label}
+                </option>
+              ))}
+              <option value="custom" disabled={selectedMonth !== "custom"}>Custom Range</option>
+            </select>
           </div>
-        )}
+
+          {/* Date range group */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-brand-sage uppercase tracking-wider shrink-0">Dates:</span>
+            <div className="flex items-center gap-1">
+              <DatePicker
+                selected={fromDate}
+                onChange={setFromDate}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="From"
+                isClearable
+                wrapperClassName="block"
+                className="input input-bordered border-brand-primary focus:outline-none rounded-xl h-12 text-xs font-semibold px-3 w-28 text-center bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
+              />
+              <span className="text-brand-sage text-xs font-bold">→</span>
+              <DatePicker
+                selected={toDate}
+                onChange={setToDate}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="To"
+                isClearable
+                wrapperClassName="block"
+                className="input input-bordered border-brand-primary focus:outline-none rounded-xl h-12 text-xs font-semibold px-3 w-28 text-center bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
+              />
+            </div>
+            {(fromDate || toDate) && (
+              <button
+                onClick={() => { setFromDate(null); setToDate(null); }}
+                className="btn btn-xs btn-ghost text-brand-sage hover:text-red-500 font-bold uppercase tracking-widest text-[9px]"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Ledger Content */}

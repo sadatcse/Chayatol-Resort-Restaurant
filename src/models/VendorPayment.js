@@ -32,7 +32,6 @@ const VendorPaymentSchema = Schema(
     paymentMethod: {
       type: String,
       required: [true, "Payment method is required"],
-      enum: ["Cash", "Card", "Mobile", "Other"],
       default: "Cash",
     },
     note: {

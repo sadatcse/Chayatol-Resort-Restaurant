@@ -52,26 +52,26 @@ export async function POST(req, { params }) {
     }
 
     const price = service.price;
-    const vatAmount = (price * (service.vat || 0)) / 100;
-    const scAmount = (price * (service.sc || 0)) / 100;
-    const sdAmount = (price * (service.sd || 0)) / 100;
+    const vatAmount = 0;
+    const scAmount = 0;
+    const sdAmount = 0;
 
-    const totalCost = price + vatAmount + scAmount + sdAmount;
+    const totalCost = price;
 
     // Create Service Order
     const serviceOrder = await ServiceOrder.create({
       stayId: id,
       service: service._id,
       price,
-      vat: service.vat || 0,
-      sc: service.sc || 0,
-      sd: service.sd || 0,
+      vat: 0,
+      sc: 0,
+      sd: 0,
       isChargeable: isChargeable !== undefined ? isChargeable : true
     });
 
     // Create Folio Entry if chargeable
     if (isChargeable !== false) {
-      const description = `Service Charge: ${service.serviceName} (Subtotal: ৳${price.toFixed(2)}, VAT: ৳${vatAmount.toFixed(2)}, SC: ৳${scAmount.toFixed(2)}, SD: ৳${sdAmount.toFixed(2)})`;
+      const description = `Service Charge: ${service.serviceName}`;
       await FolioEntry.create({
         stayId: id,
         type: "Service Charge",

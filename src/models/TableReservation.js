@@ -39,6 +39,11 @@ const TableReservationSchema = new Schema(
       enum: ["Pending", "Confirmed", "Seated", "Cancelled", "No Show"],
       default: "Pending",
     },
+    customer: {
+      type: Schema.Types.ObjectId,
+      ref: "Customer",
+      required: false,
+    },
     bookedBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

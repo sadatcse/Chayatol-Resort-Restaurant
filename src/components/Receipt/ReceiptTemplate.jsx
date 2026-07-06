@@ -119,7 +119,7 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
                 {invoiceData?.orderType?.toLowerCase() === "dine-in" && (invoiceData?.tableName || invoiceData?.tableNo) && (
                     <p style={styles.normalText}>Table: {invoiceData.tableName || invoiceData.tableNo}</p>
                 )}
-                {invoiceData?.orderType?.toLowerCase() === "room service" && invoiceData?.roomNo && (
+                {invoiceData?.roomNo && (
                     <p style={styles.normalText}>Room: {invoiceData.roomNo}</p>
                 )}
                 <p style={styles.normalText}>Customer: {invoiceData?.customerName || invoiceData?.customer?.name || "Guest"}</p>
@@ -143,9 +143,9 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
                             <tr key={index}>
                                 <td style={styles.tableDataCell}>{item.productName || "Unknown"}</td>
                                 <td style={styles.tableCellRight}>{item.qty || item.quantity || 0}</td>
-                                <td style={styles.tableCellRight}>{(item.rate || item.unitPrice || 0).toFixed(0)}</td>
+                                <td style={styles.tableCellRight}>৳ {(item.rate || item.unitPrice || 0).toFixed(0)}</td>
                                 <td style={styles.tableCellRight}>
-                                    {item.isComplimentary ? "FREE" : (item.subtotal || item.totalPrice || 0).toFixed(0)}
+                                    {item.isComplimentary ? "FREE" : `৳ ${(item.subtotal || item.totalPrice || 0).toFixed(0)}`}
                                 </td>
                             </tr>
                         ))}
@@ -192,12 +192,30 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
                     <p style={styles.infoText}>SD: ৳ {invoiceData.sd.toFixed(0)}</p>
                 )}
 
+                {invoiceData?.deliveryCharge > 0 && (
+                    <p style={styles.infoText}>Delivery Charge: ৳ {invoiceData.deliveryCharge.toFixed(0)}</p>
+                )}
+
                 {invoiceData?.discount > 0 && (
                     <p style={styles.infoText}>Discount: ৳ {invoiceData.discount.toFixed(0)}</p>
                 )}
                 <p style={styles.totalLine}>
                     Total: ৳ {(invoiceData?.totalAmount || invoiceData?.grandTotal || 0).toFixed(0)}
                 </p>
+                
+                {invoiceData?.paymentMethod?.toLowerCase() === "room bill" && (
+                    <p style={{ fontSize: "14px", fontWeight: "black", textAlign: "right", margin: "6px 0", letterSpacing: "0.5px" }}>
+                        *** ADDED TO ROOM BILL ***
+                    </p>
+                )}
+                
+                {(invoiceData?.paidAmount > 0 || invoiceData?.paid > 0) && (
+                    <p style={styles.infoText}>Paid: ৳ {(invoiceData.paidAmount || invoiceData.paid || 0).toFixed(0)}</p>
+                )}
+
+                {(invoiceData?.changeAmount > 0 || invoiceData?.change > 0) && (
+                    <p style={styles.infoText}>Change Return: ৳ {(invoiceData.changeAmount || invoiceData.change || 0).toFixed(0)}</p>
+                )}
             </div>
 
             <div style={styles.dashedLine}></div>

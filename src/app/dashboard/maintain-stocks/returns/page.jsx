@@ -282,7 +282,7 @@ const ReturnsPage = () => {
       const [ingRes, catRes, roomRes, kitchenRes] = await Promise.all([
         axiosSecure.get("/ingredient"),
         axiosSecure.get("/ingredient-category"),
-        axiosSecure.get("/room"),
+        axiosSecure.get("/room?all=true"),
         axiosSecure.get("/kitchen"),
       ]);
       setIngredients(ingRes.data || []);

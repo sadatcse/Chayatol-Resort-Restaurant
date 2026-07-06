@@ -26,7 +26,7 @@ const getInvoiceSummary = (entries) => {
   let serviceTotal = 0;
   let discountTotal = 0;
   let paidTotal = 0;
-  
+
   entries.forEach(e => {
     const desc = e.description.toLowerCase();
     if (e.debit > 0) {
@@ -48,7 +48,7 @@ const getInvoiceSummary = (entries) => {
 
   const netPayable = roomTotal + foodTotal + serviceTotal - discountTotal;
   const dueAmount = netPayable - paidTotal;
-  
+
   return {
     roomTotal,
     foodTotal,
@@ -108,6 +108,7 @@ const FrontDeskTimelinePage = () => {
   const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [isAdjustCheckoutModalOpen, setIsAdjustCheckoutModalOpen] = useState(false);
 
   // Form states for stays
   const [foodFormData, setFoodFormData] = useState({ foodItem: "", quantity: 1, isChargeable: true });
@@ -115,6 +116,7 @@ const FrontDeskTimelinePage = () => {
   const [paymentFormData, setPaymentFormData] = useState({ paymentType: "", amount: "", transactionRef: "", notes: "" });
   const [discountFormData, setDiscountFormData] = useState({ discountType: "percentage", value: "", applyTo: "all", reason: "" });
   const [extendFormData, setExtendFormData] = useState({ newCheckOutDate: "", roomAssignments: [] });
+  const [adjustCheckoutFormData, setAdjustCheckoutFormData] = useState({ newCheckOutDate: "", adjustmentType: "none", adjustmentAmount: 0, reason: "" });
   const [checkoutPayment, setCheckoutPayment] = useState({ paymentType: "", amount: "", transactionRef: "" });
   const [makeRoomsAvailable, setMakeRoomsAvailable] = useState(false);
   const [settings, setSettings] = useState({ checkInTime: "14:00", checkOutTime: "12:00" });
@@ -362,7 +364,7 @@ const FrontDeskTimelinePage = () => {
 
   const handleToggleRoomStatus = (room) => {
     const isDark = document.documentElement.classList.contains("dark");
-    const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+    const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin" || canEdit;
 
     if (!canPerformAction) {
       Swal.fire({
@@ -956,7 +958,7 @@ const FrontDeskTimelinePage = () => {
       setDetailedServiceOrders(serviceRes.data || []);
       setFoodServicePrintData(stayObj);
       Swal.close();
-      
+
       setTimeout(() => {
         handleFoodServicePrint();
       }, 300);
@@ -1116,6 +1118,43 @@ const FrontDeskTimelinePage = () => {
       setIsPosting(false);
     }
   };
+
+  const handleAdjustCheckout = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to modify active stay folios.", "warning");
+      return;
+    }
+    if (isPosting) return;
+    if (!adjustCheckoutFormData.newCheckOutDate) {
+      Swal.fire("Error", "Please select a new check-out date.", "warning");
+      return;
+    }
+    if (adjustCheckoutFormData.adjustmentType !== "none" && (!adjustCheckoutFormData.adjustmentAmount || adjustCheckoutFormData.adjustmentAmount <= 0)) {
+      Swal.fire("Error", "Please enter a valid positive adjustment amount.", "warning");
+      return;
+    }
+
+    setIsPosting(true);
+    try {
+      const { data } = await axiosSecure.post(`/stays/${selectedStay._id}/adjust-checkout`, {
+        newCheckOutDate: adjustCheckoutFormData.newCheckOutDate,
+        adjustmentType: adjustCheckoutFormData.adjustmentType,
+        adjustmentAmount: Number(adjustCheckoutFormData.adjustmentAmount || 0),
+        reason: adjustCheckoutFormData.reason
+      });
+      setSelectedStay(data);
+      await fetchFolio(selectedStay._id);
+      setIsAdjustCheckoutModalOpen(false);
+      setAdjustCheckoutFormData({ newCheckOutDate: "", adjustmentType: "none", adjustmentAmount: 0, reason: "" });
+      fetchTimelineData();
+      Swal.fire("Stay Adjusted", "Stay check-out date and ledger balance successfully updated.", "success");
+    } catch (err) {
+      Swal.fire("Failed", err.response?.data?.message || "Failed to adjust stay", "error");
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
 
   const handleCheckoutGuest = async () => {
     if (!canEdit) {
@@ -1643,7 +1682,7 @@ const FrontDeskTimelinePage = () => {
                       {roomsByType[roomTypeName].map(room => (
                         <tr key={room._id} className="border-b border-brand-beige/10 hover:bg-brand-offwhite/10 transition-colors">
                           {/* Room identifier sticky column */}
-                          <td 
+                          <td
                             onClick={() => handleToggleRoomStatus(room)}
                             className="p-3 font-bold text-sm bg-white dark:bg-brand-charcoal sticky left-0 border-r border-brand-beige/15 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10 cursor-pointer hover:bg-brand-offwhite/30 dark:hover:bg-brand-offwhite/5 group transition-colors"
                             title="Click to update room status"
@@ -1899,9 +1938,23 @@ const FrontDeskTimelinePage = () => {
                       });
                       setIsExtendModalOpen(true);
                     }}
-                    className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 sm:col-span-2"
+                    className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 sm:col-span-1"
                   >
                     <FiClock /> Extend Stay
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAdjustCheckoutFormData({
+                        newCheckOutDate: selectedStay.expectedCheckOutDate ? new Date(selectedStay.expectedCheckOutDate).toISOString().split("T")[0] : "",
+                        adjustmentType: "none",
+                        adjustmentAmount: 0,
+                        reason: ""
+                      });
+                      setIsAdjustCheckoutModalOpen(true);
+                    }}
+                    className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 sm:col-span-1"
+                  >
+                    <FiEdit /> Adjust Check-out
                   </button>
                   <button
                     onClick={() => {
@@ -2320,6 +2373,72 @@ const FrontDeskTimelinePage = () => {
                 <button onClick={() => { setIsExtendModalOpen(false); setExtendFormData({ newCheckOutDate: "", roomAssignments: [] }); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
                 <button onClick={handleExtendStay} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
                   {isPosting ? "Extending..." : "Confirm Extension"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {/* Adjust Stay Modal */}
+      {isAdjustCheckoutModalOpen && (
+        <dialog className="modal modal-open bg-brand-charcoal/40 backdrop-blur-sm">
+          <div className="modal-box bg-white dark:bg-brand-charcoal p-0 overflow-hidden max-w-md rounded-2xl border animate-scale-in">
+            <div className="p-6 border-b border-brand-beige bg-brand-offwhite dark:bg-brand-charcoal/50">
+              <span className="font-bold text-sm uppercase tracking-widest text-brand-charcoal dark:text-brand-offwhite">Adjust Stay Check-Out & Ledger</span>
+            </div>
+            <div className="p-8 space-y-4 text-xs font-bold text-brand-sage">
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">New Expected Check-Out Date *</span></label>
+                <input
+                  type="date"
+                  value={adjustCheckoutFormData.newCheckOutDate}
+                  onChange={(e) => setAdjustCheckoutFormData({ ...adjustCheckoutFormData, newCheckOutDate: e.target.value })}
+                  className="input input-bordered border-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-9"
+                />
+              </div>
+
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Adjustment Type</span></label>
+                <select
+                  value={adjustCheckoutFormData.adjustmentType}
+                  onChange={(e) => setAdjustCheckoutFormData({ ...adjustCheckoutFormData, adjustmentType: e.target.value })}
+                  className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-8"
+                >
+                  <option value="none">No Ledger Adjustment</option>
+                  <option value="credit">Reduce Bill (Credit Entry)</option>
+                  <option value="debit">Increase Bill (Debit Entry)</option>
+                </select>
+              </div>
+
+              {adjustCheckoutFormData.adjustmentType !== "none" && (
+                <div className="form-control w-full animate-fade-in">
+                  <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Adjustment Amount (৳) *</span></label>
+                  <input
+                    type="number"
+                    value={adjustCheckoutFormData.adjustmentAmount === 0 ? "" : adjustCheckoutFormData.adjustmentAmount}
+                    onChange={(e) => setAdjustCheckoutFormData({ ...adjustCheckoutFormData, adjustmentAmount: Number(e.target.value) })}
+                    className="input input-bordered border-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-9"
+                    placeholder="Enter manual amount"
+                    min="1"
+                  />
+                </div>
+              )}
+
+              <div className="form-control w-full">
+                <label className="label py-1"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Reason / Notes</span></label>
+                <textarea
+                  value={adjustCheckoutFormData.reason}
+                  onChange={(e) => setAdjustCheckoutFormData({ ...adjustCheckoutFormData, reason: e.target.value })}
+                  className="textarea textarea-bordered border-brand-primary w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite h-20"
+                  placeholder="e.g. Guest checked out early"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-brand-beige/10">
+                <button onClick={() => { setIsAdjustCheckoutModalOpen(false); setAdjustCheckoutFormData({ newCheckOutDate: "", adjustmentType: "none", adjustmentAmount: 0, reason: "" }); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
+                <button onClick={handleAdjustCheckout} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
+                  {isPosting ? "Adjusting..." : "Confirm Adjustment"}
                 </button>
               </div>
             </div>
@@ -2947,12 +3066,12 @@ const FrontDeskTimelinePage = () => {
                 dateRange=""
               >
                 {/* Invoice Meta Header Grid */}
-                <div style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: "1fr 1fr", 
-                  gap: "20px", 
-                  marginBottom: "30px", 
-                  borderBottom: "2px solid #1e293b", 
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "20px",
+                  marginBottom: "30px",
+                  borderBottom: "2px solid #1e293b",
                   paddingBottom: "15px",
                   fontSize: "11px"
                 }}>
@@ -2968,7 +3087,6 @@ const FrontDeskTimelinePage = () => {
                     <p style={{ margin: "2px 0" }}><strong>Booking ID:</strong> {finalInvoiceRes.reservationNo || finalInvoiceRes.stayNo}</p>
                     <p style={{ margin: "2px 0" }}><strong>Check-In:</strong> {new Date(finalInvoiceRes.checkInDate).toLocaleDateString("en-GB")} 14:00</p>
                     <p style={{ margin: "2px 0" }}><strong>Check-Out:</strong> {finalInvoiceRes.actualCheckOutDate ? new Date(finalInvoiceRes.actualCheckOutDate).toLocaleDateString("en-GB") : new Date(finalInvoiceRes.expectedCheckOutDate).toLocaleDateString("en-GB")} 12:00</p>
-                    <p style={{ margin: "2px 0" }}><strong>Payment Mode:</strong> {finalInvoiceRes.bookingSource || "Walk-in"}</p>
                   </div>
                 </div>
 
@@ -3034,10 +3152,10 @@ const FrontDeskTimelinePage = () => {
                   </div>
 
                   {/* Bill calculation summary card */}
-                  <div style={{ 
-                    background: "#f8fafc", 
-                    border: "1px solid #e2e8f0", 
-                    borderRadius: "12px", 
+                  <div style={{
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "12px",
                     padding: "16px",
                     fontSize: "11px"
                   }}>
@@ -3074,12 +3192,12 @@ const FrontDeskTimelinePage = () => {
                       <span style={{ color: "green", fontWeight: "bold" }}>৳ {summary.paidTotal.toLocaleString()}</span>
                     </div>
                     <div style={{ borderTop: "1px solid #cbd5e1", margin: "8px 0" }}></div>
-                    
-                    <div style={{ 
-                      display: "flex", 
-                      justifyContent: "space-between", 
-                      margin: "4px 0 0 0", 
-                      fontWeight: "black", 
+
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      margin: "4px 0 0 0",
+                      fontWeight: "black",
                       fontSize: "13px",
                       color: isDue ? "#ef4444" : "#22c55e"
                     }}>
@@ -3090,10 +3208,10 @@ const FrontDeskTimelinePage = () => {
                 </div>
 
                 {/* Terms & Thank You Message Footer */}
-                <div style={{ 
-                  marginTop: "50px", 
-                  borderTop: "1px dashed #cbd5e1", 
-                  paddingTop: "15px", 
+                <div style={{
+                  marginTop: "50px",
+                  borderTop: "1px dashed #cbd5e1",
+                  paddingTop: "15px",
                   textAlign: "center",
                   fontSize: "10px",
                   color: "#64748b"
@@ -3979,9 +4097,9 @@ const FrontDeskTimelinePage = () => {
             dateRange={`Check-in: ${new Date(foodServicePrintData.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(foodServicePrintData.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
           >
             <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
-              <strong>Customer Name:</strong> {foodServicePrintData.customer?.fullName} &nbsp;|&nbsp; 
-              <strong>Email:</strong> {foodServicePrintData.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
-              <strong>Phone:</strong> {foodServicePrintData.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
+              <strong>Customer Name:</strong> {foodServicePrintData.customer?.fullName} &nbsp;|&nbsp;
+              <strong>Email:</strong> {foodServicePrintData.customer?.emailAddress || "N/A"} &nbsp;|&nbsp;
+              <strong>Phone:</strong> {foodServicePrintData.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp;
               <strong>Assigned Rooms:</strong> {foodServicePrintData.rooms?.map(r => r.room?.roomNumber).join(", ")}
             </div>
 
@@ -4003,7 +4121,7 @@ const FrontDeskTimelinePage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {detailedFoodOrders.map((order) => 
+                  {detailedFoodOrders.map((order) =>
                     order.items?.map((item, itemIdx) => {
                       const subtotal = item.unitPrice * item.quantity;
                       const vat = (subtotal * (item.vat || 0)) / 100;
@@ -4089,8 +4207,8 @@ const FrontDeskTimelinePage = () => {
                     key={status}
                     onClick={() => handleUpdateStatus(status)}
                     className={`p-3.5 rounded-xl border font-bold text-sm text-center cursor-pointer transition-all hover:scale-[1.02]
-                      ${isSelected 
-                        ? "bg-brand-primary border-brand-primary text-white" 
+                      ${isSelected
+                        ? "bg-brand-primary border-brand-primary text-white"
                         : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
                   >
                     {status}

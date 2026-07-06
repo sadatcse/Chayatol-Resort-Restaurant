@@ -236,6 +236,19 @@ const VendorLedgerPage = () => {
   const [paymentNote, setPaymentNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Dynamic payment types from API
+  const [paymentTypes, setPaymentTypes] = useState([]);
+  useEffect(() => {
+    axiosSecure.get("/paymenttype").then(res => {
+      const types = res.data || [];
+      setPaymentTypes(types);
+      if (types.length > 0) {
+        setPaymentMethod(types[0].name || "Cash");
+        setBulkMethod(types[0].name || "Cash");
+      }
+    }).catch(err => console.error("Failed to load payment types:", err));
+  }, [axiosSecure]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Bulk Payment states
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [bulkAmount, setBulkAmount] = useState(0);
@@ -887,7 +900,7 @@ const VendorLedgerPage = () => {
                                   <span className="text-[8px] text-brand-sage font-bold uppercase tracking-wider block">Payments Log:</span>
                                   {invoice.payments.map((p, idx) => (
                                     <div key={p._id || idx} className="text-[9px] text-brand-sage font-mono leading-tight flex flex-wrap items-center gap-1 bg-brand-offwhite/40 dark:bg-brand-offwhite/5 px-1.5 py-0.5 rounded border border-brand-beige/20 w-fit">
-                                      <span className="font-bold text-brand-primary dark:text-brand-sage">{p.amount.toFixed(2)} BDT</span>
+                                      <span className="font-bold text-brand-primary dark:text-brand-sage">{(p.amount || 0).toFixed(2)} BDT</span>
                                       <span>via {p.paymentMethod}</span>
                                       <span>on {new Date(p.paymentDate).toLocaleDateString()}</span>
                                       {p.note && <span className="italic opacity-80">({p.note})</span>}
@@ -900,13 +913,13 @@ const VendorLedgerPage = () => {
                               {invoice.purchaseDate ? new Date(invoice.purchaseDate).toLocaleDateString("en-GB") : "N/A"}
                             </td>
                             <td className="py-4 font-mono font-bold text-right">
-                              {invoice.grandTotal.toFixed(2)}
+                              {(invoice.grandTotal || 0).toFixed(2)}
                             </td>
                             <td className="py-4 font-mono text-emerald-600 dark:text-emerald-400 font-semibold text-right">
-                              {invoice.paidAmount.toFixed(2)}
+                              {(invoice.paidAmount || 0).toFixed(2)}
                             </td>
                             <td className={`py-4 font-mono text-right font-bold ${isDue ? "text-red-500 font-black" : "text-brand-sage"}`}>
-                              {due.toFixed(2)}
+                              {(due || 0).toFixed(2)}
                             </td>
                             <td className="py-4 text-center">
                               {renderStatusBadge(invoice.paymentStatus)}
@@ -997,7 +1010,7 @@ const VendorLedgerPage = () => {
                           {p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString("en-GB") : "N/A"}
                         </td>
                         <td className="py-4 font-mono text-emerald-600 dark:text-emerald-400 font-bold text-right">
-                          {p.amount.toFixed(2)} BDT
+                          {(p.amount || 0).toFixed(2)} BDT
                         </td>
                         <td className="py-4 text-xs font-bold uppercase tracking-wider">
                           <span className="px-2.5 py-1 rounded bg-brand-offwhite dark:bg-brand-primary/20 text-brand-primary dark:text-brand-sage border border-brand-beige/25">
@@ -1073,10 +1086,16 @@ const VendorLedgerPage = () => {
                     className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite"
                     required
                   >
-                    <option value="Cash">Cash</option>
-                    <option value="Card">Card</option>
-                    <option value="Mobile">Mobile Payment</option>
-                    <option value="Other">Other</option>
+                    {paymentTypes.length > 0 ? paymentTypes.map(pt => (
+                      <option key={pt._id} value={pt.name}>{pt.name}</option>
+                    )) : (
+                      <>
+                        <option value="Cash">Cash</option>
+                        <option value="Card">Card</option>
+                        <option value="Mobile">Mobile Payment</option>
+                        <option value="Other">Other</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -1169,10 +1188,16 @@ const VendorLedgerPage = () => {
                     className="select select-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none rounded-xl text-xs bg-white dark:bg-brand-charcoal font-semibold text-brand-charcoal dark:text-brand-offwhite"
                     required
                   >
-                    <option value="Cash">Cash</option>
-                    <option value="Card">Card</option>
-                    <option value="Mobile">Mobile Payment</option>
-                    <option value="Other">Other</option>
+                    {paymentTypes.length > 0 ? paymentTypes.map(pt => (
+                      <option key={pt._id} value={pt.name}>{pt.name}</option>
+                    )) : (
+                      <>
+                        <option value="Cash">Cash</option>
+                        <option value="Card">Card</option>
+                        <option value="Mobile">Mobile Payment</option>
+                        <option value="Other">Other</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -1262,7 +1287,7 @@ const VendorLedgerPage = () => {
                       <td>{new Date(p.paymentDate).toLocaleString("en-GB")}</td>
                       <td>{p.invoiceNumber || "N/A"}</td>
                       <td>{p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString("en-GB") : "N/A"}</td>
-                      <td style={{ textAlign: "right" }}>{p.amount.toFixed(2)} BDT</td>
+                      <td style={{ textAlign: "right" }}>{(p.amount || 0).toFixed(2)} BDT</td>
                       <td>{p.paymentMethod}</td>
                       <td>{p.note || "—"}</td>
                     </tr>

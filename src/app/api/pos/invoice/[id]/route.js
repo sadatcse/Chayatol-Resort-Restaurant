@@ -68,7 +68,7 @@ export async function PUT(req, { params }) {
     // Sync with Stay Folio
     try {
       const FolioEntry = mongoose.models.FolioEntry || (await import("@/models/FolioEntry")).default;
-      if (updatedInvoice.orderType === "Room Service" && updatedInvoice.paymentMethod === "Room Bill" && updatedInvoice.roomNo) {
+      if (updatedInvoice.paymentMethod === "Room Bill" && updatedInvoice.roomNo) {
         const Room = mongoose.models.Room || (await import("@/models/Room")).default;
         const Stay = mongoose.models.Stay || (await import("@/models/Stay")).default;
 
@@ -84,7 +84,7 @@ export async function PUT(req, { params }) {
               {
                 stayId: activeStay._id,
                 type: "Food Charge",
-                description: `POS Restaurant Invoice ${updatedInvoice.invoiceNo} (Room Service for Room ${updatedInvoice.roomNo})`,
+                description: `POS Restaurant Invoice ${updatedInvoice.invoiceNo} (Room ${updatedInvoice.roomNo})`,
                 debit: updatedInvoice.grandTotal,
                 credit: 0,
                 referenceId: updatedInvoice._id
@@ -94,7 +94,7 @@ export async function PUT(req, { params }) {
           }
         }
       } else {
-        // If it's no longer a room service order charged to room bill, remove from ledger
+        // If it's no longer charged to room bill, remove from ledger
         await FolioEntry.deleteMany({ referenceId: updatedInvoice._id });
       }
     } catch (err) {

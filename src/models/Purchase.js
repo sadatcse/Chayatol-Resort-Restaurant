@@ -35,7 +35,6 @@ const PaymentHistorySchema = Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ["Cash", "Card", "Mobile", "Other"],
     default: "Cash",
   },
   note: {
@@ -77,7 +76,6 @@ const PurchaseSchema = Schema(
     paymentMethod: {
       type: String,
       required: [true, "Please provide a payment method"],
-      enum: ["Cash", "Card", "Mobile", "Other"],
       default: "Cash",
     },
     notes: {

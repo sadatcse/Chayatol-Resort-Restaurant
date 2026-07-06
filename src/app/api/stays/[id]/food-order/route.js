@@ -4,6 +4,7 @@ import Stay from "@/models/Stay";
 import Food from "@/models/Food";
 import FoodOrder from "@/models/FoodOrder";
 import FolioEntry from "@/models/FolioEntry";
+import ChargeSettings from "@/models/ChargeSettings";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
@@ -46,6 +47,9 @@ export async function POST(req, { params }) {
       return NextResponse.json({ message: "Guest stay record not found." }, { status: 404 });
     }
 
+    // Fetch dynamic charge configurations
+    const chargeSettings = await ChargeSettings.findOne({});
+
     const orderItems = [];
     let orderSubtotal = 0;
     let orderVat = 0;
@@ -62,18 +66,48 @@ export async function POST(req, { params }) {
       const price = food.price;
       const sub = price * quantity;
 
-      // Calculate taxes based on food item settings
-      const itemVat = (sub * (food.vat || 0)) / 100;
-      const itemSc = (sub * (food.sc || 0)) / 100;
-      const itemSd = (sub * (food.sd || 0)) / 100;
+      // Determine applicable VAT, SC, SD dynamically using Room Service settings
+      let itemVatPercent = 0;
+      if (chargeSettings?.vat?.enabled) {
+        const isApplicable = chargeSettings.vat.customApplicability
+          ? !!chargeSettings.vat.applicability?.["Room Service"]
+          : true;
+        if (isApplicable) {
+          itemVatPercent = chargeSettings.vat.value || 0;
+        }
+      }
+
+      let itemScPercent = 0;
+      if (chargeSettings?.sc?.enabled) {
+        const isApplicable = chargeSettings.sc.customApplicability
+          ? !!chargeSettings.sc.applicability?.["Room Service"]
+          : true;
+        if (isApplicable) {
+          itemScPercent = chargeSettings.sc.value || 0;
+        }
+      }
+
+      let itemSdPercent = 0;
+      if (chargeSettings?.sd?.enabled) {
+        const isApplicable = chargeSettings.sd.customApplicability
+          ? !!chargeSettings.sd.applicability?.["Room Service"]
+          : true;
+        if (isApplicable) {
+          itemSdPercent = chargeSettings.sd.value || 0;
+        }
+      }
+
+      const itemVat = (sub * itemVatPercent) / 100;
+      const itemSc = (sub * itemScPercent) / 100;
+      const itemSd = (sub * itemSdPercent) / 100;
 
       orderItems.push({
         foodItem: food._id,
         quantity,
         unitPrice: price,
-        vat: food.vat || 0,
-        sc: food.sc || 0,
-        sd: food.sd || 0
+        vat: itemVatPercent,
+        sc: itemScPercent,
+        sd: itemSdPercent
       });
 
       orderSubtotal += sub;

@@ -76,20 +76,33 @@ const ResortStaff = () => {
     loadData();
   }, [axiosSecure]);
 
+  const visibleUsers = useMemo(() => {
+    return users.filter(u => {
+      const isSuper = u.role === "superadmin" || u.email === "sadatcse@gmail.com";
+      if (isSuper) {
+        return currentUser?.email === "sadatcse@gmail.com";
+      }
+      return true;
+    });
+  }, [users, currentUser]);
+
   const availableRolesForFilter = useMemo(() => {
     const rolesFromDb = userRoles.filter(Boolean);
-    if (rolesFromDb.length > 0) return rolesFromDb;
-    return Array.from(new Set(users.map((u) => u.role).filter(Boolean)));
-  }, [userRoles, users]);
+    let roles = rolesFromDb.length > 0 ? rolesFromDb : Array.from(new Set(visibleUsers.map((u) => u.role).filter(Boolean)));
+    if (currentUser?.email !== "sadatcse@gmail.com") {
+      roles = roles.filter(role => role !== "superadmin");
+    }
+    return roles;
+  }, [userRoles, visibleUsers, currentUser]);
 
   const availableDeptsForFilter = useMemo(() => {
     const deptsFromDb = departments.map((d) => d.department).filter(Boolean);
     if (deptsFromDb.length > 0) return deptsFromDb;
-    return Array.from(new Set(users.map((u) => u.department).filter(Boolean)));
-  }, [departments, users]);
+    return Array.from(new Set(visibleUsers.map((u) => u.department).filter(Boolean)));
+  }, [departments, visibleUsers]);
 
   const filteredUsers = useMemo(() => {
-    return users.filter(user => {
+    return visibleUsers.filter(user => {
       const matchesSearch = user.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
       const matchesRole = selectedRoleFilter === "all" || (user.role && user.role.toLowerCase() === selectedRoleFilter.toLowerCase());
@@ -97,18 +110,21 @@ const ResortStaff = () => {
       const matchesDept = selectedDeptFilter === "all" || userDept.toLowerCase() === selectedDeptFilter.toLowerCase();
       return matchesSearch && matchesRole && matchesDept;
     });
-  }, [users, debouncedSearchTerm, selectedRoleFilter, selectedDeptFilter]);
+  }, [visibleUsers, debouncedSearchTerm, selectedRoleFilter, selectedDeptFilter]);
 
   const assignableRoles = useMemo(() => {
-    const allRoles = userRoles;
+    let allRoles = userRoles;
+    if (currentUser?.email !== "sadatcse@gmail.com") {
+      allRoles = allRoles.filter(role => role !== "superadmin");
+    }
     if (currentUser?.role === "admin" || currentUser?.role === "superadmin") {
       return allRoles;
     }
     if (currentUser?.role === "manager") {
-      return allRoles.filter(role => role !== "admin" && role !== "superadmin");
+      return allRoles.filter(role => role !== "admin");
     }
     return [];
-  }, [currentUser?.role, userRoles]);
+  }, [currentUser, userRoles]);
 
   const openModal = (userToEdit = null) => {
     if (userToEdit) {
@@ -322,21 +338,21 @@ const ResortStaff = () => {
             <FiUsers className="w-8 h-8" />
           </div>
           <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">Total Personnel</div>
-          <div className="stat-value text-brand-black dark:text-brand-offwhite text-4xl mt-1">{users.length}</div>
+          <div className="stat-value text-brand-black dark:text-brand-offwhite text-4xl mt-1">{visibleUsers.length}</div>
         </div>
         <div className="stat place-items-center py-6 border-l border-brand-beige dark:border-brand-beige/20">
           <div className="stat-figure text-secondary bg-secondary/10 p-4 rounded-full">
             <FiUserCheck className="w-8 h-8" />
           </div>
           <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">On Duty / Active</div>
-          <div className="stat-value text-brand-black dark:text-brand-offwhite text-4xl mt-1">{users.filter(u => u.status === 'active').length}</div>
+          <div className="stat-value text-brand-black dark:text-brand-offwhite text-4xl mt-1">{visibleUsers.filter(u => u.status === 'active').length}</div>
         </div>
         <div className="stat place-items-center py-6 border-l border-brand-beige dark:border-brand-beige/20">
           <div className="stat-figure text-brand-bronze bg-brand-bronze/10 p-4 rounded-full">
             <FiStar className="w-8 h-8" />
           </div>
           <div className="stat-title text-brand-sage font-bold uppercase tracking-wider text-[10px] mt-2">Management</div>
-          <div className="stat-value text-brand-black dark:text-brand-offwhite text-4xl mt-1">{users.filter(u => u.role === 'admin' || u.role === 'superadmin').length}</div>
+          <div className="stat-value text-brand-black dark:text-brand-offwhite text-4xl mt-1">{visibleUsers.filter(u => u.role === 'admin' || u.role === 'superadmin').length}</div>
         </div>
       </div>
 
@@ -440,10 +456,17 @@ const ResortStaff = () => {
                   paginatedData.map((user) => {
                     let canPerformAction = false;
                     if (currentUser?._id !== user._id) {
-                      if (currentUser?.role === "admin" || currentUser?.role === "superadmin") {
-                        canPerformAction = true;
-                      } else if (currentUser?.role === "manager" && user.role !== "admin" && user.role !== "superadmin") {
-                        canPerformAction = true;
+                      const isTargetSuper = user.role === "superadmin" || user.email === "sadatcse@gmail.com";
+                      if (isTargetSuper) {
+                        if (currentUser?.email === "sadatcse@gmail.com") {
+                          canPerformAction = true;
+                        }
+                      } else {
+                        if (currentUser?.role === "superadmin" || currentUser?.role === "admin") {
+                          canPerformAction = true;
+                        } else if (currentUser?.role === "manager" && user.role !== "admin") {
+                          canPerformAction = true;
+                        }
                       }
                     }
 

@@ -12,7 +12,10 @@ export async function GET(req) {
   try {
     await dbConnect();
     const result = await User.find().select("-password");
-    return NextResponse.json(result, { status: 200 });
+    const filteredResult = auth.user?.email === "sadatcse@gmail.com"
+      ? result
+      : result.filter(u => u.role !== "superadmin" && u.email !== "sadatcse@gmail.com");
+    return NextResponse.json(filteredResult, { status: 200 });
   } catch (err) {
     console.error("Get all users route error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

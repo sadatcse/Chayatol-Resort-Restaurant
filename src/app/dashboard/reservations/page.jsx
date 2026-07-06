@@ -1130,21 +1130,30 @@ const ReservationsPage = () => {
                             </td>
                             <td className="pr-8 py-4">
                               <div className="flex justify-center items-center gap-2">
-                                {res.status !== "Checked-In" && res.status !== "Completed" && res.status !== "Cancelled" && (
-                                  <button 
-                                    onClick={() => {
-                                      if (!canEdit) {
-                                        Swal.fire("Restricted", "You do not have permission to perform check-in operations.", "warning");
-                                        return;
-                                      }
-                                      openCheckinModal(res);
-                                    }} 
-                                    className={`btn btn-xs text-white border-none rounded-full cursor-pointer gap-1 px-3 shadow ${canEdit ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"}`} 
-                                    title="Check-In Guest"
-                                  >
-                                    <FiCheck /> Check-In
-                                  </button>
-                                )}
+                                {res.status !== "Checked-In" && res.status !== "Completed" && res.status !== "Cancelled" && (() => {
+                                   const isTodayCheckin = res.checkInDate ? new Date(res.checkInDate).toDateString() === new Date().toDateString() : false;
+                                   const isCheckinEnabled = canEdit && isTodayCheckin;
+                                   return (
+                                     <button 
+                                       onClick={() => {
+                                         if (!canEdit) {
+                                           Swal.fire("Restricted", "You do not have permission to perform check-in operations.", "warning");
+                                           return;
+                                         }
+                                         if (!isTodayCheckin) {
+                                           Swal.fire("Restricted", "Check-in is only available on the scheduled check-in date.", "warning");
+                                           return;
+                                         }
+                                         openCheckinModal(res);
+                                       }} 
+                                       disabled={!isCheckinEnabled}
+                                       className={`btn btn-xs text-white border-none rounded-full cursor-pointer gap-1 px-3 shadow ${isCheckinEnabled ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed opacity-50"}`} 
+                                       title={isTodayCheckin ? "Check-In Guest" : `Check-in only available on scheduled check-in date (${res.checkInDate ? new Date(res.checkInDate).toLocaleDateString("en-GB") : ""})`}
+                                     >
+                                       <FiCheck /> Check-In
+                                     </button>
+                                   );
+                                 })()}
                                 
                                 {res.status !== "Checked-In" && res.status !== "Completed" && (
                                   <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openPaymentsModal(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-secondary hover:bg-brand-secondary/10 transition-colors shadow-none cursor-pointer" title="Manage Payments/Deposits">
@@ -1179,7 +1188,7 @@ const ReservationsPage = () => {
                                 <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setPrintRes(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-blue-500 hover:bg-blue-50 transition-colors shadow-none cursor-pointer" title="Print Invoice">
                                   <FiPrinter size={16} />
                                 </motion.button>
-                                {(currentUser?.role === "admin" || currentUser?.role === "superadmin") && res.status !== "Checked-In" && res.status !== "Completed" && (!res.payments || res.payments.length === 0) && canDelete && (
+                                {res.status !== "Checked-In" && res.status !== "Completed" && (!res.payments || res.payments.length === 0) && canDelete && (
                                   <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(res._id, res.reservationNo)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Reservation">
                                     <FiTrash2 size={16} />
                                   </motion.button>

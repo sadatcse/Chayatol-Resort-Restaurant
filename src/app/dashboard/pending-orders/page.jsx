@@ -13,6 +13,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import A4ReceiptTemplate from "@/components/Receipt/A4ReceiptTemplate";
+import KitchenReceiptTemplate from "@/components/Receipt/KitchenReceiptTemplate";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import usePagePermission from "@/hooks/usePagePermission";
 import QRCodeGenerator from "@/components/pos/QRCodeGenerator";
@@ -24,6 +25,7 @@ function PendingOrdersContent() {
     const axiosSecure = useAxiosSecure();
     const receiptRef = useRef();
     const a4ReceiptRef = useRef();
+    const kotReceiptRef = useRef();
     const { user } = useContext(AuthContext);
     const { canEdit, canDelete } = usePagePermission();
 
@@ -34,11 +36,16 @@ function PendingOrdersContent() {
 
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [printData, setPrintData] = useState(null);
+    const [kotPrintData, setKotPrintData] = useState(null);
     const [printType, setPrintType] = useState("thermal"); // thermal or a4
     const [companyInfo, setCompanyInfo] = useState(null);
 
     const [isQrModalOpen, setIsQrModalOpen] = useState(false);
     const [selectedOrderForQR, setSelectedOrderForQR] = useState(null);
+    const [isKotSelectOpen, setIsKotSelectOpen] = useState(false);
+    const [kotOrder, setKotOrder] = useState(null);
+    const [availableRounds, setAvailableRounds] = useState([]);
+    const [selectedRoundOption, setSelectedRoundOption] = useState("");
 
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [paymentOrder, setPaymentOrder] = useState(null);
@@ -190,7 +197,7 @@ function PendingOrdersContent() {
         setFilters({ searchTerm: '', orderType: '', dateFilter: 'today' });
     };
 
-    const handleOrderUpdate = async (id, status, paymentMethod) => {
+    const handleOrderUpdate = async (id, status, paymentMethod, shouldPrint = false) => {
         if (!canEdit) {
             Swal.fire("Restricted", "You do not have permission to update or settle orders.", "warning");
             return;
@@ -205,9 +212,16 @@ function PendingOrdersContent() {
             if (paymentMethod) {
                 updatePayload.paymentMethod = paymentMethod;
             }
-            await axiosSecure.put(`/pos/invoice/${id}`, updatePayload);
+            const response = await axiosSecure.put(`/pos/invoice/${id}`, updatePayload);
             setIsPaymentModalOpen(false);
             fetchPendingOrders();
+            
+            if (shouldPrint && response.data?.data) {
+                setPrintData(response.data.data);
+                setPrintType("thermal");
+                setIsPrintModalOpen(true);
+            }
+            
             Swal.fire("Success!", `Order has been updated to ${status} via ${paymentMethod || "default billing"}.`, "success");
         } catch (error) {
             console.error("Error updating order status:", error);
@@ -291,6 +305,32 @@ function PendingOrdersContent() {
         setSelectedOrderForQR(order);
         setIsQrModalOpen(true);
         setIsModalOpen(false);
+    };
+
+    const handleKitchenKotPrint = async (order) => {
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to print KOT.", "warning");
+            return;
+        }
+
+        const rounds = [];
+        if (Array.isArray(order.products) && order.products.length > 0) {
+            order.products.forEach(p => {
+                const r = p.addedInRound !== undefined ? p.addedInRound : 1;
+                if (!rounds.includes(r)) rounds.push(r);
+            });
+        } else if (Array.isArray(order.orderBatches) && order.orderBatches.length > 0) {
+            order.orderBatches.forEach((b, idx) => {
+                rounds.push(idx + 1);
+            });
+        }
+        if (rounds.length === 0) rounds.push(1);
+        rounds.sort((a, b) => a - b);
+
+        setAvailableRounds(rounds);
+        setKotOrder(order);
+        setSelectedRoundOption(rounds[0]?.toString() || "1");
+        setIsKotSelectOpen(true);
     };
 
     useEffect(() => {
@@ -450,7 +490,7 @@ function PendingOrdersContent() {
                                                     <td className="px-4 py-3 whitespace-nowrap text-right text-xs">
                                                         <div className="flex justify-end items-center flex-wrap gap-2">
                                                             <button onClick={() => handleViewOrder(order)} title="View Order" className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 dark:bg-brand-primary/20 dark:text-brand-sage text-xs font-semibold cursor-pointer"><FiEye size={13} /><span>View</span></button>
-                                                            <button onClick={() => handleCompleteClick(order)} title="Complete/Paid" className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 dark:text-emerald-400 text-xs font-semibold cursor-pointer"><FiCheckCircle size={13} /><span>Pay</span></button>
+                                                            {/* <button onClick={() => handleCompleteClick(order)} title="Complete/Paid" className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 dark:text-emerald-400 text-xs font-semibold cursor-pointer"><FiCheckCircle size={13} /><span>Pay</span></button> */}
                                                             <button onClick={() => handleEditClick(order._id)} title="Edit Order" className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 dark:bg-brand-primary/20 dark:text-brand-sage text-xs font-semibold cursor-pointer"><FiEdit size={13} /><span>Edit</span></button>
                                                             <button onClick={() => handleRemove(order._id)} title="Delete Order" className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-red-600 bg-red-500/10 hover:bg-red-500/20 dark:bg-red-950/20 dark:text-red-400 text-xs font-semibold cursor-pointer"><FiTrash2 size={13} /><span>Delete</span></button>
                                                         </div>
@@ -590,6 +630,13 @@ function PendingOrdersContent() {
                                 title="Print A4 Page Invoice"
                             >
                                 <FiPrinter /> Print A4
+                            </button>
+                            <button
+                                onClick={() => handleKitchenKotPrint(viewOrder)}
+                                className="btn btn-sm bg-orange-600 hover:bg-orange-700 text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-3 shadow flex items-center gap-1"
+                                title="Print Kitchen KOT Ticket"
+                            >
+                                <FiPrinter /> Kitchen KOT
                             </button>
                             <button
                                 onClick={() => handleQRCodeClick(viewOrder)}
@@ -749,7 +796,7 @@ function PendingOrdersContent() {
                             </div>
 
                             {/* Confirmation Buttons */}
-                            <div className="flex justify-end gap-3 mt-6">
+                            <div className="flex justify-end gap-3 mt-6 flex-wrap">
                                 <button
                                     onClick={() => setIsPaymentModalOpen(false)}
                                     disabled={isSettling}
@@ -758,7 +805,14 @@ function PendingOrdersContent() {
                                     Cancel
                                 </button>
                                 <button
-                                    onClick={() => handleOrderUpdate(paymentOrder._id, "completed", selectedMethod)}
+                                    onClick={() => handleOrderUpdate(paymentOrder._id, "completed", selectedMethod, false)}
+                                    disabled={isSettling}
+                                    className="btn btn-sm bg-gray-500 hover:bg-gray-600 text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Confirm Payment
+                                </button>
+                                <button
+                                    onClick={() => handleOrderUpdate(paymentOrder._id, "completed", selectedMethod, true)}
                                     disabled={isSettling}
                                     className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -769,9 +823,96 @@ function PendingOrdersContent() {
                                         </>
                                     ) : (
                                         <>
-                                            <FaMoneyBillWave /> Confirm Payment
+                                            <FiPrinter /> Pay & Print
                                         </>
                                     )}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
+                {isKotSelectOpen && kotOrder && (
+                    <div className="fixed inset-0 z-50 bg-brand-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 15 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 15 }}
+                            transition={{ type: "spring", duration: 0.4 }}
+                            className="bg-white dark:bg-brand-charcoal border border-brand-beige/25 dark:border-brand-beige/25 w-full max-w-sm rounded-2xl shadow-2xl p-6 relative"
+                        >
+                            <button
+                                onClick={() => setIsKotSelectOpen(false)}
+                                className="absolute top-4 right-4 text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite cursor-pointer border-none bg-transparent"
+                            >
+                                <FiX size={20} />
+                            </button>
+
+                            <h3 className="text-lg font-black text-brand-charcoal dark:text-zinc-100 uppercase tracking-widest text-center mb-4">
+                                Select KOT Round
+                            </h3>
+
+                            <div className="mb-6">
+                                <select
+                                    value={selectedRoundOption}
+                                    onChange={(e) => setSelectedRoundOption(e.target.value)}
+                                    className="select select-bordered w-full font-semibold text-xs dark:bg-zinc-800 dark:border-zinc-700 bg-white"
+                                >
+                                    <option value="" disabled>Select KOT round</option>
+                                    {availableRounds.map((r) => (
+                                        <option key={r} value={r}>
+                                            Round #{r}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex justify-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!selectedRoundOption) {
+                                            Swal.fire("Error", "Please select a KOT round.", "warning");
+                                            return;
+                                        }
+                                        const roundNum = parseInt(selectedRoundOption);
+                                        let filteredProducts = [];
+                                        if (Array.isArray(kotOrder.products) && kotOrder.products.length > 0) {
+                                            filteredProducts = kotOrder.products.filter(p => (p.addedInRound !== undefined ? p.addedInRound : 1) === roundNum);
+                                        } else if (Array.isArray(kotOrder.orderBatches) && kotOrder.orderBatches.length > 0) {
+                                            const batch = kotOrder.orderBatches[roundNum - 1];
+                                            if (batch) {
+                                                filteredProducts = (batch.items || []).map(item => ({
+                                                    productName: item.itemName,
+                                                    qty: item.quantity,
+                                                    rate: item.unitPrice,
+                                                    subtotal: item.totalPrice
+                                                }));
+                                            }
+                                        }
+
+                                        if (filteredProducts.length === 0) {
+                                            Swal.fire("No Items", `No items found in Round #${roundNum}`, "info");
+                                            return;
+                                        }
+
+                                        setKotPrintData({
+                                            ...kotOrder,
+                                            kotRound: roundNum,
+                                            products: filteredProducts
+                                        });
+                                        setIsKotSelectOpen(false);
+                                    }}
+                                    className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-5 py-2 shadow"
+                                >
+                                    Print KOT
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsKotSelectOpen(false)}
+                                    className="btn btn-sm bg-slate-500 hover:bg-slate-600 text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-5 py-2 shadow"
+                                >
+                                    Cancel
                                 </button>
                             </div>
                         </motion.div>
@@ -795,6 +936,14 @@ function PendingOrdersContent() {
                             invoiceData={printData}
                         />
                     </>
+                )}
+                {kotPrintData && (
+                    <KitchenReceiptTemplate
+                        ref={kotReceiptRef}
+                        onPrintComplete={() => setKotPrintData(null)}
+                        profileData={companyInfo}
+                        invoiceData={kotPrintData ? { ...kotPrintData, loginUserName: kotPrintData.loginUserName || user?.name || "Staff" } : null}
+                    />
                 )}
             </div>
         </div>

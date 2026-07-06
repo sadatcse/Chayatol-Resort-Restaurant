@@ -427,7 +427,8 @@ function POSContent() {
         });
 
         let deliveryChargeVal = 0;
-        if (orderType?.toLowerCase() === 'delivery' && chargeSettings?.deliveryCharge?.enabled) {
+        const isSelfDelivery = deliveryProvider?.toLowerCase() === 'self delivery' || deliveryProvider?.toLowerCase() === 'self-delivery';
+        if (orderType?.toLowerCase() === 'delivery' && isSelfDelivery && chargeSettings?.deliveryCharge) {
             if (chargeSettings.deliveryCharge.type === 'PERCENT') {
                 deliveryChargeVal = (subtotal * (chargeSettings.deliveryCharge.value || 0)) / 100;
             } else {
@@ -479,15 +480,9 @@ function POSContent() {
         let finalPaymentMethod = isPrintAction ? (selectedPaymentMethod || "Cash") : "Due";
         let finalPaymentStatus = isPrintAction ? "Paid" : "Unpaid";
 
-        if (orderType?.toLowerCase() === "room service" || orderType?.toLowerCase() === "roomservice") {
-            if (!roomNo) {
-                Swal.fire("Room Required", "Please select a guest room first for Room Service.", "warning");
-                setIsProcessing(false);
-                return;
-            }
-
+        if (roomNo) {
             const result = await Swal.fire({
-                title: 'Room Service Payment Options',
+                title: 'Room Guest Payment Options',
                 text: `How would you like to settle the order for Room ${roomNo}?`,
                 icon: 'question',
                 showCancelButton: true,
@@ -580,7 +575,7 @@ function POSContent() {
             invoiceDetails.tableNo = TableName;
         }
         if (normalizedType === "delivery") invoiceDetails.deliveryProvider = deliveryProvider;
-        if (normalizedType === "room service") invoiceDetails.roomNo = roomNo;
+        if (roomNo) invoiceDetails.roomNo = roomNo;
 
         try {
             let res;
@@ -730,7 +725,7 @@ function POSContent() {
             invoiceDetails.tableNo = TableName;
         }
         if (normalizedType === "delivery") invoiceDetails.deliveryProvider = deliveryProvider;
-        if (normalizedType === "room service") invoiceDetails.roomNo = roomNo;
+        if (roomNo) invoiceDetails.roomNo = roomNo;
 
         try {
             let res;
