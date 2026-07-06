@@ -49,7 +49,10 @@ function TableManagementContent() {
         fetchTables();
     }, [fetchTables]);
 
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const handleAddOrEditTable = async () => {
+        if (isLoading) return;
         if (!formData.tableName.trim()) {
             Swal.fire("Error", "Table Name is required.", "error");
             return;
@@ -99,6 +102,7 @@ function TableManagementContent() {
             Swal.fire("Restricted", "You do not have permission to delete table records.", "warning");
             return;
         }
+        if (isDeleting) return;
         Swal.fire({
             title: "Are you sure?",
             text: "You won't be able to revert this!",
@@ -109,6 +113,7 @@ function TableManagementContent() {
             confirmButtonText: "Yes, delete it!",
         }).then(async (result) => {
             if (result.isConfirmed) {
+                setIsDeleting(true);
                 try {
                     await axiosSecure.delete(`/restauranttable/delete/${id}`);
                     fetchTables();
@@ -116,6 +121,8 @@ function TableManagementContent() {
                 } catch (error) {
                     console.error("Error deleting table:", error);
                     Swal.fire("Error!", "Failed to delete table.", "error");
+                } finally {
+                    setIsDeleting(false);
                 }
             }
         });
@@ -243,10 +250,17 @@ function TableManagementContent() {
                             </button>
                             <button
                                 onClick={handleAddOrEditTable}
-                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow"
+                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isLoading}
                             >
-                                {isLoading ? "Saving..." : "Save"}
+                                {isLoading ? (
+                                    <>
+                                        <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1.5"></span>
+                                        Saving...
+                                    </>
+                                ) : (
+                                    "Save"
+                                )}
                             </button>
                         </div>
                     </div>

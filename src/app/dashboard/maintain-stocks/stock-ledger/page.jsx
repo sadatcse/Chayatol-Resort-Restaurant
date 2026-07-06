@@ -13,6 +13,7 @@ import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import ExportButtons from "@/components/Comon/ExportButtons";
+import usePagePermission from "@/hooks/usePagePermission";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
@@ -30,6 +31,7 @@ const TYPE_META = {
 const StockLedgerPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
+  const { canEdit } = usePagePermission();
 
   const [ingredients, setIngredients] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -443,12 +445,14 @@ const StockLedgerPage = () => {
                   <MdSwapHoriz className="text-brand-primary text-xl" />
                   <span className="text-xs font-bold text-brand-sage uppercase tracking-widest">Transaction History — {ledger.movements.length} entries</span>
                 </div>
-                <ExportButtons
-                  onExportExcel={handleExportExcel}
-                  onExportCsv={handleExportCsv}
-                  onPrint={handlePrintReport}
-                  isLoading={isExporting}
-                />
+                {canEdit && (
+                  <ExportButtons
+                    onExportExcel={handleExportExcel}
+                    onExportCsv={handleExportCsv}
+                    onPrint={handlePrintReport}
+                    isLoading={isExporting}
+                  />
+                )}
               </div>
 
               {ledger.movements.length === 0 ? (

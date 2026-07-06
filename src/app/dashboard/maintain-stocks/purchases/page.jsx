@@ -18,6 +18,7 @@ import { AuthContext } from "@/providers/AuthProvider";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   vendor: "",
@@ -34,6 +35,7 @@ const INITIAL_FORM_DATA = {
 const PurchasesPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -230,6 +232,7 @@ const PurchasesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
 
@@ -379,6 +382,7 @@ const PurchasesPage = () => {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!formData.vendor) {
       Swal.fire({ title: "Validation Error", text: "Supplier selection is required.", icon: "warning", confirmButtonColor: "#346E36" });
       return;
@@ -411,6 +415,18 @@ const PurchasesPage = () => {
       return;
     }
 
+
+    if (editId) {
+      if (!canEdit) {
+        Swal.fire("Restricted", "You do not have permission to edit purchase invoices.", "warning");
+        return;
+      }
+    } else {
+      if (!canAdd) {
+        Swal.fire("Restricted", "You do not have permission to record new purchases.", "warning");
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     const payload = {
@@ -447,15 +463,16 @@ const PurchasesPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire({
-        title: "Access Denied",
+        title: "Restricted",
         text: "You do not have permission to delete purchases.",
-        icon: "error",
-        confirmButtonColor: "#8C5A35",
+        icon: "warning",
+        confirmButtonColor: "#346E36",
       });
       return;
     }
+    if (isDeleting) return;
 
     Swal.fire({
       title: "Are you sure?",
@@ -467,6 +484,7 @@ const PurchasesPage = () => {
       confirmButtonText: "Yes, delete & reverse!"
     }).then(async (result) => {
       if (result.isConfirmed) {
+        setIsDeleting(true);
         try {
           await axiosSecure.delete(`/purchase/delete/${id}`);
           await refetch();
@@ -483,12 +501,14 @@ const PurchasesPage = () => {
             icon: "error",
             confirmButtonColor: "#346E36"
           });
+        } finally {
+          setIsDeleting(false);
         }
       }
     });
   };
 
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const canPerformAction = canEdit || canDelete;
 
   const renderStatusBadge = (status) => {
     const styles = {
@@ -631,13 +651,15 @@ const PurchasesPage = () => {
         </div>
 
         <div className="flex flex-wrap gap-3 items-center">
-          <ExportButtons
-            onExportExcel={handleExportExcel}
-            onExportCsv={handleExportCsv}
-            onPrint={handlePrintListReport}
-            isLoading={isExporting}
-          />
-          {canPerformAction && (
+          {canEdit && (
+            <ExportButtons
+              onExportExcel={handleExportExcel}
+              onExportCsv={handleExportCsv}
+              onPrint={handlePrintListReport}
+              isLoading={isExporting}
+            />
+          )}
+          {canAdd && (
             <button onClick={openCreateModal} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
               <FiPlus className="text-lg" />
               <span className="uppercase tracking-widest text-xs font-bold">New Purchase</span>
@@ -719,12 +741,16 @@ const PurchasesPage = () => {
                               </motion.button>
                               {canPerformAction ? (
                                 <>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openEditModal(purchase)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Purchase">
-                                    <FiEdit size={16} />
-                                  </motion.button>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(purchase._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Purchase">
-                                    <FiTrash2 size={16} />
-                                  </motion.button>
+                                  {canEdit && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openEditModal(purchase)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Purchase">
+                                      <FiEdit size={16} />
+                                    </motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(purchase._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Purchase">
+                                      <FiTrash2 size={16} />
+                                    </motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <div className="badge badge-ghost badge-sm text-[10px] font-bold uppercase tracking-widest text-brand-sage bg-brand-offwhite dark:bg-brand-offwhite/5 border-none">Restricted</div>

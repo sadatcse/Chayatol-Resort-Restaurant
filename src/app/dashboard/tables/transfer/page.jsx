@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import { FiSearch, FiRefreshCw, FiArrowRight, FiCheck } from "react-icons/fi";
 import { MdSwapHoriz } from "react-icons/md";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
+import usePagePermission from "@/hooks/usePagePermission";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import SectionHeader from "@/components/Comon/SectionHeader";
 
@@ -26,6 +27,7 @@ const statusConfig = {
 
 function TableTransferContent() {
     const axiosSecure = useAxiosSecure();
+    const { canEdit } = usePagePermission();
 
     // States
     const [tables, setTables] = useState([]);
@@ -113,6 +115,11 @@ function TableTransferContent() {
     };
 
     const handleExecuteTransfer = async () => {
+        if (isTransferring) return;
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to transfer dining tables.", "warning");
+            return;
+        }
         if (!selectedTable?.invoiceId || !targetTableName) {
             Swal.fire("Warning", "Please select a target table to transfer the order.", "warning");
             return;
@@ -350,17 +357,25 @@ function TableTransferContent() {
                                             {/* Actions */}
                                             <div className="flex justify-end gap-3 pt-4 border-t border-brand-beige dark:border-brand-beige/25">
                                                 <button
-                                                    onClick={() => setSelectedTable(null)}
-                                                    className="btn btn-sm btn-ghost cursor-pointer text-xs"
+                                                    onClick={() => !isTransferring && setSelectedTable(null)}
+                                                    disabled={isTransferring}
+                                                    className="btn btn-sm btn-ghost cursor-pointer text-xs disabled:opacity-50"
                                                 >
                                                     Cancel
                                                 </button>
                                                 <button
                                                     onClick={handleExecuteTransfer}
                                                     disabled={isTransferring || !targetTableName}
-                                                    className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1"
+                                                    className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
-                                                    {isTransferring ? "Transferring..." : <>Execute Transfer <FiCheck /></>}
+                                                    {isTransferring ? (
+                                                        <>
+                                                            <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                                                            Transferring...
+                                                        </>
+                                                    ) : (
+                                                        <>Execute Transfer <FiCheck /></>
+                                                    )}
                                                 </button>
                                             </div>
                                         </div>

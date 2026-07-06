@@ -15,12 +15,14 @@ import {
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import ExportButtons from "@/components/Comon/ExportButtons";
+import usePagePermission from "@/hooks/usePagePermission";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 function DailyClosingContent() {
     const axiosSecure = useAxiosSecure();
+    const { canEdit } = usePagePermission();
 
     const getFormattedDate = (date) => {
         return date.toISOString().slice(0, 10);
@@ -202,10 +204,18 @@ function DailyClosingContent() {
             rows.push({ "Metric": `Employee Collection: ${emp}`, "Value": `৳ ${sales.toFixed(0)}` });
         });
 
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to print or export closing statements.", "warning");
+            return;
+        }
         exportToExcel(rows, "Daily_Closing_Summary_Report");
     };
 
     const handleExportCsv = () => {
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to print or export closing statements.", "warning");
+            return;
+        }
         const rows = [
             { "Metric": "Report Period", "Value": `${fromDate} to ${toDate}` },
             { "Metric": "Total Orders Count", "Value": metrics.orderCount },
@@ -221,6 +231,10 @@ function DailyClosingContent() {
     };
 
     const handlePrintClick = () => {
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to print or export closing statements.", "warning");
+            return;
+        }
         setPrintData(metrics);
     };
 
@@ -234,7 +248,7 @@ function DailyClosingContent() {
                         <h1 className="text-3xl font-black text-gray-800 dark:text-zinc-100 tracking-tight">Daily Closing Summary</h1>
                         <p className="text-sm text-gray-550 mt-1">Aggregated cash calculations and department shift closing logs</p>
                     </div>
-                    {invoices.length > 0 && (
+                    {invoices.length > 0 && canEdit && (
                         <ExportButtons
                             onExportExcel={handleExportExcel}
                             onExportCsv={handleExportCsv}

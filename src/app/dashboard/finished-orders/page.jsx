@@ -13,6 +13,7 @@ import { AuthContext } from "@/providers/AuthProvider";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import A4ReceiptTemplate from "@/components/Receipt/A4ReceiptTemplate";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import usePagePermission from "@/hooks/usePagePermission";
 import QRCodeGenerator from "@/components/pos/QRCodeGenerator";
 import SectionHeader from "@/components/Comon/SectionHeader";
 
@@ -23,6 +24,7 @@ function FinishedOrdersContent() {
     const receiptRef = useRef();
     const a4ReceiptRef = useRef();
     const { user } = useContext(AuthContext);
+    const { canEdit } = usePagePermission();
 
     const [orders, setOrders] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -152,6 +154,10 @@ function FinishedOrdersContent() {
     };
 
     const handlePrintOrder = (type = "thermal") => {
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to print invoices.", "warning");
+            return;
+        }
         setPrintType(type);
         setIsViewModalOpen(false);
         setIsPrintModalOpen(true);

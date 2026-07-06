@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useContext, useRef, useCallback, Suspense } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     FiTrash2, FiSearch, FiRefreshCw, FiX, FiGrid,
     FiEye, FiEdit, FiCheckCircle, FiPrinter, FiChevronLeft, FiChevronRight
@@ -13,6 +14,7 @@ import { AuthContext } from "@/providers/AuthProvider";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import A4ReceiptTemplate from "@/components/Receipt/A4ReceiptTemplate";
 import MtableLoading from "@/components/Comon/MtableLoading";
+import usePagePermission from "@/hooks/usePagePermission";
 import QRCodeGenerator from "@/components/pos/QRCodeGenerator";
 import SectionHeader from "@/components/Comon/SectionHeader";
 
@@ -23,6 +25,7 @@ function PendingOrdersContent() {
     const receiptRef = useRef();
     const a4ReceiptRef = useRef();
     const { user } = useContext(AuthContext);
+    const { canEdit, canDelete } = usePagePermission();
 
     const [orders, setOrders] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -41,6 +44,8 @@ function PendingOrdersContent() {
     const [paymentOrder, setPaymentOrder] = useState(null);
     const [selectedMethod, setSelectedMethod] = useState("Cash");
     const [paymentTypes, setPaymentTypes] = useState([]);
+    const [isSettling, setIsSettling] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const [filters, setFilters] = useState({
         searchTerm: '',
@@ -186,8 +191,13 @@ function PendingOrdersContent() {
     };
 
     const handleOrderUpdate = async (id, status, paymentMethod) => {
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to update or settle orders.", "warning");
+            return;
+        }
+        if (isSettling) return;
+        setIsSettling(true);
         try {
-            setIsLoading(true);
             const updatePayload = { 
                 orderStatus: status === 'completed' ? 'served' : status,
                 paymentStatus: status === 'completed' ? 'Paid' : 'Unpaid'
@@ -196,17 +206,22 @@ function PendingOrdersContent() {
                 updatePayload.paymentMethod = paymentMethod;
             }
             await axiosSecure.put(`/pos/invoice/${id}`, updatePayload);
+            setIsPaymentModalOpen(false);
             fetchPendingOrders();
             Swal.fire("Success!", `Order has been updated to ${status} via ${paymentMethod || "default billing"}.`, "success");
         } catch (error) {
             console.error("Error updating order status:", error);
             Swal.fire("Error!", "Failed to update order status. Please try again.", "error");
         } finally {
-            setIsLoading(false);
+            setIsSettling(false);
         }
     };
 
     const handleCompleteClick = (order) => {
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to settle payments.", "warning");
+            return;
+        }
         setPaymentOrder(order);
         setSelectedMethod("Cash");
         setIsPaymentModalOpen(true);
@@ -218,6 +233,11 @@ function PendingOrdersContent() {
     };
 
     const handleRemove = async (id) => {
+        if (!canDelete) {
+            Swal.fire("Restricted", "You do not have permission to delete orders.", "warning");
+            return;
+        }
+        if (isDeleting) return;
         Swal.fire({
             title: "Are you sure?",
             text: "You won't be able to revert this!",
@@ -229,6 +249,7 @@ function PendingOrdersContent() {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
+                    setIsDeleting(true);
                     setIsLoading(true);
                     await axiosSecure.delete(`/pos/invoice/${id}`);
                     fetchPendingOrders();
@@ -238,16 +259,25 @@ function PendingOrdersContent() {
                     Swal.fire("Error!", "Failed to delete order.", "error");
                 } finally {
                     setIsLoading(false);
+                    setIsDeleting(false);
                 }
             }
         });
     };
 
     const handleEditClick = (orderId) => {
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to edit orders.", "warning");
+            return;
+        }
         window.location.href = `/dashboard/pos?invoiceId=${orderId}`;
     };
 
     const handlePrintOrder = (id, type = "thermal") => {
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to print orders.", "warning");
+            return;
+        }
         const orderToPrint = orders.find(order => order._id === id);
         if (orderToPrint) {
             setPrintData(orderToPrint);
@@ -594,141 +624,160 @@ function PendingOrdersContent() {
              )}
 
             {/* Custom Payment Modal */}
-            {isPaymentModalOpen && paymentOrder && (
-                <div className="fixed inset-0 z-50 bg-brand-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-brand-charcoal border border-brand-beige/25 dark:border-brand-beige/25 w-full max-w-md rounded-2xl shadow-2xl p-6 relative animate-scale-in">
-                        <button
-                            onClick={() => setIsPaymentModalOpen(false)}
-                            className="absolute top-4 right-4 text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite cursor-pointer border-none bg-transparent"
+            <AnimatePresence>
+                {isPaymentModalOpen && paymentOrder && (
+                    <div className="fixed inset-0 z-50 bg-brand-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 15 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 15 }}
+                            transition={{ type: "spring", duration: 0.4 }}
+                            className="bg-white dark:bg-brand-charcoal border border-brand-beige/25 dark:border-brand-beige/25 w-full max-w-md rounded-2xl shadow-2xl p-6 relative"
                         >
-                            <FiX size={20} />
-                        </button>
+                            <button
+                                onClick={() => !isSettling && setIsPaymentModalOpen(false)}
+                                disabled={isSettling}
+                                className="absolute top-4 right-4 text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-offwhite cursor-pointer border-none bg-transparent disabled:opacity-50"
+                            >
+                                <FiX size={20} />
+                            </button>
 
-                        <h3 className="text-lg font-extrabold text-brand-charcoal dark:text-zinc-100 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                            <FaMoneyBillWave className="text-brand-primary" /> Settle Payment
-                        </h3>
-                        <p className="text-xs text-brand-sage font-bold mb-4">
-                            Invoice: {paymentOrder.invoiceSerial || paymentOrder.invoiceNo || "N/A"}
-                        </p>
+                            <h3 className="text-lg font-extrabold text-brand-charcoal dark:text-zinc-100 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <FaMoneyBillWave className="text-brand-primary" /> Settle Payment
+                            </h3>
+                            <p className="text-xs text-brand-sage font-bold mb-4">
+                                Invoice: {paymentOrder.invoiceSerial || paymentOrder.invoiceNo || "N/A"}
+                            </p>
 
-                        {/* Order Summary Calculations */}
-                        <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 rounded-2xl p-4 border border-brand-beige/25 dark:border-brand-beige/10 mb-6 text-sm font-semibold">
-                            <div className="flex justify-between mb-2">
-                                <span className="text-brand-sage">Subtotal:</span>
-                                <span>৳ {(paymentOrder.subtotal || paymentOrder.subTotal || 0).toFixed(0)}</span>
-                            </div>
-                            {paymentOrder.discount > 0 && (
-                                <div className="flex justify-between mb-2 text-green-600">
-                                    <span>Discount:</span>
-                                    <span>-৳ {paymentOrder.discount.toFixed(0)}</span>
-                                </div>
-                            )}
-                            {paymentOrder.vat > 0 && (
+                            {/* Order Summary Calculations */}
+                            <div className="bg-brand-offwhite dark:bg-brand-charcoal/50 rounded-2xl p-4 border border-brand-beige/25 dark:border-brand-beige/10 mb-6 text-sm font-semibold">
                                 <div className="flex justify-between mb-2">
-                                    <span className="text-brand-sage">VAT:</span>
-                                    <span>৳ {paymentOrder.vat.toFixed(0)}</span>
+                                    <span className="text-brand-sage">Subtotal:</span>
+                                    <span>৳ {(paymentOrder.subtotal || paymentOrder.subTotal || 0).toFixed(0)}</span>
                                 </div>
-                            )}
-                            {paymentOrder.sd > 0 && (
-                                <div className="flex justify-between mb-2">
-                                    <span className="text-brand-sage">SD:</span>
-                                    <span>৳ {paymentOrder.sd.toFixed(0)}</span>
-                                </div>
-                            )}
-                            {paymentOrder.serviceCharge > 0 && (
-                                <div className="flex justify-between mb-2">
-                                    <span className="text-brand-sage">Service Charge:</span>
-                                    <span>৳ {paymentOrder.serviceCharge.toFixed(0)}</span>
-                                </div>
-                            )}
-                            {paymentOrder.deliveryCharge > 0 && (
-                                <div className="flex justify-between mb-2">
-                                    <span className="text-brand-sage">Delivery Charge:</span>
-                                    <span>৳ {paymentOrder.deliveryCharge.toFixed(0)}</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between border-t border-brand-beige/25 dark:border-brand-beige/10 pt-2 font-black text-lg text-brand-primary dark:text-brand-sage">
-                                <span>TOTAL DUE:</span>
-                                <span>৳ {(paymentOrder.totalAmount || paymentOrder.grandTotal || 0).toFixed(0)}</span>
-                            </div>
-                        </div>
-
-                        {/* Payment Methods Grid */}
-                        <div className="mb-6">
-                            <h4 className="text-xs font-black text-brand-sage uppercase tracking-wider mb-3">Select Payment Method</h4>
-                            <div className="grid grid-cols-2 gap-3">
-                                {paymentTypes && paymentTypes.length > 0 ? (
-                                    paymentTypes.map((pt) => {
-                                        const method = pt.name;
-                                        const isSelected = selectedMethod === method;
-                                        const getPaymentColor = (name) => {
-                                            const lower = name.toLowerCase();
-                                            if (lower.includes("cash")) return "border-emerald-600 hover:bg-emerald-50/10 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/20";
-                                            if (lower.includes("bkash")) return "border-pink-600 hover:bg-pink-50/10 text-pink-700 bg-pink-50 dark:bg-pink-950/20";
-                                            if (lower.includes("nagad")) return "border-orange-600 hover:bg-orange-50/10 text-orange-700 bg-orange-50 dark:bg-orange-950/20";
-                                            if (lower.includes("rocket")) return "border-purple-600 hover:bg-purple-50/10 text-purple-700 bg-purple-50 dark:bg-purple-950/20";
-                                            if (lower.includes("visa")) return "border-blue-600 hover:bg-blue-50/10 text-blue-700 bg-blue-50 dark:bg-blue-950/20";
-                                            if (lower.includes("master")) return "border-red-600 hover:bg-red-50/10 text-red-700 bg-red-50 dark:bg-red-950/20";
-                                            return "border-zinc-600 hover:bg-zinc-50/10 text-zinc-700 bg-zinc-50 dark:bg-zinc-950/20";
-                                        };
-                                        return (
-                                            <button
-                                                key={pt._id}
-                                                type="button"
-                                                onClick={() => setSelectedMethod(method)}
-                                                className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02]
-                                                    ${isSelected 
-                                                        ? "bg-brand-primary text-white border-brand-primary border-2" 
-                                                        : `border-brand-beige/25 dark:border-zinc-850 bg-transparent ${getPaymentColor(method).split(" ").slice(1).join(" ")}`}`}
-                                            >
-                                                <span className="text-xs font-black uppercase tracking-wider">{method}</span>
-                                                <span className={`text-[9px] ${isSelected ? "text-white/80" : "text-brand-sage"}`}>{pt.type || "Billing Method"}</span>
-                                            </button>
-                                        );
-                                    })
-                                ) : (
-                                    ["Cash", "Card", "Mobile", "Bank"].map((method) => {
-                                        const isSelected = selectedMethod === method;
-                                        return (
-                                            <button
-                                                key={method}
-                                                type="button"
-                                                onClick={() => setSelectedMethod(method)}
-                                                className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02]
-                                                    ${isSelected 
-                                                        ? "bg-brand-primary text-white border-brand-primary" 
-                                                        : "border-brand-beige/25 dark:border-zinc-850 text-brand-charcoal dark:text-zinc-300 bg-transparent"}`}
-                                            >
-                                                <span className="text-xs font-black uppercase tracking-wider">{method}</span>
-                                                <span className={`text-[9px] ${isSelected ? "text-white/80" : "text-brand-sage"}`}>Payment Method</span>
-                                            </button>
-                                        );
-                                    })
+                                {paymentOrder.discount > 0 && (
+                                    <div className="flex justify-between mb-2 text-green-600">
+                                        <span>Discount:</span>
+                                        <span>-৳ {paymentOrder.discount.toFixed(0)}</span>
+                                    </div>
                                 )}
+                                {paymentOrder.vat > 0 && (
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-brand-sage">VAT:</span>
+                                        <span>৳ {paymentOrder.vat.toFixed(0)}</span>
+                                    </div>
+                                )}
+                                {paymentOrder.sd > 0 && (
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-brand-sage">SD:</span>
+                                        <span>৳ {paymentOrder.sd.toFixed(0)}</span>
+                                    </div>
+                                )}
+                                {paymentOrder.serviceCharge > 0 && (
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-brand-sage">Service Charge:</span>
+                                        <span>৳ {paymentOrder.serviceCharge.toFixed(0)}</span>
+                                    </div>
+                                )}
+                                {paymentOrder.deliveryCharge > 0 && (
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-brand-sage">Delivery Charge:</span>
+                                        <span>৳ {paymentOrder.deliveryCharge.toFixed(0)}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between border-t border-brand-beige/25 dark:border-brand-beige/10 pt-2 font-black text-lg text-brand-primary dark:text-brand-sage">
+                                    <span>TOTAL DUE:</span>
+                                    <span>৳ {(paymentOrder.totalAmount || paymentOrder.grandTotal || 0).toFixed(0)}</span>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Confirmation Buttons */}
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button
-                                onClick={() => setIsPaymentModalOpen(false)}
-                                className="btn btn-sm bg-transparent hover:bg-brand-beige/25 text-brand-sage font-bold text-[10px] uppercase tracking-wider px-4 py-2 cursor-pointer border-none shadow-none"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => {
-                                    handleOrderUpdate(paymentOrder._id, "completed", selectedMethod);
-                                    setIsPaymentModalOpen(false);
-                                }}
-                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5"
-                            >
-                                <FaMoneyBillWave /> Confirm Payment
-                            </button>
-                        </div>
+                            {/* Payment Methods Grid */}
+                            <div className="mb-6">
+                                <h4 className="text-xs font-black text-brand-sage uppercase tracking-wider mb-3">Select Payment Method</h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {paymentTypes && paymentTypes.length > 0 ? (
+                                        paymentTypes.map((pt) => {
+                                            const method = pt.name;
+                                            const isSelected = selectedMethod === method;
+                                            const getPaymentColor = (name) => {
+                                                const lower = name.toLowerCase();
+                                                if (lower.includes("cash")) return "border-emerald-600 hover:bg-emerald-50/10 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/20";
+                                                if (lower.includes("bkash")) return "border-pink-600 hover:bg-pink-50/10 text-pink-700 bg-pink-50 dark:bg-pink-950/20";
+                                                if (lower.includes("nagad")) return "border-orange-600 hover:bg-orange-50/10 text-orange-700 bg-orange-50 dark:bg-orange-950/20";
+                                                if (lower.includes("rocket")) return "border-purple-600 hover:bg-purple-50/10 text-purple-700 bg-purple-50 dark:bg-purple-950/20";
+                                                if (lower.includes("visa")) return "border-blue-600 hover:bg-blue-50/10 text-blue-700 bg-blue-50 dark:bg-blue-950/20";
+                                                if (lower.includes("master")) return "border-red-600 hover:bg-red-50/10 text-red-700 bg-red-50 dark:bg-red-950/20";
+                                                return "border-zinc-600 hover:bg-zinc-50/10 text-zinc-700 bg-zinc-50 dark:bg-zinc-950/20";
+                                            };
+                                            return (
+                                                <button
+                                                    key={pt._id}
+                                                    type="button"
+                                                    disabled={isSettling}
+                                                    onClick={() => setSelectedMethod(method)}
+                                                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed
+                                                        ${isSelected 
+                                                            ? "bg-brand-primary text-white border-brand-primary border-2" 
+                                                            : `border-brand-beige/25 dark:border-zinc-850 bg-transparent ${getPaymentColor(method).split(" ").slice(1).join(" ")}`}`}
+                                                >
+                                                    <span className="text-xs font-black uppercase tracking-wider">{method}</span>
+                                                    <span className={`text-[9px] ${isSelected ? "text-white/80" : "text-brand-sage"}`}>{pt.type || "Billing Method"}</span>
+                                                </button>
+                                            );
+                                        })
+                                    ) : (
+                                        ["Cash", "Card", "Mobile", "Bank"].map((method) => {
+                                            const isSelected = selectedMethod === method;
+                                            return (
+                                                <button
+                                                    key={method}
+                                                    type="button"
+                                                    disabled={isSettling}
+                                                    onClick={() => setSelectedMethod(method)}
+                                                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed
+                                                        ${isSelected 
+                                                            ? "bg-brand-primary text-white border-brand-primary" 
+                                                            : "border-brand-beige/25 dark:border-zinc-850 text-brand-charcoal dark:text-zinc-300 bg-transparent"}`}
+                                                >
+                                                    <span className="text-xs font-black uppercase tracking-wider">{method}</span>
+                                                    <span className={`text-[9px] ${isSelected ? "text-white/80" : "text-brand-sage"}`}>Payment Method</span>
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Confirmation Buttons */}
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    onClick={() => setIsPaymentModalOpen(false)}
+                                    disabled={isSettling}
+                                    className="btn btn-sm bg-transparent hover:bg-brand-beige/25 text-brand-sage font-bold text-[10px] uppercase tracking-wider px-4 py-2 cursor-pointer border-none shadow-none disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => handleOrderUpdate(paymentOrder._id, "completed", selectedMethod)}
+                                    disabled={isSettling}
+                                    className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isSettling ? (
+                                        <>
+                                            <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1.5"></span>
+                                            Settling...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaMoneyBillWave /> Confirm Payment
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </motion.div>
                     </div>
-                </div>
-            )}
+                )}
+            </AnimatePresence>
  
             <div className="hidden">
                 {isPrintModalOpen && printData && (

@@ -183,6 +183,16 @@ const invoiceSchema = new Schema(
       ref: "User",
       required: false, // temporarily false so POS can create anonymously if user context missing
     },
+
+    idempotencyKey: {
+      type: String,
+      default: null,
+      index: {
+        unique: true,
+        sparse: true,
+        partialFilterExpression: { idempotencyKey: { $type: "string" } }
+      }
+    },
   },
   {
     timestamps: true,

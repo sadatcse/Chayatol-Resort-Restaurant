@@ -59,14 +59,30 @@ export async function PUT(req, { params }) {
   }
 }
 
+import Permission from "@/models/Permission";
+
 export async function DELETE(req, { params }) {
   const auth = verifyToken(req);
   if (auth.error) {
     return NextResponse.json({ message: auth.error }, { status: auth.status });
   }
 
-  if (auth.user?.role !== "admin" && auth.user?.role !== "superadmin") {
-    return NextResponse.json({ message: "You do not have permission to delete room types." }, { status: 403 });
+  if (auth.user?.role !== "superadmin" && auth.user?.role !== "admin") {
+    try {
+      await dbConnect();
+      const permission = await Permission.findOne({
+        role: auth.user.role,
+        path: "/dashboard/room-types",
+      });
+
+      const isAllowed = permission && (permission.isAllowed || permission.canDelete === true);
+      if (!isAllowed) {
+        return NextResponse.json({ message: "You do not have permission to delete room types." }, { status: 403 });
+      }
+    } catch (err) {
+      console.error("Permission check error in delete room type API:", err);
+      return NextResponse.json({ error: "Failed to verify permission" }, { status: 500 });
+    }
   }
 
   try {

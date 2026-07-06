@@ -12,6 +12,7 @@ import useStandardPrint from "@/hooks/useStandardPrint";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import A4ReceiptTemplate from "@/components/Receipt/A4ReceiptTemplate";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const getInvoiceSummary = (entries) => {
     let roomTotal = 0;
@@ -19,7 +20,7 @@ const getInvoiceSummary = (entries) => {
     let serviceTotal = 0;
     let discountTotal = 0;
     let paidTotal = 0;
-    
+
     entries.forEach(e => {
         const desc = e.description.toLowerCase();
         if (e.debit > 0) {
@@ -41,7 +42,7 @@ const getInvoiceSummary = (entries) => {
 
     const netPayable = roomTotal + foodTotal + serviceTotal - discountTotal;
     const dueAmount = netPayable - paidTotal;
-    
+
     return {
         roomTotal,
         foodTotal,
@@ -54,6 +55,7 @@ const getInvoiceSummary = (entries) => {
 };
 
 function CheckoutContent() {
+    const { canView, canAdd, canEdit, canDelete } = usePagePermission();
     const axiosSecure = useAxiosSecure();
 
     // States
@@ -175,7 +177,7 @@ function CheckoutContent() {
     const filteredStays = useMemo(() => {
         if (!searchTerm) return stays;
         const term = searchTerm.toLowerCase();
-        return stays.filter(s => 
+        return stays.filter(s =>
             s.stayNo.toLowerCase().includes(term) ||
             s.customer?.fullName?.toLowerCase().includes(term) ||
             s.rooms?.some(r => r.room?.roomNumber?.toLowerCase().includes(term))
@@ -214,6 +216,11 @@ function CheckoutContent() {
     }, [outstandingDue]);
 
     const handleCheckout = async () => {
+        if (isFolioLoading) return;
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to perform checkout operations.", "warning");
+            return;
+        }
         const finalPayments = [];
         if (settlementAmount > 0) {
             if (!paymentType) {
@@ -250,6 +257,17 @@ function CheckoutContent() {
             setIsFolioLoading(false);
         }
     };
+
+    if (!canView) {
+        return (
+            <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal flex items-center justify-center">
+                <div className="text-center bg-white dark:bg-brand-charcoal p-8 rounded-2xl border border-brand-beige dark:border-brand-beige/25 shadow-md max-w-md w-full">
+                    <h2 className="text-xl font-extrabold uppercase tracking-widest text-red-500 mb-2">Access Denied</h2>
+                    <p className="text-sm text-brand-sage font-semibold">You do not have permission to view the check-out console.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
@@ -290,11 +308,10 @@ function CheckoutContent() {
                                                 whileHover={{ scale: 1.01 }}
                                                 key={stay._id}
                                                 onClick={() => handleSelectStay(stay)}
-                                                className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                                                    isSelected 
-                                                        ? "bg-brand-primary/10 border-brand-primary dark:bg-brand-primary/20 dark:border-brand-primary" 
+                                                className={`p-4 rounded-xl border transition-all cursor-pointer ${isSelected
+                                                        ? "bg-brand-primary/10 border-brand-primary dark:bg-brand-primary/20 dark:border-brand-primary"
                                                         : "bg-brand-offwhite dark:bg-zinc-850 border-brand-beige dark:border-brand-beige/15 hover:bg-brand-beige/25 dark:hover:bg-brand-beige/10"
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="flex justify-between items-start">
                                                     <span className="text-xs font-mono font-bold text-brand-primary dark:text-brand-sage">{stay.stayNo}</span>
@@ -377,17 +394,17 @@ function CheckoutContent() {
                                                             <tr key={entry._id} className="hover:bg-brand-beige/20 dark:hover:bg-brand-offwhite/5">
                                                                 <td className="p-3 text-brand-sage">{new Date(entry.date).toLocaleDateString("en-GB")}</td>
                                                                 <td className="p-3 font-bold text-brand-charcoal dark:text-brand-offwhite">
-                                                                     {entry.referenceId && (entry.type === "Food Charge" || entry.description.includes("Invoice")) ? (
-                                                                         <button
-                                                                             onClick={() => handleViewInvoice(entry.referenceId)}
-                                                                             className="text-brand-primary hover:text-brand-secondary dark:text-brand-sage dark:hover:text-brand-sage/80 underline text-left font-bold cursor-pointer flex items-center gap-1 bg-transparent border-none p-0"
-                                                                             title="Click to view detailed POS invoice and print"
-                                                                         >
-                                                                             <FiFileText className="flex-shrink-0" /> {entry.description}
-                                                                         </button>
-                                                                     ) : (
-                                                                         entry.description
-                                                                     )}
+                                                                    {entry.referenceId && (entry.type === "Food Charge" || entry.description.includes("Invoice")) ? (
+                                                                        <button
+                                                                            onClick={() => handleViewInvoice(entry.referenceId)}
+                                                                            className="text-brand-primary hover:text-brand-secondary dark:text-brand-sage dark:hover:text-brand-sage/80 underline text-left font-bold cursor-pointer flex items-center gap-1 bg-transparent border-none p-0"
+                                                                            title="Click to view detailed POS invoice and print"
+                                                                        >
+                                                                            <FiFileText className="flex-shrink-0" /> {entry.description}
+                                                                        </button>
+                                                                    ) : (
+                                                                        entry.description
+                                                                    )}
                                                                 </td>
                                                                 <td className="p-3 text-right text-red-500">{entry.debit > 0 ? `৳ ${entry.debit.toFixed(0)}` : "-"}</td>
                                                                 <td className="p-3 text-right text-green-500">{entry.credit > 0 ? `৳ ${entry.credit.toFixed(0)}` : "-"}</td>
@@ -471,13 +488,22 @@ function CheckoutContent() {
                                             >
                                                 Cancel
                                             </button>
-                                            <button
-                                                onClick={handleCheckout}
-                                                disabled={isFolioLoading}
-                                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1 disabled:opacity-50"
-                                            >
-                                                {isFolioLoading ? "Checking out..." : "Settle & Checkout"} <FiCheck />
-                                            </button>
+                                            {canEdit && (
+                                                <button
+                                                    onClick={handleCheckout}
+                                                    disabled={isFolioLoading}
+                                                    className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {isFolioLoading ? (
+                                                        <>
+                                                            <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                                                            Checking out...
+                                                        </>
+                                                    ) : (
+                                                        <>Settle & Checkout <FiCheck /></>
+                                                    )}
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </motion.div>
@@ -653,9 +679,9 @@ function CheckoutContent() {
                         dateRange={`Check-in: ${new Date(printLedgerRes.checkInDate).toLocaleDateString("en-GB")} to Expected Check-out: ${new Date(printLedgerRes.expectedCheckOutDate).toLocaleDateString("en-GB")}`}
                     >
                         <div style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px", fontSize: "12px" }}>
-                            <strong>Customer Name:</strong> {printLedgerRes.customer?.fullName} &nbsp;|&nbsp; 
-                            <strong>Email:</strong> {printLedgerRes.customer?.emailAddress || "N/A"} &nbsp;|&nbsp; 
-                            <strong>Phone:</strong> {printLedgerRes.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp; 
+                            <strong>Customer Name:</strong> {printLedgerRes.customer?.fullName} &nbsp;|&nbsp;
+                            <strong>Email:</strong> {printLedgerRes.customer?.emailAddress || "N/A"} &nbsp;|&nbsp;
+                            <strong>Phone:</strong> {printLedgerRes.customer?.phoneNumber || "N/A"} &nbsp;|&nbsp;
                             <strong>Assigned Rooms:</strong> {printLedgerRes.rooms?.map(r => r.room?.roomNumber).join(", ")}
                         </div>
 
@@ -709,12 +735,12 @@ function CheckoutContent() {
                             dateRange=""
                         >
                             {/* Invoice Meta Header Grid */}
-                            <div style={{ 
-                                display: "grid", 
-                                gridTemplateColumns: "1fr 1fr", 
-                                gap: "20px", 
-                                marginBottom: "30px", 
-                                borderBottom: "2px solid #1e293b", 
+                            <div style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: "20px",
+                                marginBottom: "30px",
+                                borderBottom: "2px solid #1e293b",
                                 paddingBottom: "15px",
                                 fontSize: "11px"
                             }}>
@@ -796,10 +822,10 @@ function CheckoutContent() {
                                 </div>
 
                                 {/* Bill calculation summary card */}
-                                <div style={{ 
-                                    background: "#f8fafc", 
-                                    border: "1px solid #e2e8f0", 
-                                    borderRadius: "12px", 
+                                <div style={{
+                                    background: "#f8fafc",
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: "12px",
                                     padding: "16px",
                                     fontSize: "11px"
                                 }}>
@@ -836,12 +862,12 @@ function CheckoutContent() {
                                         <span style={{ color: "green", fontWeight: "bold" }}>৳ {summary.paidTotal.toLocaleString()}</span>
                                     </div>
                                     <div style={{ borderTop: "1px solid #cbd5e1", margin: "8px 0" }}></div>
-                                    
-                                    <div style={{ 
-                                        display: "flex", 
-                                        justifyContent: "space-between", 
-                                        margin: "4px 0 0 0", 
-                                        fontWeight: "black", 
+
+                                    <div style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        margin: "4px 0 0 0",
+                                        fontWeight: "black",
                                         fontSize: "13px",
                                         color: isDue ? "#ef4444" : "#22c55e"
                                     }}>
@@ -852,10 +878,10 @@ function CheckoutContent() {
                             </div>
 
                             {/* Terms & Thank You Message Footer */}
-                            <div style={{ 
-                                marginTop: "50px", 
-                                borderTop: "1px dashed #cbd5e1", 
-                                paddingTop: "15px", 
+                            <div style={{
+                                marginTop: "50px",
+                                borderTop: "1px dashed #cbd5e1",
+                                paddingTop: "15px",
                                 textAlign: "center",
                                 fontSize: "10px",
                                 color: "#64748b"

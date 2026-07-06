@@ -10,6 +10,7 @@ import useStandardPrint from "@/hooks/useStandardPrint";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
+import usePagePermission from "@/hooks/usePagePermission";
 import { AuthContext } from "@/providers/AuthProvider";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
@@ -63,6 +64,7 @@ const FrontDeskTimelinePage = () => {
   const [mounted, setMounted] = useState(false);
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit } = usePagePermission();
   const router = useRouter();
 
   const [currentDate, setCurrentDate] = useState(new Date()); // Holds active month/year
@@ -235,6 +237,12 @@ const FrontDeskTimelinePage = () => {
   const [isWalkinCustModalOpen, setIsWalkinCustModalOpen] = useState(false);
   const [walkinCustToEdit, setWalkinCustToEdit] = useState(null);
   const [isWalkinSubmitting, setIsWalkinSubmitting] = useState(false);
+  const [walkinIdempotencyKey, setWalkinIdempotencyKey] = useState("");
+  const [newResIdempotencyKey, setNewResIdempotencyKey] = useState("");
+
+  const generateFrontDeskIdempotencyKey = (prefix) => {
+    return prefix + "-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
+  };
 
   // --- New Reservation Overlay Modal State ---
   const [isNewResModalOpen, setIsNewResModalOpen] = useState(false);
@@ -565,6 +573,11 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleWalkInCheckinSubmit = async () => {
+    if (isWalkinSubmitting) return;
+    if (!canAdd) {
+      Swal.fire("Restricted", "You do not have permission to perform check-ins.", "warning");
+      return;
+    }
     if (!walkinCustomer) {
       Swal.fire("Validation Error", "Please select a customer.", "warning");
       return;
@@ -624,7 +637,8 @@ const FrontDeskTimelinePage = () => {
       customer: walkinCustomer,
       rooms: walkinRooms,
       expectedCheckOutDate: walkinExpectedCheckOutDate,
-      initialPayment: walkinInitialPayment.amount > 0 ? walkinInitialPayment : null
+      initialPayment: walkinInitialPayment.amount > 0 ? walkinInitialPayment : null,
+      idempotencyKey: walkinIdempotencyKey
     };
 
     try {
@@ -758,6 +772,11 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleNewReservationSubmit = async () => {
+    if (isNewResSubmitting) return;
+    if (!canAdd) {
+      Swal.fire("Restricted", "You do not have permission to create reservations.", "warning");
+      return;
+    }
     if (!newResFormData.customer) {
       Swal.fire("Validation Error", "Please select a customer.", "warning");
       return;
@@ -812,7 +831,11 @@ const FrontDeskTimelinePage = () => {
       ...r,
       room: r.room === "" ? null : r.room
     }));
-    const payload = { ...newResFormData, rooms: processedRooms };
+    const payload = {
+      ...newResFormData,
+      rooms: processedRooms,
+      idempotencyKey: newResIdempotencyKey
+    };
 
     try {
       const { data: newRes } = await axiosSecure.post("/reservations", payload);
@@ -944,6 +967,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handlePostFoodOrder = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to modify active stay folios.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!foodFormData.foodItem || !foodFormData.quantity) {
       Swal.fire("Error", "Please select food item and quantity.", "warning");
@@ -969,6 +996,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handlePostService = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to modify active stay folios.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!serviceFormData.serviceId) {
       Swal.fire("Error", "Please select a service.", "warning");
@@ -994,6 +1025,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handlePostPayment = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to modify active stay folios.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!paymentFormData.paymentType || !paymentFormData.amount || isNaN(paymentFormData.amount) || Number(paymentFormData.amount) <= 0) {
       Swal.fire("Error", "Please fill in payment type and positive amount.", "warning");
@@ -1021,6 +1056,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handlePostDiscount = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to modify active stay folios.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!discountFormData.discountType || !discountFormData.value || isNaN(discountFormData.value) || Number(discountFormData.value) <= 0 || !discountFormData.applyTo) {
       Swal.fire("Error", "Please fill in discount type, positive value, and discount target.", "warning");
@@ -1047,6 +1086,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleExtendStay = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to modify active stay folios.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!extendFormData.newCheckOutDate) {
       Swal.fire("Error", "Please select a check-out date.", "warning");
@@ -1075,6 +1118,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleCheckoutGuest = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to perform check-outs.", "warning");
+      return;
+    }
     if (isPosting) return;
     const checkPaymentList = [];
     if (checkoutPayment.amount > 0) {
@@ -1179,6 +1226,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleAddResPayment = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to manage reservation payments.", "warning");
+      return;
+    }
     if (!resPayFormData.paymentType || !resPayFormData.amount || isNaN(resPayFormData.amount) || Number(resPayFormData.amount) === 0) {
       Swal.fire("Validation Error", "Please provide payment type and non-zero amount.", "warning");
       return;
@@ -1200,6 +1251,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleCancelReservation = async (res) => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to cancel reservations.", "warning");
+      return;
+    }
     const totalCost = res.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0);
     const { value: formValues } = await Swal.fire({
       title: `Cancel Reservation ${res.reservationNo}`,
@@ -1250,6 +1305,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleQuickRefund = async (res, refundAmt) => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to log refunds.", "warning");
+      return;
+    }
     const { value: formValues } = await Swal.fire({
       title: 'Process Refund Payout',
       html: `
@@ -1336,6 +1395,10 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleConfirmCheckin = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to check-in reservations.", "warning");
+      return;
+    }
     for (const a of checkinAssignments) {
       if (!a.roomId) {
         Swal.fire("Validation Error", "Please assign a specific room for all entries.", "warning");
@@ -1372,6 +1435,10 @@ const FrontDeskTimelinePage = () => {
 
   // Grid Empty cell click (create check-in or reservation)
   const handleEmptyCellClick = (room, dateObj) => {
+    if (!canAdd) {
+      Swal.fire("Restricted", "You do not have permission to check-in or book reservations.", "warning");
+      return;
+    }
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, "0");
     const d = String(dateObj.getDate()).padStart(2, "0");
@@ -1400,6 +1467,7 @@ const FrontDeskTimelinePage = () => {
         setWalkinCustomer("");
         setWalkinPhoneSearch("");
         setWalkinCustSearchResults([]);
+        setWalkinIdempotencyKey(generateFrontDeskIdempotencyKey("walkin"));
         setIsWalkinModalOpen(true);
       } else if (result.isDenied) {
         // Prefill Reservation modal
@@ -1420,6 +1488,7 @@ const FrontDeskTimelinePage = () => {
         setSelectedNewResCust(null);
         setNewResPhoneSearch("");
         setNewResCustSearchResults([]);
+        setNewResIdempotencyKey(generateFrontDeskIdempotencyKey("newres"));
         setIsNewResModalOpen(true);
       }
     });
@@ -1476,49 +1545,55 @@ const FrontDeskTimelinePage = () => {
             <span className="font-bold text-brand-sage">Checked Out</span>
           </div>
 
-          <button
-            onClick={() => {
-              setNewResFormData({
-                customer: "",
-                checkInDate: new Date().toISOString().split("T")[0],
-                checkOutDate: (() => {
-                  const tom = new Date();
-                  tom.setDate(tom.getDate() + 1);
-                  return tom.toISOString().split("T")[0];
-                })(),
-                bookingSource: "Walk-in",
-                status: "Draft",
-                notes: "",
-                rooms: [{ roomType: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, room: "", nights: 1 }]
-              });
-              setSelectedNewResCust(null);
-              setNewResPhoneSearch("");
-              setNewResCustSearchResults([]);
-              setIsNewResModalOpen(true);
-            }}
-            className="btn bg-blue-600 hover:bg-blue-700 text-white border-none btn-sm rounded-full shadow gap-2 px-5 mr-2"
-          >
-            <FiPlus />
-            <span className="uppercase tracking-widest text-[10px] font-bold">New Reservation</span>
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => {
+                setNewResFormData({
+                  customer: "",
+                  checkInDate: new Date().toISOString().split("T")[0],
+                  checkOutDate: (() => {
+                    const tom = new Date();
+                    tom.setDate(tom.getDate() + 1);
+                    return tom.toISOString().split("T")[0];
+                  })(),
+                  bookingSource: "Walk-in",
+                  status: "Draft",
+                  notes: "",
+                  rooms: [{ roomType: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, room: "", nights: 1 }]
+                });
+                setSelectedNewResCust(null);
+                setNewResPhoneSearch("");
+                setNewResCustSearchResults([]);
+                setNewResIdempotencyKey(generateFrontDeskIdempotencyKey("newres"));
+                setIsNewResModalOpen(true);
+              }}
+              className="btn bg-blue-600 hover:bg-blue-700 text-white border-none btn-sm rounded-full shadow gap-2 px-5 mr-2"
+            >
+              <FiPlus />
+              <span className="uppercase tracking-widest text-[10px] font-bold">New Reservation</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => {
-              setWalkinRooms([{ room: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, nights: 1 }]);
-              const tom = new Date();
-              tom.setDate(tom.getDate() + 1);
-              setWalkinExpectedCheckOutDate(tom.toISOString().split("T")[0]);
-              setSelectedWalkinCust(null);
-              setWalkinCustomer("");
-              setWalkinPhoneSearch("");
-              setWalkinCustSearchResults([]);
-              setIsWalkinModalOpen(true);
-            }}
-            className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none btn-sm rounded-full shadow gap-2 px-5"
-          >
-            <FiPlus />
-            <span className="uppercase tracking-widest text-[10px] font-bold">Check-In</span>
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => {
+                setWalkinRooms([{ room: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, nights: 1 }]);
+                const tom = new Date();
+                tom.setDate(tom.getDate() + 1);
+                setWalkinExpectedCheckOutDate(tom.toISOString().split("T")[0]);
+                setSelectedWalkinCust(null);
+                setWalkinCustomer("");
+                setWalkinPhoneSearch("");
+                setWalkinCustSearchResults([]);
+                setWalkinIdempotencyKey(generateFrontDeskIdempotencyKey("walkin"));
+                setIsWalkinModalOpen(true);
+              }}
+              className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none btn-sm rounded-full shadow gap-2 px-5"
+            >
+              <FiPlus />
+              <span className="uppercase tracking-widest text-[10px] font-bold">Check-In</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -3404,7 +3479,18 @@ const FrontDeskTimelinePage = () => {
                 <input
                   type="date"
                   value={walkinExpectedCheckOutDate}
-                  onChange={(e) => setWalkinExpectedCheckOutDate(e.target.value)}
+                  onChange={(e) => {
+                    const newCheckOut = e.target.value;
+                    setWalkinExpectedCheckOutDate(newCheckOut);
+                    // Auto-calculate nights from today to the selected checkout date
+                    if (newCheckOut) {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const diff = Math.round((new Date(newCheckOut) - today) / 86400000);
+                      const computedNights = diff > 0 ? diff : 1;
+                      setWalkinRooms(prev => prev.map(r => ({ ...r, nights: computedNights })));
+                    }
+                  }}
                   className="input input-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-9 text-xs"
                 />
               </div>
@@ -3633,7 +3719,20 @@ const FrontDeskTimelinePage = () => {
                   <input
                     type="date"
                     value={newResFormData.checkInDate}
-                    onChange={(e) => setNewResFormData({ ...newResFormData, checkInDate: e.target.value })}
+                    onChange={(e) => {
+                      const newCheckIn = e.target.value;
+                      const checkOut = newResFormData.checkOutDate;
+                      let computedNights = 1;
+                      if (newCheckIn && checkOut) {
+                        const diff = Math.round((new Date(checkOut) - new Date(newCheckIn)) / 86400000);
+                        if (diff > 0) computedNights = diff;
+                      }
+                      setNewResFormData(prev => ({
+                        ...prev,
+                        checkInDate: newCheckIn,
+                        rooms: prev.rooms.map(r => ({ ...r, nights: computedNights }))
+                      }));
+                    }}
                     className="input input-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-9 text-xs"
                   />
                 </div>
@@ -3642,7 +3741,20 @@ const FrontDeskTimelinePage = () => {
                   <input
                     type="date"
                     value={newResFormData.checkOutDate}
-                    onChange={(e) => setNewResFormData({ ...newResFormData, checkOutDate: e.target.value })}
+                    onChange={(e) => {
+                      const newCheckOut = e.target.value;
+                      const checkIn = newResFormData.checkInDate;
+                      let computedNights = 1;
+                      if (checkIn && newCheckOut) {
+                        const diff = Math.round((new Date(newCheckOut) - new Date(checkIn)) / 86400000);
+                        if (diff > 0) computedNights = diff;
+                      }
+                      setNewResFormData(prev => ({
+                        ...prev,
+                        checkOutDate: newCheckOut,
+                        rooms: prev.rooms.map(r => ({ ...r, nights: computedNights }))
+                      }));
+                    }}
                     className="input input-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-9 text-xs"
                   />
                 </div>

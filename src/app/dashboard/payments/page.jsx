@@ -11,8 +11,10 @@ import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const ReservationPaymentsPage = () => {
+  const { canView, canAdd, canEdit, canDelete } = usePagePermission();
   const axiosSecure = useAxiosSecure();
   const [loading, setLoading] = useState(false);
   const [payments, setPayments] = useState([]);
@@ -132,6 +134,10 @@ const ReservationPaymentsPage = () => {
   };
 
   const handleDelete = async (paymentId, paymentSource) => {
+    if (!canDelete) {
+      Swal.fire("Restricted", "You do not have permission to delete payments.", "warning");
+      return;
+    }
     const result = await Swal.fire({
       title: "Remove this payment?",
       text: "This will permanently delete this payment record from the database.",
@@ -185,6 +191,17 @@ const ReservationPaymentsPage = () => {
     }
   };
 
+  if (!canView) {
+    return (
+      <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal flex items-center justify-center">
+        <div className="text-center bg-white dark:bg-brand-charcoal p-8 rounded-2xl border border-brand-beige dark:border-brand-beige/25 shadow-md max-w-md w-full">
+          <h2 className="text-xl font-extrabold uppercase tracking-widest text-red-500 mb-2">Access Denied</h2>
+          <p className="text-sm text-brand-sage font-semibold">You do not have permission to view the resort payments dashboard.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -192,12 +209,14 @@ const ReservationPaymentsPage = () => {
           title="Unified Payments & Cash Summary"
           subtitle="Manage unified reservation prepayments, walk-in stay payments, checkout settlements, and cash logs."
         />
-        <ExportButtons
-          onExportExcel={handleExportExcel}
-          onExportCsv={handleExportCsv}
-          onPrint={handlePrintClick}
-          isLoading={loading}
-        />
+        {canEdit && (
+          <ExportButtons
+            onExportExcel={handleExportExcel}
+            onExportCsv={handleExportCsv}
+            onPrint={handlePrintClick}
+            isLoading={loading}
+          />
+        )}
       </div>
 
       {/* Filters and Search Toolbar */}
@@ -447,13 +466,15 @@ const ReservationPaymentsPage = () => {
                           {isRefund ? "- " : "+ "}৳{Math.abs(p.amount)}
                         </td>
                         <td className="py-4 text-center">
-                          <button
-                            onClick={() => handleDelete(p.id || p._id, p.source)}
-                            title="Remove payment"
-                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 transition-colors duration-150 cursor-pointer"
-                          >
-                            <FiTrash2 size={15} />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(p.id || p._id, p.source)}
+                              title="Remove payment"
+                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 transition-colors duration-150 cursor-pointer"
+                            >
+                              <FiTrash2 size={15} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

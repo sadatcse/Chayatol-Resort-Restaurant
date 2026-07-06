@@ -87,20 +87,27 @@ export async function POST(req) {
   try {
     await dbConnect();
     const body = await req.json();
-    const { customer, rooms, expectedCheckOutDate, initialPayment, notes } = body;
+    const { customer, rooms, expectedCheckOutDate, initialPayment, notes, idempotencyKey } = body;
 
     if (!customer || !rooms || rooms.length === 0 || !expectedCheckOutDate) {
       return NextResponse.json({ message: "Please provide customer, room details, and expected check-out date." }, { status: 400 });
     }
 
-    // Deduplication check: check if the customer has a check-in created in the last 10 seconds
-    const tenSecondsAgo = new Date(Date.now() - 10000);
-    const potentialDuplicate = await Stay.findOne({
-      customer,
-      createdAt: { $gte: tenSecondsAgo }
-    });
-    if (potentialDuplicate) {
-      return NextResponse.json({ message: "Duplicate check-in detected. Please wait a moment." }, { status: 409 });
+    if (idempotencyKey) {
+      const existing = await Stay.findOne({ idempotencyKey }).populate("customer").populate("rooms.room");
+      if (existing) {
+        return NextResponse.json(existing, { status: 201 });
+      }
+    } else {
+      // Deduplication check: check if the customer has a check-in created in the last 10 seconds
+      const tenSecondsAgo = new Date(Date.now() - 10000);
+      const potentialDuplicate = await Stay.findOne({
+        customer,
+        createdAt: { $gte: tenSecondsAgo }
+      });
+      if (potentialDuplicate) {
+        return NextResponse.json({ message: "Duplicate check-in detected. Please wait a moment." }, { status: 409 });
+      }
     }
 
     const stayRooms = [];
@@ -161,16 +168,28 @@ export async function POST(req) {
     const expectedCO = new Date(expectedCheckOutDate);
     expectedCO.setHours(coHours || 12, coMinutes || 0, 0, 0);
 
-    // Create Stay record
-    const stay = await Stay.create({
-      stayNo,
-      customer,
-      rooms: stayRooms,
-      checkInDate: new Date(),
-      expectedCheckOutDate: expectedCO,
-      status: "In House",
-      notes: notes || ""
-    });
+    let stay;
+    try {
+      // Create Stay record
+      stay = await Stay.create({
+        stayNo,
+        customer,
+        rooms: stayRooms,
+        checkInDate: new Date(),
+        expectedCheckOutDate: expectedCO,
+        status: "In House",
+        notes: notes || "",
+        idempotencyKey
+      });
+    } catch (saveError) {
+      if (saveError.code === 11000 && idempotencyKey) {
+        const existing = await Stay.findOne({ idempotencyKey }).populate("customer").populate("rooms.room");
+        if (existing) {
+          return NextResponse.json(existing, { status: 201 });
+        }
+      }
+      throw saveError;
+    }
 
     // Update Room statuses to Occupied
     for (const r of roomsToUpdate) {

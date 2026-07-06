@@ -14,6 +14,7 @@ export async function POST(req) {
   try {
     await connectToDatabase();
     const data = await req.json();
+    const idempotencyKey = data.idempotencyKey;
 
     // Map orderType to schema enums case-insensitively
     if (data.orderType) {
@@ -32,17 +33,24 @@ export async function POST(req) {
       data.orderType = orderTypeMapping[key] || data.orderType;
     }
 
-    // Deduplication check: check if an invoice with the same table/room, orderType, and grandTotal was created in the last 10 seconds
-    const tenSecondsAgo = new Date(Date.now() - 10000);
-    const potentialDuplicate = await Invoice.findOne({
-      orderType: data.orderType,
-      tableNo: data.tableNo || null,
-      roomNo: data.roomNo || null,
-      grandTotal: data.grandTotal || data.totalAmount,
-      createdAt: { $gte: tenSecondsAgo }
-    });
-    if (potentialDuplicate) {
-      return NextResponse.json({ success: false, error: "Duplicate invoice submission detected. Please wait a moment." }, { status: 409 });
+    if (idempotencyKey) {
+      const existing = await Invoice.findOne({ idempotencyKey }).populate("createdBy", "name");
+      if (existing) {
+        return NextResponse.json({ success: true, data: existing, duplicated: true }, { status: 201 });
+      }
+    } else {
+      // Deduplication check: check if an invoice with the same table/room, orderType, and grandTotal was created in the last 10 seconds
+      const tenSecondsAgo = new Date(Date.now() - 10000);
+      const potentialDuplicate = await Invoice.findOne({
+        orderType: data.orderType,
+        tableNo: data.tableNo || null,
+        roomNo: data.roomNo || null,
+        grandTotal: data.grandTotal || data.totalAmount,
+        createdAt: { $gte: tenSecondsAgo }
+      });
+      if (potentialDuplicate) {
+        return NextResponse.json({ success: false, error: "Duplicate invoice submission detected. Please wait a moment." }, { status: 409 });
+      }
     }
 
     // Auto-generate invoiceNo if not provided
@@ -94,8 +102,19 @@ export async function POST(req) {
       data.tableName = data.tableNo;
     }
 
-    const newInvoice = new Invoice(data);
-    await newInvoice.save();
+    let newInvoice;
+    try {
+      newInvoice = new Invoice(data);
+      await newInvoice.save();
+    } catch (saveError) {
+      if (saveError.code === 11000 && idempotencyKey) {
+        const existing = await Invoice.findOne({ idempotencyKey }).populate("createdBy", "name");
+        if (existing) {
+          return NextResponse.json({ success: true, data: existing, duplicated: true }, { status: 201 });
+        }
+      }
+      throw saveError;
+    }
 
     // Sync with Stay Folio if Room Service and charged to Room Bill
     if (newInvoice.orderType === "Room Service" && newInvoice.paymentMethod === "Room Bill" && newInvoice.roomNo) {

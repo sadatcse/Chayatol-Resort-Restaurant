@@ -80,6 +80,15 @@ const ReservationSchema = Schema(
     },
     cancellationReason: {
       type: String
+    },
+    idempotencyKey: {
+      type: String,
+      default: null,
+      index: {
+        unique: true,
+        sparse: true,
+        partialFilterExpression: { idempotencyKey: { $type: "string" } }
+      }
     }
   },
   { timestamps: true }

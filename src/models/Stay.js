@@ -61,6 +61,15 @@ const StaySchema = Schema(
     },
     notes: {
       type: String
+    },
+    idempotencyKey: {
+      type: String,
+      default: null,
+      index: {
+        unique: true,
+        sparse: true,
+        partialFilterExpression: { idempotencyKey: { $type: "string" } }
+      }
     }
   },
   { timestamps: true }

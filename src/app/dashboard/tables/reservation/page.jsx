@@ -137,7 +137,10 @@ function TableReservationContent() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const handleAddOrEditReservation = async () => {
+        if (isLoading) return;
         // Validation
         if (!formData.tableName || !formData.startTime || !formData.endTime || !formData.customerName || !formData.customerPhone) {
             Swal.fire("Error", "Please fill in all required fields (Table, Start Time, End Time, Name, Phone).", "error");
@@ -211,6 +214,7 @@ function TableReservationContent() {
             Swal.fire("Restricted", "You do not have permission to delete table reservations.", "warning");
             return;
         }
+        if (isDeleting) return;
         Swal.fire({
             title: "Are you sure?",
             text: "You won't be able to revert this!",
@@ -221,6 +225,7 @@ function TableReservationContent() {
             confirmButtonText: "Yes, delete it!",
         }).then(async (result) => {
             if (result.isConfirmed) {
+                setIsDeleting(true);
                 try {
                     await axiosSecure.delete(`/tablereservation/${id}`);
                     fetchReservations();
@@ -228,6 +233,8 @@ function TableReservationContent() {
                 } catch (error) {
                     console.error("Error deleting reservation:", error);
                     Swal.fire("Error!", "Failed to delete reservation.", "error");
+                } finally {
+                    setIsDeleting(false);
                 }
             }
         });
@@ -600,10 +607,17 @@ function TableReservationContent() {
                             </button>
                             <button
                                 onClick={handleAddOrEditReservation}
-                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow"
+                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isLoading}
                             >
-                                {isLoading ? "Booking..." : "Book Reservation"}
+                                {isLoading ? (
+                                    <>
+                                        <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1.5"></span>
+                                        Booking...
+                                    </>
+                                ) : (
+                                    "Book Reservation"
+                                )}
                             </button>
                         </div>
                     </div>

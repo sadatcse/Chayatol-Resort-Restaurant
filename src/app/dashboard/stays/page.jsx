@@ -19,11 +19,13 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useStays from "@/hooks/useStays";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
 const StaysPage = () => {
+  const { canView, canAdd, canEdit, canDelete } = usePagePermission();
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
   const searchParams = useSearchParams();
@@ -504,6 +506,10 @@ const StaysPage = () => {
   };
 
   const handlePostFoodOrder = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to post charges.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!foodFormData.foodItem || !foodFormData.quantity) {
       Swal.fire("Error", "Please select food item and quantity.", "warning");
@@ -528,6 +534,10 @@ const StaysPage = () => {
   };
 
   const handlePostService = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to post charges.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!serviceFormData.serviceId) {
       Swal.fire("Error", "Please select a service.", "warning");
@@ -552,6 +562,10 @@ const StaysPage = () => {
   };
 
   const handlePostPayment = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to post payments.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!paymentFormData.paymentType || !paymentFormData.amount || isNaN(paymentFormData.amount) || Number(paymentFormData.amount) <= 0) {
       Swal.fire("Error", "Please fill in payment type and positive amount.", "warning");
@@ -578,6 +592,10 @@ const StaysPage = () => {
   };
 
   const handleExtendStay = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to extend stays.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!extendFormData.newCheckOutDate) {
       Swal.fire("Error", "Please select a check-out date.", "warning");
@@ -603,6 +621,10 @@ const StaysPage = () => {
   };
 
   const handleCheckoutGuest = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to perform checkouts.", "warning");
+      return;
+    }
     if (isPosting) return;
     // Checkout payload: final payment list
     const checkPaymentList = [];
@@ -643,6 +665,10 @@ const StaysPage = () => {
   };
 
   const handlePostDiscount = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to apply discounts.", "warning");
+      return;
+    }
     if (isPosting) return;
     if (!discountFormData.discountType || !discountFormData.value || isNaN(discountFormData.value) || Number(discountFormData.value) <= 0 || !discountFormData.applyTo) {
       Swal.fire("Error", "Please fill in discount type, positive value, and discount target.", "warning");
@@ -669,6 +695,10 @@ const StaysPage = () => {
 
   const handleDeleteStay = async (e, stay) => {
     e.stopPropagation(); // don't open folio panel
+    if (!canDelete) {
+      Swal.fire("Restricted", "You do not have permission to delete stay records.", "warning");
+      return;
+    }
     const result = await Swal.fire({
       title: "Delete Stay?",
       html: `<p>Are you sure you want to permanently delete stay <strong>${stay.stayNo}</strong> for <strong>${stay.customer?.fullName || "Guest"}</strong>?</p><p class="text-red-500 text-sm mt-2">This action cannot be undone.</p>`,
@@ -689,6 +719,17 @@ const StaysPage = () => {
       Swal.fire("Error", err.response?.data?.message || "Failed to delete stay.", "error");
     }
   };
+
+  if (!canView) {
+    return (
+      <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal flex items-center justify-center">
+        <div className="text-center bg-white dark:bg-brand-charcoal p-8 rounded-2xl border border-brand-beige dark:border-brand-beige/20 shadow-md max-w-md w-full">
+          <h2 className="text-xl font-extrabold uppercase tracking-widest text-red-500 mb-2">Access Denied</h2>
+          <p className="text-sm text-brand-sage font-semibold">You do not have permission to view the stay & folio ledger directory.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
@@ -782,12 +823,14 @@ const StaysPage = () => {
                   Extended: {extendedCount}
                 </span>
               </div>
-              <ExportButtons
-                onExportExcel={handleExportExcel}
-                onExportCsv={handleExportCsv}
-                onPrint={handlePrintReport}
-                isLoading={isExporting}
-              />
+              {canEdit && (
+                <ExportButtons
+                  onExportExcel={handleExportExcel}
+                  onExportCsv={handleExportCsv}
+                  onPrint={handlePrintReport}
+                  isLoading={isExporting}
+                />
+              )}
             </div>
             {isLoading ? (
               <div className="p-6">
@@ -852,13 +895,15 @@ const StaysPage = () => {
                                 >
                                   <FiEye size={16} />
                                 </button>
-                                <button
-                                  onClick={(e) => handleDeleteStay(e, stay)}
-                                  title="Delete Stay"
-                                  className="btn btn-ghost btn-circle btn-xs text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                >
-                                  <FiTrash2 size={15} />
-                                </button>
+                                {canDelete && (
+                                  <button
+                                    onClick={(e) => handleDeleteStay(e, stay)}
+                                    title="Delete Stay"
+                                    className="btn btn-ghost btn-circle btn-xs text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  >
+                                    <FiTrash2 size={15} />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -896,12 +941,14 @@ const StaysPage = () => {
                   <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest font-mono">Guest Stay: {selectedStay.stayNo}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <ExportButtons
-                    onExportExcel={handleExportFolioExcel}
-                    onExportCsv={handleExportFolioCsv}
-                    onPrint={() => setFolioPrintRes(selectedStay)}
-                    isLoading={false}
-                  />
+                  {canEdit && (
+                    <ExportButtons
+                      onExportExcel={handleExportFolioExcel}
+                      onExportCsv={handleExportFolioCsv}
+                      onPrint={() => setFolioPrintRes(selectedStay)}
+                      isLoading={false}
+                    />
+                  )}
                   <button
                     onClick={() => handlePrintFoodServiceSummary(selectedStay)}
                     className="btn btn-xs bg-brand-primary hover:bg-brand-secondary text-white border-none rounded px-3 h-7 flex items-center gap-1 shadow-sm uppercase tracking-widest font-bold text-[9px] cursor-pointer"
@@ -997,27 +1044,39 @@ const StaysPage = () => {
               {/* Folio postings & Action buttons */}
               {selectedStay.status !== "Checked Out" && (
                 <div className="grid grid-cols-2 gap-3 pt-2">
-                  <button onClick={() => setIsFoodModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
-                    <MdRestaurant /> Post Food
-                  </button>
-                  <button onClick={() => setIsServiceModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
-                    <FiBriefcase /> Post Service
-                  </button>
-                  <button onClick={() => setIsPaymentModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
-                    <FiDollarSign /> Post Payment
-                  </button>
-                  <button onClick={() => setIsDiscountModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
-                    <span>৳</span> Post Discount
-                  </button>
-                  <button onClick={() => setIsExtendModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 col-span-2">
-                    <FiClock /> Extend Stay
-                  </button>
-                  <button onClick={() => {
-                    setCheckoutPayment({ paymentType: "", amount: outstandingDue > 0 ? outstandingDue : "", transactionRef: "" });
-                    setIsCheckoutModalOpen(true);
-                  }} className="btn btn-sm bg-brand-primary text-white border-none w-full col-span-2 rounded-full cursor-pointer mt-2 font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow">
-                    Checkout Guest <FiArrowRight />
-                  </button>
+                  {canEdit && (
+                    <button onClick={() => setIsFoodModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                      <MdRestaurant /> Post Food
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => setIsServiceModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                      <FiBriefcase /> Post Service
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => setIsPaymentModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                      <FiDollarSign /> Post Payment
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => setIsDiscountModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                      <span>৳</span> Post Discount
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => setIsExtendModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2 col-span-2">
+                      <FiClock /> Extend Stay
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => {
+                      setCheckoutPayment({ paymentType: "", amount: outstandingDue > 0 ? outstandingDue : "", transactionRef: "" });
+                      setIsCheckoutModalOpen(true);
+                    }} className="btn btn-sm bg-brand-primary text-white border-none w-full col-span-2 rounded-full cursor-pointer mt-2 font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow">
+                      Checkout Guest <FiArrowRight />
+                    </button>
+                  )}
                 </div>
               )}
             </motion.div>
@@ -1077,8 +1136,15 @@ const StaysPage = () => {
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => { setIsFoodModalOpen(false); setSelectedFoodCategory(""); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handlePostFoodOrder} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
-                  {isPosting ? "Posting..." : "Post Charge"}
+                <button onClick={handlePostFoodOrder} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isPosting ? (
+                    <>
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1.5 animate-pulse"></span>
+                      Posting...
+                    </>
+                  ) : (
+                    "Post Charge"
+                  )}
                 </button>
               </div>
             </div>
@@ -1128,8 +1194,15 @@ const StaysPage = () => {
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => { setIsServiceModalOpen(false); setSelectedServiceCategory(""); }} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handlePostService} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
-                  {isPosting ? "Posting..." : "Post Charge"}
+                <button onClick={handlePostService} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isPosting ? (
+                    <>
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1.5 animate-pulse"></span>
+                      Posting...
+                    </>
+                  ) : (
+                    "Post Charge"
+                  )}
                 </button>
               </div>
             </div>
@@ -1190,8 +1263,15 @@ const StaysPage = () => {
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsPaymentModalOpen(false)} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handlePostPayment} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
-                  {isPosting ? "Posting..." : "Post Credit"}
+                <button onClick={handlePostPayment} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isPosting ? (
+                    <>
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1.5 animate-pulse"></span>
+                      Posting...
+                    </>
+                  ) : (
+                    "Post Credit"
+                  )}
                 </button>
               </div>
             </div>
@@ -1218,8 +1298,15 @@ const StaysPage = () => {
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsExtendModalOpen(false)} className="btn btn-ghost btn-xs h-9 uppercase font-bold tracking-widest rounded-lg">Cancel</button>
-                <button onClick={handleExtendStay} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50">
-                  {isPosting ? "Extending..." : "Extend Date"}
+                <button onClick={handleExtendStay} disabled={isPosting} className="btn bg-brand-primary text-white border-none btn-xs h-9 uppercase font-bold tracking-widest rounded-lg px-6 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isPosting ? (
+                    <>
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1.5 animate-pulse"></span>
+                      Extending...
+                    </>
+                  ) : (
+                    "Extend Date"
+                  )}
                 </button>
               </div>
             </div>
@@ -1315,8 +1402,15 @@ const StaysPage = () => {
 
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsCheckoutModalOpen(false)} className="btn btn-ghost hover:bg-brand-beige text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
-                <button onClick={handleCheckoutGuest} disabled={isPosting} className="btn bg-green-600 hover:bg-green-700 text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md disabled:opacity-50">
-                  {isPosting ? "Checking out..." : "Confirm Checkout"}
+                <button onClick={handleCheckoutGuest} disabled={isPosting} className="btn bg-green-600 hover:bg-green-700 text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isPosting ? (
+                    <>
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1.5 animate-pulse"></span>
+                      Checking out...
+                    </>
+                  ) : (
+                    "Confirm Checkout"
+                  )}
                 </button>
               </div>
             </div>
@@ -1377,8 +1471,15 @@ const StaysPage = () => {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setIsDiscountModalOpen(false)} className="btn btn-xs btn-ghost uppercase font-bold text-[10px]">Cancel</button>
-                <button onClick={handlePostDiscount} disabled={isPosting} className="btn btn-xs bg-brand-primary text-white border-none rounded uppercase tracking-wider font-bold text-[10px] px-4 disabled:opacity-50">
-                  {isPosting ? "Applying..." : "Apply Discount"}
+                <button onClick={handlePostDiscount} disabled={isPosting} className="btn btn-xs bg-brand-primary text-white border-none rounded uppercase tracking-wider font-bold text-[10px] px-4 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isPosting ? (
+                    <>
+                      <span className="animate-spin inline-block w-2 h-2 border-2 border-current border-t-transparent rounded-full mr-1 animate-pulse"></span>
+                      Applying...
+                    </>
+                  ) : (
+                    "Apply Discount"
+                  )}
                 </button>
               </div>
             </div>

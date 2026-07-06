@@ -16,6 +16,7 @@ import useStocks from "@/hooks/useStocks";
 import useIngredientCategories from "@/hooks/useIngredientCategories";
 import { AuthContext } from "@/providers/AuthProvider";
 import ExportButtons from "@/components/Comon/ExportButtons";
+import usePagePermission from "@/hooks/usePagePermission";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
@@ -172,6 +173,7 @@ const UpdateStockAlertModal = ({ stock, onClose, onSuccess, axiosSecure }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (newAlert === "" || isNaN(newAlert) || Number(newAlert) < 0) {
       Swal.fire({ title: "Validation Error", text: "Alert quantity must be a non-negative number.", icon: "warning", confirmButtonColor: "#346E36" });
       return;
@@ -239,6 +241,7 @@ const UpdateStockAdjustmentModal = ({ stock, onClose, onSuccess, axiosSecure }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (physicalQuantity == null || physicalQuantity === "" || isNaN(physicalQuantity) || Number(physicalQuantity) < 0) {
       Swal.fire({ title: "Validation Error", text: "Physical quantity must be a non-negative number.", icon: "warning", confirmButtonColor: "#346E36" });
       return;
@@ -366,6 +369,7 @@ const BulkStockAdjustmentModal = ({ isOpen, onClose, onSuccess, ingredients, cat
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (items.length === 0) {
       return Swal.fire({ title: "Validation Error", text: "Please add at least one item to the adjustment sheet.", icon: "warning", confirmButtonColor: "#346E36" });
     }
@@ -503,6 +507,7 @@ const BulkStockAdjustmentModal = ({ isOpen, onClose, onSuccess, ingredients, cat
 const StocksPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canEdit } = usePagePermission();
 
   const { categories: activeCategories } = useIngredientCategories(1, 100, "");
 
@@ -650,7 +655,7 @@ const StocksPage = () => {
     setIsAdjustmentOpen(true);
   };
 
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const canPerformAction = canEdit;
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
@@ -739,12 +744,14 @@ const StocksPage = () => {
         </div>
 
         <div className="flex flex-wrap gap-3 items-center">
-          <ExportButtons
-            onExportExcel={handleExportExcel}
-            onExportCsv={handleExportCsv}
-            onPrint={handlePrintReport}
-            isLoading={isExporting}
-          />
+          {canEdit && (
+            <ExportButtons
+              onExportExcel={handleExportExcel}
+              onExportCsv={handleExportCsv}
+              onPrint={handlePrintReport}
+              isLoading={isExporting}
+            />
+          )}
           {canPerformAction && (
             <button
               onClick={() => setIsBulkAdjustOpen(true)}

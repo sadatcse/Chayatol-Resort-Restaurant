@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useContext, useRef, useMemo, useCallback, Suspense } from 'react';
 import { AuthContext } from '@/providers/AuthProvider';
 import useAxiosSecure from '@/hooks/useAxiosSecure';
+import usePagePermission from '@/hooks/usePagePermission';
 import { 
     IoRestaurant, IoTimeOutline, IoVolumeMuteOutline, 
     IoVolumeHighOutline, IoBeerOutline 
@@ -86,7 +87,7 @@ const playChime = () => {
 };
 
 // Batch Item Row Component
-const ProductBatchRow = ({ batch, isDrink, onStatusChange }) => {
+const ProductBatchRow = ({ batch, isDrink, onStatusChange, isUpdating }) => {
     const getStatusStyle = (status) => {
         switch (status?.toUpperCase()) {
             case 'PENDING': 
@@ -119,18 +120,28 @@ const ProductBatchRow = ({ batch, isDrink, onStatusChange }) => {
             <div className="flex items-center gap-1">
                 {batch.cookStatus?.toUpperCase() === 'PENDING' && (
                     <button 
-                        onClick={() => onStatusChange(batch._id, 'COOKING')}
-                        className="btn btn-xs bg-yellow-500 hover:bg-yellow-600 border-none text-yellow-950 cursor-pointer px-2 py-1 flex items-center gap-1 font-bold"
+                        onClick={() => !isUpdating && onStatusChange(batch._id, 'COOKING')}
+                        disabled={isUpdating}
+                        className="btn btn-xs bg-yellow-500 hover:bg-yellow-600 border-none text-yellow-950 cursor-pointer px-2 py-1 flex items-center gap-1 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <FaFire size={10} /> Cook
+                        {isUpdating ? (
+                            <span className="animate-spin inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full"></span>
+                        ) : (
+                            <><FaFire size={10} /> Cook</>
+                        )}
                     </button>
                 )}
                 {batch.cookStatus?.toUpperCase() === 'COOKING' && (
                     <button 
-                        onClick={() => onStatusChange(batch._id, 'SERVED')}
-                        className="btn btn-xs bg-brand-primary hover:bg-brand-secondary border-none text-white cursor-pointer px-2 py-1 flex items-center gap-1 font-bold"
+                        onClick={() => !isUpdating && onStatusChange(batch._id, 'SERVED')}
+                        disabled={isUpdating}
+                        className="btn btn-xs bg-brand-primary hover:bg-brand-secondary border-none text-white cursor-pointer px-2 py-1 flex items-center gap-1 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <FaUtensils size={10} /> Serve
+                        {isUpdating ? (
+                            <span className="animate-spin inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full"></span>
+                        ) : (
+                            <><FaUtensils size={10} /> Serve</>
+                        )}
                     </button>
                 )}
                 {batch.cookStatus?.toUpperCase() === 'SERVED' && (
@@ -142,7 +153,7 @@ const ProductBatchRow = ({ batch, isDrink, onStatusChange }) => {
 };
 
 // Parent Product container
-const ProductItem = ({ product, onUpdateHistory }) => {
+const ProductItem = ({ product, onUpdateHistory, isUpdating }) => {
     const batches = useMemo(() => {
         if (!product.history || product.history.length === 0) {
             return [{
@@ -187,6 +198,7 @@ const ProductItem = ({ product, onUpdateHistory }) => {
                         batch={{...batch, qty: batch.batchQty || batch.qty}}
                         isDrink={isDrink}
                         onStatusChange={(historyId, status) => onUpdateHistory(product._id, historyId, status)}
+                        isUpdating={isUpdating}
                     />
                 ))}
             </div>
@@ -195,7 +207,7 @@ const ProductItem = ({ product, onUpdateHistory }) => {
 };
 
 // Order Card Component
-const OrderCard = ({ order, selectedKitchen, onUpdate }) => {
+const OrderCard = ({ order, selectedKitchen, onUpdate, isUpdating }) => {
     const timeAgo = useTimeAgo(order.dateTime || order.createdAt);
 
     const getOrderTypeDetails = (type) => {
@@ -317,6 +329,7 @@ const OrderCard = ({ order, selectedKitchen, onUpdate }) => {
                             key={product._id} 
                             product={product} 
                             onUpdateHistory={handleHistoryUpdate} 
+                            isUpdating={isUpdating}
                         />
                     ))}
                 </ul>
@@ -325,14 +338,23 @@ const OrderCard = ({ order, selectedKitchen, onUpdate }) => {
             <div className="p-3 border-t border-brand-beige/25 dark:border-brand-beige/10 bg-brand-offwhite/50 dark:bg-brand-charcoal">
                 <button 
                     className={`w-full py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors border-none
-                        ${hasPending 
+                        ${(hasPending && !isUpdating)
                             ? 'bg-brand-primary hover:bg-brand-secondary text-white' 
                             : 'bg-brand-beige/25 text-brand-sage/50 cursor-not-allowed shadow-none'}`}
-                    onClick={hasPending ? handleCookAllPending : undefined}
-                    disabled={!hasPending}
+                    onClick={(hasPending && !isUpdating) ? handleCookAllPending : undefined}
+                    disabled={!hasPending || isUpdating}
                 >
-                    <FaFire className={hasPending ? "text-yellow-400 animate-pulse" : ""} /> 
-                    {hasPending ? "Cook All New Items" : "All Items Processing"}
+                    {isUpdating ? (
+                        <>
+                            <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></span>
+                            Updating...
+                        </>
+                    ) : (
+                        <>
+                            <FaFire className={hasPending ? "text-yellow-400 animate-pulse" : ""} /> 
+                            {hasPending ? "Cook All New Items" : "All Items Processing"}
+                        </>
+                    )}
                 </button>
             </div>
         </div>
@@ -342,6 +364,7 @@ const OrderCard = ({ order, selectedKitchen, onUpdate }) => {
 // Main Kitchen Display Page
 function KitchenDisplayContent() {
     const axiosSecure = useAxiosSecure();
+    const { canEdit } = usePagePermission();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isAlertEnabled, setIsAlertEnabled] = useState(true);
@@ -350,6 +373,7 @@ function KitchenDisplayContent() {
     // Outlets state
     const [kitchens, setKitchens] = useState([]);
     const [selectedKitchen, setSelectedKitchen] = useState("All");
+    const [inFlightUpdates, setInFlightUpdates] = useState(new Set());
 
     // Filter states
     const [dateFilter, setDateFilter] = useState("all");
@@ -473,6 +497,18 @@ function KitchenDisplayContent() {
     }, [fetchOrders]);
 
     const handleUpdateOrder = async (updatedOrder) => {
+        if (!canEdit) {
+            toast.error("You do not have permission to modify order status.");
+            fetchOrders();
+            return;
+        }
+        if (inFlightUpdates.has(updatedOrder._id)) return;
+        setInFlightUpdates(prev => {
+            const next = new Set(prev);
+            next.add(updatedOrder._id);
+            return next;
+        });
+
         // Optimistic UI update
         setOrders(prev => 
             prev.map(o => o._id === updatedOrder._id ? updatedOrder : o)
@@ -489,6 +525,13 @@ function KitchenDisplayContent() {
         } catch (err) {
             console.error("Failed to sync status update to server:", err);
             toast.error("Failed to update status on server.");
+            fetchOrders();
+        } finally {
+            setInFlightUpdates(prev => {
+                const next = new Set(prev);
+                next.delete(updatedOrder._id);
+                return next;
+            });
         }
     };
 
@@ -627,6 +670,7 @@ function KitchenDisplayContent() {
                                     order={order} 
                                     selectedKitchen={selectedKitchen} 
                                     onUpdate={handleUpdateOrder} 
+                                    isUpdating={inFlightUpdates.has(order._id)}
                                 />
                             );
                         })}

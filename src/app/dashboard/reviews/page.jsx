@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiFilter, FiSearch, FiEye, FiTrash2, FiX, FiRefreshCw } from 'react-icons/fi';
 import { FaStar, FaRegStar } from 'react-icons/fa';
 import useAxiosSecure from '@/hooks/useAxiosSecure';
+import usePagePermission from "@/hooks/usePagePermission";
 import { AuthContext } from '@/providers/AuthProvider';
 import MtableLoading from '@/components/Comon/MtableLoading';
 
@@ -24,10 +25,11 @@ const StarRating = ({ rating }) => {
 function ViewReviewContent() {
     const axiosSecure = useAxiosSecure();
     const { user } = useContext(AuthContext);
-    const isAdmin = user?.role === 'admin';
+    const { canDelete } = usePagePermission();
 
     const [reviews, setReviews] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -101,6 +103,11 @@ function ViewReviewContent() {
     };
 
     const handleDeleteReview = (reviewId) => {
+        if (!canDelete) {
+            Swal.fire("Restricted", "You do not have permission to delete reviews.", "warning");
+            return;
+        }
+        if (isDeleting) return;
         Swal.fire({
             title: 'Are you sure?',
             text: "You won't be able to revert this!",
@@ -112,6 +119,7 @@ function ViewReviewContent() {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
+                    setIsDeleting(true);
                     const response = await axiosSecure.delete(`/review/${reviewId}`);
                     if (response.data?.success || response.status === 200) {
                         Swal.fire('Deleted!', 'The review has been deleted.', 'success');
@@ -120,6 +128,8 @@ function ViewReviewContent() {
                 } catch (error) {
                     console.error("Error deleting review:", error);
                     Swal.fire('Error!', 'Failed to delete the review.', 'error');
+                } finally {
+                    setIsDeleting(false);
                 }
             }
         });
@@ -268,7 +278,7 @@ function ViewReviewContent() {
                                                         >
                                                             <FiEye /> View
                                                         </button>
-                                                        {isAdmin && (
+                                                        {canDelete && (
                                                             <button
                                                                 onClick={() => handleDeleteReview(review._id)}
                                                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-150 hover:bg-red-200 text-red-700 dark:bg-red-950 dark:text-red-300 rounded-md font-bold cursor-pointer"

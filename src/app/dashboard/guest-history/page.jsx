@@ -11,6 +11,7 @@ import useStandardPrint from "@/hooks/useStandardPrint";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const getInvoiceSummary = (entries) => {
     let roomTotal = 0;
@@ -53,6 +54,7 @@ const getInvoiceSummary = (entries) => {
 };
 
 function GuestHistoryContent() {
+    const { canView, canAdd, canEdit, canDelete } = usePagePermission();
     const axiosSecure = useAxiosSecure();
 
     // States
@@ -351,6 +353,17 @@ function GuestHistoryContent() {
     const totalDebit = useMemo(() => folioEntries.reduce((acc, e) => acc + e.debit, 0), [folioEntries]);
     const totalCredit = useMemo(() => folioEntries.reduce((acc, e) => acc + e.credit, 0), [folioEntries]);
 
+    if (!canView) {
+        return (
+            <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal flex items-center justify-center">
+                <div className="text-center bg-white dark:bg-brand-charcoal p-8 rounded-2xl border border-brand-beige dark:border-brand-beige/25 shadow-md max-w-md w-full">
+                    <h2 className="text-xl font-extrabold uppercase tracking-widest text-red-500 mb-2">Access Denied</h2>
+                    <p className="text-sm text-brand-sage font-semibold">You do not have permission to view the guest stay history log directory.</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
             <div className="max-w-7xl mx-auto">
@@ -446,12 +459,14 @@ function GuestHistoryContent() {
                             </select>
                         </div>
 
-                        <ExportButtons
-                            onExportExcel={handleExportExcel}
-                            onExportCsv={handleExportCsv}
-                            onPrint={handlePrintReport}
-                            isLoading={isExporting}
-                        />
+                        {canEdit && (
+                            <ExportButtons
+                                onExportExcel={handleExportExcel}
+                                onExportCsv={handleExportCsv}
+                                onPrint={handlePrintReport}
+                                isLoading={isExporting}
+                            />
+                        )}
                     </div>
                 </motion.div>
 

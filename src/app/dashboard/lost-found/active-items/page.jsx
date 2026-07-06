@@ -99,11 +99,14 @@ export default function ActiveItemsPage() {
     },
   });
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDelete = (id) => {
     if (!canDelete) {
       toast.error("You do not have permission to delete found items.");
       return;
     }
+    if (isDeleting) return;
     Swal.fire({
       title: "Are you sure?",
       text: "This will delete the item record permanently.",
@@ -114,7 +117,10 @@ export default function ActiveItemsPage() {
       confirmButtonText: "Yes, delete it!",
     }).then((result) => {
       if (result.isConfirmed) {
-        deleteMutation.mutate(id);
+        setIsDeleting(true);
+        deleteMutation.mutate(id, {
+          onSettled: () => setIsDeleting(false)
+        });
       }
     });
   };
@@ -467,10 +473,17 @@ export default function ActiveItemsPage() {
                         </div>
                         <button
                           type="submit"
-                          disabled={!canEdit}
-                          className="btn btn-sm btn-primary bg-brand-primary w-full rounded-lg text-white font-semibold cursor-pointer disabled:opacity-50"
+                          disabled={!canEdit || assignStorageMutation.isPending}
+                          className="btn btn-sm btn-primary bg-brand-primary w-full rounded-lg text-white font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                         >
-                          Assign & Mark Stored
+                          {assignStorageMutation.isPending ? (
+                            <>
+                              <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                              Assigning...
+                            </>
+                          ) : (
+                            "Assign & Mark Stored"
+                          )}
                         </button>
                       </form>
                     </div>

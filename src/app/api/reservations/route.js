@@ -148,21 +148,28 @@ export async function POST(req) {
   try {
     await dbConnect();
     const body = await req.json();
-    const { checkInDate, checkOutDate, customer, bookingSource, rooms, status, notes } = body;
+    const { checkInDate, checkOutDate, customer, bookingSource, rooms, status, notes, idempotencyKey } = body;
 
     if (!checkInDate || !checkOutDate || !customer || !rooms || rooms.length === 0) {
       return NextResponse.json({ message: "Please provide check-in date, check-out date, customer and room details" }, { status: 400 });
     }
 
-    // Deduplication check: check if a reservation for the same customer with the same check-in date was created in the last 10 seconds
-    const tenSecondsAgo = new Date(Date.now() - 10000);
-    const potentialDuplicate = await Reservation.findOne({
-      customer,
-      checkInDate: new Date(checkInDate),
-      createdAt: { $gte: tenSecondsAgo }
-    });
-    if (potentialDuplicate) {
-      return NextResponse.json({ message: "Duplicate reservation detected. Please wait a moment." }, { status: 409 });
+    if (idempotencyKey) {
+      const existing = await Reservation.findOne({ idempotencyKey }).populate("customer");
+      if (existing) {
+        return NextResponse.json(existing, { status: 201 });
+      }
+    } else {
+      // Deduplication check: check if a reservation for the same customer with the same check-in date was created in the last 10 seconds
+      const tenSecondsAgo = new Date(Date.now() - 10000);
+      const potentialDuplicate = await Reservation.findOne({
+        customer,
+        checkInDate: new Date(checkInDate),
+        createdAt: { $gte: tenSecondsAgo }
+      });
+      if (potentialDuplicate) {
+        return NextResponse.json({ message: "Duplicate reservation detected. Please wait a moment." }, { status: 409 });
+      }
     }
 
     if (new Date(checkInDate) >= new Date(checkOutDate)) {
@@ -198,16 +205,28 @@ export async function POST(req) {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const reservationNo = `RES-${dateStr}-${(count + 1).toString().padStart(4, "0")}`;
 
-    const reservation = await Reservation.create({
-      reservationNo,
-      checkInDate: new Date(checkInDate),
-      checkOutDate: new Date(checkOutDate),
-      customer,
-      bookingSource: bookingSource || "Walk-in",
-      status: status || "Draft",
-      rooms,
-      notes: notes || ""
-    });
+    let reservation;
+    try {
+      reservation = await Reservation.create({
+        reservationNo,
+        checkInDate: new Date(checkInDate),
+        checkOutDate: new Date(checkOutDate),
+        customer,
+        bookingSource: bookingSource || "Walk-in",
+        status: status || "Draft",
+        rooms,
+        notes: notes || "",
+        idempotencyKey
+      });
+    } catch (saveError) {
+      if (saveError.code === 11000 && idempotencyKey) {
+        const existing = await Reservation.findOne({ idempotencyKey }).populate("customer");
+        if (existing) {
+          return NextResponse.json(existing, { status: 201 });
+        }
+      }
+      throw saveError;
+    }
 
     await logTransaction({
       req,

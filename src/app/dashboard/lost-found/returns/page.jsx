@@ -81,6 +81,7 @@ export default function ReturnManagementPage() {
       toast.error("You do not have permission to process returns.");
       return;
     }
+    if (processReturnMutation.isPending) return;
     if (!customerSignature) {
       return toast.warning("Customer signature is required!");
     }
@@ -284,9 +285,16 @@ export default function ReturnManagementPage() {
                   type="button"
                   onClick={handleCompleteReturn}
                   disabled={processReturnMutation.isPending || !customerSignature || !staffSignature}
-                  className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl px-5"
+                  className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl px-5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
-                  Complete Handover
+                  {processReturnMutation.isPending ? (
+                    <>
+                      <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                      Completing...
+                    </>
+                  ) : (
+                    "Complete Handover"
+                  )}
                 </button>
               </div>
             </div>

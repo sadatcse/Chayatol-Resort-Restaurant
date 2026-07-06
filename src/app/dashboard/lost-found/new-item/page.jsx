@@ -128,6 +128,7 @@ export default function NewItemEntryPage() {
       toast.error("You do not have permission to add new items.");
       return;
     }
+    if (createItemMutation.isPending) return;
     const payload = {
       ...formData,
       images,
@@ -472,9 +473,18 @@ export default function NewItemEntryPage() {
               <button
                 type="submit"
                 disabled={createItemMutation.isPending || !canAdd}
-                className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl flex-1 flex items-center gap-1.5 cursor-pointer shadow-md shadow-brand-primary/10"
+                className="btn btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl flex-1 flex items-center gap-1.5 cursor-pointer shadow-md shadow-brand-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <FiCheck size={16} /> Save Item
+                {createItemMutation.isPending ? (
+                  <>
+                    <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                    Saving Item...
+                  </>
+                ) : (
+                  <>
+                    <FiCheck size={16} /> Save Item
+                  </>
+                )}
               </button>
             </div>
           </div>

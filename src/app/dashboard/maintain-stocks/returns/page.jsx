@@ -17,6 +17,7 @@ import useDebounce from "@/hooks/useDebounce";
 import useReturns from "@/hooks/useReturns";
 import { AuthContext } from "@/providers/AuthProvider";
 import ExportButtons from "@/components/Comon/ExportButtons";
+import usePagePermission from "@/hooks/usePagePermission";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
@@ -29,6 +30,7 @@ const TYPE_LABELS = { return_kitchen: "Kitchen Return", return_room: "Room Retur
 const ReturnsPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit } = usePagePermission();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -318,6 +320,11 @@ const ReturnsPage = () => {
   const effectiveKitchen = formData.kitchenName === "Other" ? customKitchen : formData.kitchenName;
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    if (!canAdd) {
+      Swal.fire("Restricted", "You do not have permission to record returns.", "warning");
+      return;
+    }
     if (!formData.ingredientId) return Swal.fire({ title: "Validation Error", text: "Please select an ingredient.", icon: "warning", confirmButtonColor: "#346E36" });
     if (!formData.quantity || Number(formData.quantity) <= 0) return Swal.fire({ title: "Validation Error", text: "Quantity must be greater than zero.", icon: "warning", confirmButtonColor: "#346E36" });
     if (formData.returnType === "return_kitchen" && !effectiveKitchen?.trim()) return Swal.fire({ title: "Validation Error", text: "Kitchen name is required.", icon: "warning", confirmButtonColor: "#346E36" });
@@ -342,7 +349,7 @@ const ReturnsPage = () => {
     } finally { setIsSubmitting(false); }
   };
 
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const canPerformAction = canAdd;
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
@@ -385,12 +392,14 @@ const ReturnsPage = () => {
           <span className="ml-4">Total Records: {totalItems}</span>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
-          <ExportButtons
-            onExportExcel={handleExportExcel}
-            onExportCsv={handleExportCsv}
-            onPrint={handlePrintReport}
-            isLoading={isExporting}
-          />
+          {canEdit && (
+            <ExportButtons
+              onExportExcel={handleExportExcel}
+              onExportCsv={handleExportCsv}
+              onPrint={handlePrintReport}
+              isLoading={isExporting}
+            />
+          )}
           {canPerformAction && (
             <button onClick={openModal} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
               <MdUndo className="text-lg" />

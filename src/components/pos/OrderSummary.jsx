@@ -11,7 +11,7 @@ import { FaCcVisa, FaCcAmex } from "react-icons/fa6";
 import { RiMastercardFill } from "react-icons/ri";
 
 const OrderSummary = ({
-    user, customDateTime, setCustomDateTime,
+    user, canAdd, canEdit, isEditing, customDateTime, setCustomDateTime,
     customer, mobile, setMobile, handleCustomerSearch,
     orderType, handleOrderTypeChange, TableName, roomNo, setRoomNo, deliveryProvider,
     addedProducts, incrementQuantity, decrementQuantity, removeProduct,
@@ -80,6 +80,16 @@ const OrderSummary = ({
     };
 
     const handleFinalizeOrder = (actionCallback, withPrint) => {
+        const hasPermission = isEditing ? canEdit : canAdd;
+        if (!hasPermission) {
+            Swal.fire({
+                icon: "error",
+                title: "Restricted Action",
+                text: `You do not have permission to ${isEditing ? "edit" : "create"} restaurant orders.`,
+                confirmButtonColor: "#8C5A35"
+            });
+            return;
+        }
         if (!validateOrder()) {
             return;
         }
@@ -356,24 +366,45 @@ const OrderSummary = ({
                         <div className="grid grid-cols-2 gap-3 mt-4">
                             <button
                                 onClick={() => handleFinalizeOrder((p) => printInvoice(p), false)}
-                                className="bg-[#346E36] hover:bg-[#346E36]/90 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
+                                className="bg-[#346E36] hover:bg-[#346E36]/90 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isProcessing}
                             >
-                                <FaSave /> Save Due
+                                {isProcessing ? (
+                                    <>
+                                        <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></span>
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <><FaSave /> Save Due</>
+                                )}
                             </button>
                             <button
                                 onClick={() => handleFinalizeOrder((p) => printInvoice(p), true)}
-                                className="bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
+                                className="bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isProcessing}
                             >
-                                <FaPrint /> Pay & Print
+                                {isProcessing ? (
+                                    <>
+                                        <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></span>
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <><FaPrint /> Pay & Print</>
+                                )}
                             </button>
                             <button
                                 onClick={() => handleFinalizeOrder(handleKitchenClick)}
-                                className="col-span-2 bg-[#1e293b] hover:bg-[#1e293b]/90 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
+                                className="col-span-2 bg-[#1e293b] hover:bg-[#1e293b]/90 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isProcessing}
                             >
-                                <FaUtensils /> Send to Kitchen (KOT)
+                                {isProcessing ? (
+                                    <>
+                                        <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></span>
+                                        Processing KOT...
+                                    </>
+                                ) : (
+                                    <><FaUtensils /> Send to Kitchen (KOT)</>
+                                )}
                             </button>
                             <button
                                 onClick={resetOrder}

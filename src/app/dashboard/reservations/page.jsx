@@ -12,6 +12,7 @@ import Pagination from "@/components/Comon/Pagination";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
+import usePagePermission from "@/hooks/usePagePermission";
 import useReservations from "@/hooks/useReservations";
 import { AuthContext } from "@/providers/AuthProvider";
 import CustomerModal from "@/components/CustomerModal";
@@ -23,6 +24,7 @@ import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 const ReservationsPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
   const searchParams = useSearchParams();
   const reservationId = searchParams.get("reservationId");
 
@@ -265,6 +267,14 @@ const ReservationsPage = () => {
   const [editId, setEditId] = useState(null);
   const [originalCheckInDate, setOriginalCheckInDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState("");
+  const generateIdempotencyKey = () => {
+    return "res-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
+  };
+
+  useEffect(() => {
+    setIdempotencyKey(generateIdempotencyKey());
+  }, []);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -372,6 +382,7 @@ const ReservationsPage = () => {
   }, []);
 
   const openFormModal = (res = null) => {
+    setIdempotencyKey(generateIdempotencyKey());
     if (res) {
       const checkInStr = res.checkInDate ? res.checkInDate.split("T")[0] : "";
       setEditId(res._id);
@@ -438,6 +449,7 @@ const ReservationsPage = () => {
     setSelectedCust(null);
     setPhoneSearch("");
     setCustSearchResults([]);
+    setIdempotencyKey(generateIdempotencyKey());
   };
 
   const handleAddRoomRow = () => {
@@ -510,6 +522,11 @@ const ReservationsPage = () => {
   };
 
   const handleSaveReservation = async () => {
+    if (isSubmitting) return;
+    if (editId ? !canEdit : !canAdd) {
+      Swal.fire("Restricted", `You do not have permission to ${editId ? "edit" : "add"} reservations.`, "warning");
+      return;
+    }
     if (!formData.customer) {
       Swal.fire("Validation Error", "Please select a customer.", "warning");
       return;
@@ -574,7 +591,10 @@ const ReservationsPage = () => {
         closeFormModal();
         Swal.fire("Success", "Reservation successfully updated.", "success");
       } else {
-        const { data: newRes } = await axiosSecure.post("/reservations", payload);
+        const { data: newRes } = await axiosSecure.post("/reservations", {
+          ...payload,
+          idempotencyKey
+        });
         await refetch();
         closeFormModal();
         
@@ -602,6 +622,10 @@ const ReservationsPage = () => {
   };
 
   const handleCancelReservation = async (res) => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to cancel reservations.", "warning");
+      return;
+    }
     const totalCost = res.rooms.reduce((acc, r) => acc + (r.nightlyRate * r.nights), 0);
 
     const { value: formValues } = await Swal.fire({
@@ -650,6 +674,10 @@ const ReservationsPage = () => {
   };
 
   const handleQuickRefund = async (res, refundAmt) => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to process refunds.", "warning");
+      return;
+    }
     const { value: formValues } = await Swal.fire({
       title: 'Process Refund Payout',
       html: `
@@ -722,6 +750,10 @@ const ReservationsPage = () => {
   };
 
   const handleDelete = (id, resNo) => {
+    if (!canDelete) {
+      Swal.fire("Restricted", "You do not have permission to delete reservations.", "warning");
+      return;
+    }
     Swal.fire({
       title: "Are you sure?",
       text: `Delete reservation: ${resNo}? Deposits will also be removed.`,
@@ -757,6 +789,10 @@ const ReservationsPage = () => {
   };
 
   const handleAddPayment = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to record payments.", "warning");
+      return;
+    }
     if (!payFormData.paymentType || !payFormData.amount || isNaN(payFormData.amount) || Number(payFormData.amount) === 0) {
       Swal.fire("Validation Error", "Please provide payment type and non-zero amount (use negative for refunds).", "warning");
       return;
@@ -798,6 +834,10 @@ const ReservationsPage = () => {
   };
 
   const handleConfirmCheckin = async () => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to perform check-in operations.", "warning");
+      return;
+    }
     for (const a of checkinAssignments) {
       if (!a.roomId) {
         Swal.fire("Validation Error", "Please assign a specific room for all entries.", "warning");
@@ -980,16 +1020,20 @@ const ReservationsPage = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <ExportButtons
-            onExportExcel={handleExportExcel}
-            onExportCsv={handleExportCsv}
-            onPrint={handlePrintClick}
-            isLoading={isExporting}
-          />
-          <button onClick={() => openFormModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
-            <FiPlus className="text-lg" />
-            <span className="uppercase tracking-widest text-xs font-bold">New Reservation</span>
-          </button>
+          {canEdit && (
+            <ExportButtons
+              onExportExcel={handleExportExcel}
+              onExportCsv={handleExportCsv}
+              onPrint={handlePrintClick}
+              isLoading={isExporting}
+            />
+          )}
+          {canAdd && (
+            <button onClick={() => openFormModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+              <FiPlus className="text-lg" />
+              <span className="uppercase tracking-widest text-xs font-bold">New Reservation</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1087,7 +1131,17 @@ const ReservationsPage = () => {
                             <td className="pr-8 py-4">
                               <div className="flex justify-center items-center gap-2">
                                 {res.status !== "Checked-In" && res.status !== "Completed" && res.status !== "Cancelled" && (
-                                  <button onClick={() => openCheckinModal(res)} className="btn btn-xs bg-green-600 hover:bg-green-700 text-white border-none rounded-full cursor-pointer gap-1 px-3 shadow" title="Check-In Guest">
+                                  <button 
+                                    onClick={() => {
+                                      if (!canEdit) {
+                                        Swal.fire("Restricted", "You do not have permission to perform check-in operations.", "warning");
+                                        return;
+                                      }
+                                      openCheckinModal(res);
+                                    }} 
+                                    className={`btn btn-xs text-white border-none rounded-full cursor-pointer gap-1 px-3 shadow ${canEdit ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"}`} 
+                                    title="Check-In Guest"
+                                  >
                                     <FiCheck /> Check-In
                                   </button>
                                 )}
@@ -1100,16 +1154,20 @@ const ReservationsPage = () => {
                                 
                                 {res.status !== "Checked-In" && res.status !== "Completed" && res.status !== "Cancelled" && (
                                   <>
-                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openFormModal(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Reservation">
-                                      <FiEdit size={16} />
-                                    </motion.button>
-                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleCancelReservation(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Cancel Reservation">
-                                      <FiXCircle size={16} />
-                                    </motion.button>
+                                    {canEdit && (
+                                      <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openFormModal(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Reservation">
+                                        <FiEdit size={16} />
+                                      </motion.button>
+                                    )}
+                                    {canEdit && (
+                                      <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleCancelReservation(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Cancel Reservation">
+                                        <FiXCircle size={16} />
+                                      </motion.button>
+                                    )}
                                   </>
                                 )}
 
-                                {res.status === "Cancelled" && dueAmount < 0 && (
+                                {res.status === "Cancelled" && dueAmount < 0 && canEdit && (
                                   <button 
                                     onClick={() => handleQuickRefund(res, Math.abs(dueAmount))} 
                                     className="btn btn-xs bg-red-600 hover:bg-red-700 text-white border-none rounded-full cursor-pointer px-3 shadow font-bold text-[10px]"
@@ -1121,7 +1179,7 @@ const ReservationsPage = () => {
                                 <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setPrintRes(res)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-blue-500 hover:bg-blue-50 transition-colors shadow-none cursor-pointer" title="Print Invoice">
                                   <FiPrinter size={16} />
                                 </motion.button>
-                                {(currentUser?.role === "admin" || currentUser?.role === "superadmin") && res.status !== "Checked-In" && res.status !== "Completed" && (!res.payments || res.payments.length === 0) && (
+                                {(currentUser?.role === "admin" || currentUser?.role === "superadmin") && res.status !== "Checked-In" && res.status !== "Completed" && (!res.payments || res.payments.length === 0) && canDelete && (
                                   <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(res._id, res.reservationNo)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Reservation">
                                     <FiTrash2 size={16} />
                                   </motion.button>
@@ -1508,49 +1566,51 @@ const ReservationsPage = () => {
               </div>
 
               {/* Add payment form */}
-              <div className="p-4 bg-brand-offwhite/40 dark:bg-brand-charcoal/35 rounded-2xl border border-brand-beige/40 dark:border-brand-beige/10 space-y-3">
-                <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest block mb-1">Add Prepayment Deposit</span>
-                <div className="flex gap-4">
-                  <div className="form-control w-1/2">
-                    <label className="label py-0"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Payment Method *</span></label>
-                    <select
-                      value={payFormData.paymentType}
-                      onChange={(e) => setPayFormData({ ...payFormData, paymentType: e.target.value })}
-                      className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-8"
-                    >
-                      <option value="">Select Method</option>
-                      {paymentTypes.map(pt => (
-                        <option key={pt._id} value={pt.name}>{pt.name}</option>
-                      ))}
-                    </select>
+              {canEdit && (
+                <div className="p-4 bg-brand-offwhite/40 dark:bg-brand-charcoal/35 rounded-2xl border border-brand-beige/40 dark:border-brand-beige/10 space-y-3">
+                  <span className="text-[10px] font-bold text-brand-sage uppercase tracking-widest block mb-1">Add Prepayment Deposit</span>
+                  <div className="flex gap-4">
+                    <div className="form-control w-1/2">
+                      <label className="label py-0"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Payment Method *</span></label>
+                      <select
+                        value={payFormData.paymentType}
+                        onChange={(e) => setPayFormData({ ...payFormData, paymentType: e.target.value })}
+                        className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-8"
+                      >
+                        <option value="">Select Method</option>
+                        {paymentTypes.map(pt => (
+                          <option key={pt._id} value={pt.name}>{pt.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-control w-1/2">
+                      <label className="label py-0"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Amount *</span></label>
+                      <input
+                        type="number"
+                        value={payFormData.amount}
+                        onChange={(e) => setPayFormData({ ...payFormData, amount: e.target.value })}
+                        className="input input-bordered input-xs h-8 border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full"
+                        placeholder="e.g. 2000"
+                      />
+                    </div>
                   </div>
-                  <div className="form-control w-1/2">
-                    <label className="label py-0"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Amount *</span></label>
-                    <input
-                      type="number"
-                      value={payFormData.amount}
-                      onChange={(e) => setPayFormData({ ...payFormData, amount: e.target.value })}
-                      className="input input-bordered input-xs h-8 border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full"
-                      placeholder="e.g. 2000"
-                    />
+                  <div className="flex gap-4">
+                    <div className="form-control w-full">
+                      <label className="label py-0"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Transaction Ref</span></label>
+                      <input
+                        type="text"
+                        value={payFormData.transactionRef}
+                        onChange={(e) => setPayFormData({ ...payFormData, transactionRef: e.target.value })}
+                        className="input input-bordered input-xs h-8 border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full"
+                        placeholder="e.g. TXN987654"
+                      />
+                    </div>
                   </div>
+                  <button type="button" onClick={handleAddPayment} className="btn btn-xs bg-brand-primary text-white border-none w-full rounded-lg h-8 uppercase tracking-widest font-bold text-[10px]">
+                    Submit Deposit
+                  </button>
                 </div>
-                <div className="flex gap-4">
-                  <div className="form-control w-full">
-                    <label className="label py-0"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Transaction Ref</span></label>
-                    <input
-                      type="text"
-                      value={payFormData.transactionRef}
-                      onChange={(e) => setPayFormData({ ...payFormData, transactionRef: e.target.value })}
-                      className="input input-bordered input-xs h-8 border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full"
-                      placeholder="e.g. TXN987654"
-                    />
-                  </div>
-                </div>
-                <button type="button" onClick={handleAddPayment} className="btn btn-xs bg-brand-primary text-white border-none w-full rounded-lg h-8 uppercase tracking-widest font-bold text-[10px]">
-                  Submit Deposit
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </dialog>

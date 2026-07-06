@@ -259,6 +259,11 @@ const menuItems = () => {
           path: "/dashboard/staff",
           icon: <MdPerson className="text-base" />,
         },
+        {
+          title: "My Profile",
+          path: "/dashboard/profile",
+          icon: <MdPerson className="text-base" />,
+        },
       ],
     },
 
@@ -367,6 +372,16 @@ const menuItems = () => {
           path: "/dashboard/user-access",
           icon: <MdListAlt className="text-base" />,
         },
+        {
+          title: "Access Control",
+          path: "/dashboard/setting/permission",
+          icon: <MdPayments className="text-base" />,
+        },
+        {
+          title: "System Controls",
+          path: "/dashboard/settings/controls",
+          icon: <MdSettings className="text-base" />,
+        },
       ],
     },
 
@@ -450,16 +465,7 @@ const menuItems = () => {
           path: "/dashboard/setting/kitchen",
           icon: <MdKitchen className="text-base" />,
         },
-        {
-          title: "System Controls",
-          path: "/dashboard/settings/controls",
-          icon: <MdSettings className="text-base" />,
-        },
-        {
-          title: "My Profile",
-          path: "/dashboard/profile",
-          icon: <MdPerson className="text-base" />,
-        },
+
         {
           title: "Lost & Found Categories",
           path: "/dashboard/lost-found/categories",

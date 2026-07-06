@@ -157,8 +157,6 @@ const IngredientCategoriesPage = () => {
     });
   };
 
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
-
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
       

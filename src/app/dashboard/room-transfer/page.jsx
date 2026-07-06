@@ -7,8 +7,10 @@ import { FiSearch, FiRefreshCw, FiArrowRight, FiCheck } from "react-icons/fi";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import SectionHeader from "@/components/Comon/SectionHeader";
+import usePagePermission from "@/hooks/usePagePermission";
 
 function RoomTransferContent() {
+    const { canView, canAdd, canEdit, canDelete } = usePagePermission();
     const axiosSecure = useAxiosSecure();
 
     // States
@@ -95,6 +97,11 @@ function RoomTransferContent() {
     };
 
     const handleExecuteTransfer = async () => {
+        if (isTransferring) return;
+        if (!canEdit) {
+            Swal.fire("Restricted", "You do not have permission to execute room transfers.", "warning");
+            return;
+        }
         if (!selectedStay || !oldRoomId || !newRoomId) {
             Swal.fire("Error", "Please fill in stay, old room, and new target room.", "warning");
             return;
@@ -132,6 +139,17 @@ function RoomTransferContent() {
             setIsTransferring(false);
         }
     };
+
+    if (!canView) {
+        return (
+            <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal flex items-center justify-center">
+                <div className="text-center bg-white dark:bg-brand-charcoal p-8 rounded-2xl border border-brand-beige dark:border-brand-beige/25 shadow-md max-w-md w-full">
+                    <h2 className="text-xl font-extrabold uppercase tracking-widest text-red-500 mb-2">Access Denied</h2>
+                    <p className="text-sm text-brand-sage font-semibold">You do not have permission to view the room transfer console.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
@@ -269,18 +287,28 @@ function RoomTransferContent() {
 
                                     <div className="flex justify-end gap-3 pt-4 border-t border-brand-beige dark:border-brand-beige/25">
                                         <button
-                                            onClick={() => setSelectedStay(null)}
-                                            className="btn btn-sm btn-ghost cursor-pointer text-xs"
+                                            onClick={() => !isTransferring && setSelectedStay(null)}
+                                            disabled={isTransferring}
+                                            className="btn btn-sm btn-ghost cursor-pointer text-xs disabled:opacity-50"
                                         >
                                             Cancel
                                         </button>
-                                        <button
-                                            onClick={handleExecuteTransfer}
-                                            disabled={isTransferring}
-                                            className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1"
-                                        >
-                                            {isTransferring ? "Transferring..." : <>Execute Transfer <FiCheck /></>}
-                                        </button>
+                                        {canEdit && (
+                                            <button
+                                                onClick={handleExecuteTransfer}
+                                                disabled={isTransferring}
+                                                className="btn btn-sm bg-brand-primary hover:bg-brand-secondary text-white font-bold cursor-pointer border-none rounded uppercase tracking-wider text-[10px] px-4 shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {isTransferring ? (
+                                                    <>
+                                                        <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                                                        Transferring...
+                                                    </>
+                                                ) : (
+                                                    <>Execute Transfer <FiCheck /></>
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                 </motion.div>
                             ) : (

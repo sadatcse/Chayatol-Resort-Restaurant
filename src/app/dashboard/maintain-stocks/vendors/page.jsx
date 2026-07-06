@@ -13,6 +13,7 @@ import useAxiosSecure from "@/hooks/useAxiosSecure";
 import useDebounce from "@/hooks/useDebounce";
 import useVendors from "@/hooks/useVendors";
 import { AuthContext } from "@/providers/AuthProvider";
+import usePagePermission from "@/hooks/usePagePermission";
 
 const INITIAL_FORM_DATA = {
   vendorID: "",
@@ -29,6 +30,8 @@ const INITIAL_FORM_DATA = {
 const VendorsPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canAdd, canEdit, canDelete } = usePagePermission();
+  const canPerformAction = canEdit || canDelete;
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -89,7 +92,10 @@ const VendorsPage = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleAddOrEditVendor = async () => {
+    if (isSubmitting) return;
     if (!formData.vendorID || !formData.vendorID.trim()) {
       Swal.fire({ title: "Validation Error", text: "Please provide a Vendor ID.", icon: "warning", confirmButtonColor: "#346E36" });
       return;
@@ -101,6 +107,18 @@ const VendorsPage = () => {
     if (!formData.primaryPhone || !formData.primaryPhone.trim()) {
       Swal.fire({ title: "Validation Error", text: "Please provide a primary phone number.", icon: "warning", confirmButtonColor: "#346E36" });
       return;
+    }
+
+    if (editId) {
+      if (!canEdit) {
+        Swal.fire("Restricted", "You do not have permission to edit vendor details.", "warning");
+        return;
+      }
+    } else {
+      if (!canAdd) {
+        Swal.fire("Restricted", "You do not have permission to add new vendors.", "warning");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -143,15 +161,16 @@ const VendorsPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") {
+    if (!canDelete) {
       Swal.fire({
-        title: "Access Denied",
+        title: "Restricted",
         text: "You do not have permission to delete vendors.",
-        icon: "error",
-        confirmButtonColor: "#8C5A35",
+        icon: "warning",
+        confirmButtonColor: "#346E36",
       });
       return;
     }
+    if (isDeleting) return;
 
     Swal.fire({
       title: "Are you sure?",
@@ -163,6 +182,7 @@ const VendorsPage = () => {
       confirmButtonText: "Yes, delete it!"
     }).then(async (result) => {
       if (result.isConfirmed) {
+        setIsDeleting(true);
         try {
           await axiosSecure.delete(`/vendor/delete/${id}`);
           await refetch();
@@ -179,15 +199,12 @@ const VendorsPage = () => {
             icon: "error",
             confirmButtonColor: "#346E36"
           });
+        } finally {
+          setIsDeleting(false);
         }
       }
     });
   };
-
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
-
-
-
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-brand-offwhite dark:bg-brand-charcoal font-sans text-brand-charcoal dark:text-brand-offwhite animate-scale-in">
       
@@ -307,8 +324,8 @@ const VendorsPage = () => {
           )}
         </div>
 
-        {canPerformAction && (
-          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10">
+        {canAdd && (
+          <button onClick={() => openModal()} className="btn bg-brand-primary text-white hover:bg-brand-secondary border-none btn-sm rounded-full shadow-md gap-2 px-6 h-10 cursor-pointer">
             <FiPlus className="text-lg" />
             <span className="uppercase tracking-widest text-xs font-bold">New Vendor</span>
           </button>
@@ -392,12 +409,16 @@ const VendorsPage = () => {
                                       <FiBookOpen size={16} />
                                     </motion.button>
                                   </Link>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(vendor)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Vendor">
-                                    <FiEdit size={16} />
-                                  </motion.button>
-                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(vendor._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Vendor">
-                                    <FiTrash2 size={16} />
-                                  </motion.button>
+                                  {canEdit && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => openModal(vendor)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer" title="Edit Vendor">
+                                      <FiEdit size={16} />
+                                    </motion.button>
+                                  )}
+                                  {canDelete && (
+                                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDelete(vendor._id)} className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-red-500 hover:bg-red-50 transition-colors shadow-none cursor-pointer" title="Delete Vendor">
+                                      <FiTrash2 size={16} />
+                                    </motion.button>
+                                  )}
                                 </>
                               ) : (
                                 <Link href={`/dashboard/maintain-stocks/vendors/ledger?vendorId=${vendor._id}`}>

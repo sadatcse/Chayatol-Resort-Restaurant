@@ -124,6 +124,7 @@ export default function ClaimsVerificationPage() {
       toast.error("You do not have permission to log guest claims.");
       return;
     }
+    if (createClaimMutation.isPending) return;
     createClaimMutation.mutate(formData);
   };
 
@@ -132,6 +133,7 @@ export default function ClaimsVerificationPage() {
       toast.error("You do not have permission to verify guest claims.");
       return;
     }
+    if (verifyClaimMutation.isPending) return;
     verifyClaimMutation.mutate({
       id: selectedClaim._id,
       verificationStatus: statusOutcome,
@@ -412,9 +414,16 @@ export default function ClaimsVerificationPage() {
                 <button
                   type="submit"
                   disabled={createClaimMutation.isPending}
-                  className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl px-5"
+                  className="btn btn-sm btn-primary bg-brand-primary border-brand-primary text-white hover:bg-brand-primary/95 rounded-xl px-5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
-                  Create Claim
+                  {createClaimMutation.isPending ? (
+                    <>
+                      <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                      Saving...
+                    </>
+                  ) : (
+                    "Create Claim"
+                  )}
                 </button>
               </div>
             </form>
@@ -502,17 +511,27 @@ export default function ClaimsVerificationPage() {
                           type="button"
                           onClick={() => handleVerifyClaim("REJECTED", document.getElementById("vNotes").value)}
                           disabled={verifyClaimMutation.isPending}
-                          className="btn btn-sm btn-error text-white hover:bg-error/85 rounded-xl px-5 flex items-center gap-1.5 cursor-pointer"
+                          className="btn btn-sm btn-error text-white hover:bg-error/85 rounded-xl px-5 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <FiXCircle size={15} /> Reject Claim
+                          {verifyClaimMutation.isPending ? (
+                            <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                          ) : (
+                            <FiXCircle size={15} />
+                          )}
+                          Reject Claim
                         </button>
                         <button
                           type="button"
                           onClick={() => handleVerifyClaim("APPROVED", document.getElementById("vNotes").value)}
                           disabled={verifyClaimMutation.isPending}
-                          className="btn btn-sm btn-success text-white hover:bg-emerald-600 rounded-xl px-5 flex items-center gap-1.5 cursor-pointer"
+                          className="btn btn-sm btn-success text-white hover:bg-emerald-600 rounded-xl px-5 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <FiCheck size={15} /> Approve Claim
+                          {verifyClaimMutation.isPending ? (
+                            <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1"></span>
+                          ) : (
+                            <FiCheck size={15} />
+                          )}
+                          Approve Claim
                         </button>
                       </>
                     ) : (

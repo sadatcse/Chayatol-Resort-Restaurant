@@ -12,6 +12,7 @@ import A4ReceiptTemplate from "@/components/Receipt/A4ReceiptTemplate";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import SectionHeader from "@/components/Comon/SectionHeader";
 import ExportButtons from "@/components/Comon/ExportButtons";
+import usePagePermission from "@/hooks/usePagePermission";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
@@ -19,8 +20,10 @@ export default function InvoicesPage() {
   const router = useRouter();
   const axiosSecure = useAxiosSecure();
   const { user } = useContext(AuthContext);
+  const { canEdit, canDelete } = usePagePermission();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -196,14 +199,26 @@ export default function InvoicesPage() {
   }, [fetchInvoices]);
 
   const printReceipt = useCallback((invoice) => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to print invoices.", "warning");
+      return;
+    }
     setPrintingInvoice(invoice);
-  }, [setPrintingInvoice]);
+  }, [setPrintingInvoice, canEdit]);
 
   const printA4Receipt = useCallback((invoice) => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to print invoices.", "warning");
+      return;
+    }
     setPrintingA4Invoice(invoice);
-  }, [setPrintingA4Invoice]);
+  }, [setPrintingA4Invoice, canEdit]);
 
   const printBatchReceipt = useCallback((invoice, batch, batchIndex) => {
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to print invoices.", "warning");
+      return;
+    }
     const batchSubTotal = batch.items?.reduce((acc, item) => acc + (item.totalPrice || 0), 0) || 0;
     const batchInvoice = {
       ...invoice,
@@ -219,9 +234,14 @@ export default function InvoicesPage() {
       paymentMethod: "Pending" // KOT isn't fully paid on its own usually
     };
     setPrintingInvoice(batchInvoice);
-  }, [setPrintingInvoice]);
+  }, [setPrintingInvoice, canEdit]);
 
   const deleteInvoice = async (id) => {
+    if (!canDelete) {
+      Swal.fire("Restricted", "You do not have permission to delete invoices.", "warning");
+      return;
+    }
+    if (isDeleting) return;
     const result = await Swal.fire({
       title: 'Are you sure?',
       text: "You won't be able to revert this!",
@@ -234,6 +254,7 @@ export default function InvoicesPage() {
 
     if (result.isConfirmed) {
       try {
+        setIsDeleting(true);
         const { data } = await axiosSecure.delete(`/pos/invoice/${id}`);
         if (data.success) {
           Swal.fire('Deleted!', 'Invoice has been deleted.', 'success');
@@ -241,6 +262,8 @@ export default function InvoicesPage() {
         }
       } catch (err) {
         Swal.fire('Error', 'Failed to delete invoice.', 'error');
+      } finally {
+        setIsDeleting(false);
       }
     }
   };
@@ -369,12 +392,14 @@ export default function InvoicesPage() {
           subtitle="View and manage all POS transactions" 
           className="!mb-0" 
         />
-        <ExportButtons
-          onExportExcel={handleExportExcel}
-          onExportCsv={handleExportCsv}
-          onPrint={handlePrintClick}
-          isLoading={loading}
-        />
+        {canEdit && (
+          <ExportButtons
+            onExportExcel={handleExportExcel}
+            onExportCsv={handleExportCsv}
+            onPrint={handlePrintClick}
+            isLoading={loading}
+          />
+        )}
       </div>
 
       {/* Summary Cards Grid */}
@@ -553,18 +578,24 @@ export default function InvoicesPage() {
                   </td>
                   <td>
                     <div className="flex gap-2 justify-center">
-                      <button onClick={() => router.push(`/dashboard/pos?invoiceId=${inv._id}`)} className="p-2 bg-orange-50 text-orange-600 rounded hover:bg-orange-100 transition" title="Add Items / Edit">
-                        <MdEdit />
-                      </button>
+                      {canEdit && (
+                        <button onClick={() => router.push(`/dashboard/pos?invoiceId=${inv._id}`)} className="p-2 bg-orange-50 text-orange-600 rounded hover:bg-orange-100 transition" title="Add Items / Edit">
+                          <MdEdit />
+                        </button>
+                      )}
                       <button onClick={() => { setSelectedInvoice(inv); setIsViewModalOpen(true); }} className="p-2 bg-green-50 text-green-600 rounded hover:bg-green-100 transition" title="View">
                         <MdVisibility />
                       </button>
-                      <button onClick={() => printReceipt(inv)} className="p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition" title="Print">
-                        <MdPrint />
-                      </button>
-                      <button onClick={() => deleteInvoice(inv._id)} className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100 transition" title="Delete">
-                        <MdDelete />
-                      </button>
+                      {canEdit && (
+                        <button onClick={() => printReceipt(inv)} className="p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition" title="Print">
+                          <MdPrint />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => deleteInvoice(inv._id)} className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100 transition" title="Delete">
+                          <MdDelete />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

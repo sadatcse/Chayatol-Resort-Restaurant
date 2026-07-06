@@ -13,6 +13,7 @@ import ProductSelection from "@/components/pos/ProductSelection";
 import OrderSummary from "@/components/pos/OrderSummary";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import KitchenReceiptTemplate from "@/components/Receipt/KitchenReceiptTemplate";
+import usePagePermission from "@/hooks/usePagePermission";
 import { FaUtensils, FaGift, FaTruck, FaHotel } from "react-icons/fa";
 
 function POSContent() {
@@ -20,6 +21,7 @@ function POSContent() {
     const invoiceId = searchParams.get("invoiceId");
 
     const { user } = useContext(AuthContext);
+    const { canAdd, canEdit } = usePagePermission();
     const loginUserEmail = user?.email || "info@chayatolresort.com";
     const loginUserName = user?.name || "Server Staff";
 
@@ -74,6 +76,14 @@ function POSContent() {
     const [companyInfo, setCompanyInfo] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
+    const [idempotencyKey, setIdempotencyKey] = useState("");
+    const generateIdempotencyKey = () => {
+        return "pos-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
+    };
+
+    useEffect(() => {
+        setIdempotencyKey(generateIdempotencyKey());
+    }, []);
 
     // Customer & Modals
     const [mobile, setMobile] = useState("");
@@ -449,7 +459,21 @@ function POSContent() {
 
     // Print & Save Order
     const printInvoice = async (isPrintAction) => {
+        if (isProcessing) return;
         if (addedProducts.length === 0) return;
+
+        if (currentInvoiceId) {
+            if (!canEdit) {
+                Swal.fire("Restricted", "You do not have permission to edit orders.", "warning");
+                return;
+            }
+        } else {
+            if (!canAdd) {
+                Swal.fire("Restricted", "You do not have permission to place new orders.", "warning");
+                return;
+            }
+        }
+
         setIsProcessing(true);
 
         let finalPaymentMethod = isPrintAction ? (selectedPaymentMethod || "Cash") : "Due";
@@ -499,6 +523,7 @@ function POSContent() {
         const invoiceDetails = {
             orderType,
             kotRound,
+            idempotencyKey,
             products: addedProducts.map(p => ({
                 productId: p._id,
                 productName: p.productName,
@@ -567,6 +592,7 @@ function POSContent() {
 
             if (res.data?.success) {
                 toast.success("Order processed successfully!");
+                setIdempotencyKey(generateIdempotencyKey());
                 const savedInvoice = {
                     ...invoiceDetails,
                     ...res.data.data,
@@ -616,9 +642,22 @@ function POSContent() {
 
     // Kitchen Send (KOT) — groups items by cookOn kitchen, prints one KOT per kitchen
     const handleKitchenClick = async () => {
+        if (isProcessing) return;
         if (addedProducts.length === 0) {
             toast.warn("Please add products first.");
             return;
+        }
+
+        if (currentInvoiceId) {
+            if (!canEdit) {
+                Swal.fire("Restricted", "You do not have permission to edit orders.", "warning");
+                return;
+            }
+        } else {
+            if (!canAdd) {
+                Swal.fire("Restricted", "You do not have permission to place new orders.", "warning");
+                return;
+            }
         }
 
         setIsProcessing(true);
@@ -648,6 +687,7 @@ function POSContent() {
         const invoiceDetails = {
             orderType,
             kotRound,
+            idempotencyKey,
             products: updatedProducts.map(p => ({
                 productId: p._id,
                 productName: p.productName,
@@ -702,6 +742,7 @@ function POSContent() {
 
             if (res.data?.success) {
                 toast.success("Order sent to kitchen!");
+                setIdempotencyKey(generateIdempotencyKey());
                 const savedInvoice = {
                     ...invoiceDetails,
                     ...res.data.data,
@@ -744,6 +785,7 @@ function POSContent() {
     };
 
     const resetOrder = () => {
+        setIdempotencyKey(generateIdempotencyKey());
         setAddedProducts([]);
         setCustomer(null);
         setMobile("");
@@ -788,6 +830,9 @@ function POSContent() {
             {/* Right: Order Summary Details */}
             <OrderSummary
                 user={user}
+                canAdd={canAdd}
+                canEdit={canEdit}
+                isEditing={!!currentInvoiceId}
                 customDateTime={customDateTime}
                 setCustomDateTime={setCustomDateTime}
                 customer={customer}

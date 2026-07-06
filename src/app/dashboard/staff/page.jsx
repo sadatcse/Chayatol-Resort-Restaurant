@@ -139,7 +139,10 @@ const ResortStaff = () => {
     }
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleAddOrEditUser = async () => {
+    if (isSubmitting) return;
     if (editId) {
       if (!canEdit) {
         Swal.fire("Restricted", "You do not have permission to edit staff profiles.", "warning");
@@ -183,6 +186,7 @@ const ResortStaff = () => {
       Swal.fire("Restricted", "You do not have permission to delete staff profiles.", "warning");
       return;
     }
+    if (isDeleting) return;
     Swal.fire({
       title: "Are you sure?",
       text: "You won't be able to revert this!",
@@ -193,6 +197,7 @@ const ResortStaff = () => {
       confirmButtonText: "Yes, delete it!"
     }).then(async (result) => {
       if (result.isConfirmed) {
+        setIsDeleting(true);
         try {
           await axiosSecure.delete(`/user/delete/${id}`);
           await refetchUsers();
@@ -204,6 +209,8 @@ const ResortStaff = () => {
           });
         } catch (error) {
           Swal.fire("Error!", "Failed to delete user.", "error");
+        } finally {
+          setIsDeleting(false);
         }
       }
     });
@@ -226,6 +233,7 @@ const ResortStaff = () => {
   };
 
   const handleChangePassword = async () => {
+    if (isChangingPassword) return;
     if (!canEdit) {
       Swal.fire("Restricted", "You do not have permission to modify passwords.", "warning");
       return;

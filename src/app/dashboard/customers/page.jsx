@@ -253,7 +253,10 @@ const CustomersPage = () => {
     setEditId(null);
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleAddOrEditCustomer = async () => {
+    if (isSubmitting) return;
     // 1. Full Legal Name validation
     if (!formData.fullName || !formData.fullName.trim()) {
       setActiveTab("basic");
@@ -482,6 +485,7 @@ const CustomersPage = () => {
       Swal.fire("Restricted", "You do not have permission to delete customer records.", "warning");
       return;
     }
+    if (isDeleting) return;
     Swal.fire({
       title: "Are you sure?",
       text: "You won't be able to revert this customer record!",
@@ -492,6 +496,7 @@ const CustomersPage = () => {
       confirmButtonText: "Yes, delete it!"
     }).then(async (result) => {
       if (result.isConfirmed) {
+        setIsDeleting(true);
         try {
           await axiosSecure.delete(`/customer/delete/${id}`);
           await loadCustomers();
@@ -503,6 +508,8 @@ const CustomersPage = () => {
           });
         } catch (error) {
           Swal.fire("Error!", "Failed to delete customer.", "error");
+        } finally {
+          setIsDeleting(false);
         }
       }
     });

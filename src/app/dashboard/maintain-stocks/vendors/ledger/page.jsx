@@ -14,6 +14,7 @@ import MtableLoading from "@/components/Comon/MtableLoading";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import ExportButtons from "@/components/Comon/ExportButtons";
+import usePagePermission from "@/hooks/usePagePermission";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
@@ -23,6 +24,7 @@ const VendorLedgerPage = () => {
   const vendorId = searchParams.get("vendorId");
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
+  const { canEdit } = usePagePermission();
 
   const [vendor, setVendor] = useState(null);
   const [invoices, setInvoices] = useState([]);
@@ -253,6 +255,11 @@ const VendorLedgerPage = () => {
 
   const handleBulkPayment = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to post payments.", "warning");
+      return;
+    }
     const payAmt = Number(bulkAmount);
 
     if (isNaN(payAmt) || payAmt <= 0) {
@@ -461,6 +468,11 @@ const VendorLedgerPage = () => {
 
   const handleClearDue = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    if (!canEdit) {
+      Swal.fire("Restricted", "You do not have permission to post payments.", "warning");
+      return;
+    }
     if (!selectedInvoice) return;
 
     const remainingDue = selectedInvoice.grandTotal - selectedInvoice.paidAmount;
@@ -561,7 +573,7 @@ const VendorLedgerPage = () => {
     return <span className={`badge ${styles[status]}`}>{status}</span>;
   };
 
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const canPerformAction = canEdit;
 
   if (!vendorId) {
     return (

@@ -230,8 +230,6 @@ const IngredientsPage = () => {
     });
   };
 
-  const canPerformAction = currentUser?.role === "admin" || currentUser?.role === "superadmin";
-
 
 
   return (

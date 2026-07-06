@@ -65,6 +65,8 @@ const UserAccess = () => {
     }
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDelete = async (id) => {
     if (!canDelete) {
       Swal.fire({
@@ -76,6 +78,7 @@ const UserAccess = () => {
       });
       return;
     }
+    if (isDeleting) return;
 
     Swal.fire({
       title: "Are you sure?",
@@ -87,6 +90,7 @@ const UserAccess = () => {
       confirmButtonText: "Yes, delete it!",
     }).then(async (result) => {
       if (result.isConfirmed) {
+        setIsDeleting(true);
         try {
           await axiosSecure.delete(`/userlog/delete/${id}`);
           Swal.fire("Deleted!", "The user log has been deleted.", "success");
@@ -94,6 +98,8 @@ const UserAccess = () => {
         } catch (error) {
           console.error("Error deleting user log:", error);
           Swal.fire("Error!", "Failed to delete the user log.", "error");
+        } finally {
+          setIsDeleting(false);
         }
       }
     });
