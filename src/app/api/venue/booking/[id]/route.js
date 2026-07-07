@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import VenueBooking from "@/models/VenueBooking";
-import { verifyToken } from "@/lib/auth";
+import { verifyApiPermission } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
 export async function PUT(req, { params }) {
-  const auth = verifyToken(req);
+  const auth = await verifyApiPermission(req, "/dashboard/venue/history", "edit");
   if (auth.error) {
     return NextResponse.json({ message: auth.error }, { status: auth.status });
   }
@@ -109,14 +109,9 @@ export async function PUT(req, { params }) {
 }
 
 export async function DELETE(req, { params }) {
-  const auth = verifyToken(req);
+  const auth = await verifyApiPermission(req, "/dashboard/venue/history", "delete");
   if (auth.error) {
     return NextResponse.json({ message: auth.error }, { status: auth.status });
-  }
-
-  // Admin access control restriction
-  if (auth.user?.role !== "superadmin") {
-    return NextResponse.json({ message: "Unauthorized. Admin permissions required." }, { status: 403 });
   }
 
   try {
@@ -144,3 +139,4 @@ export async function DELETE(req, { params }) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+

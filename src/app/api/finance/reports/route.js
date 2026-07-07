@@ -9,8 +9,14 @@ import VendorPayment from "@/models/VendorPayment";
 import FolioEntry from "@/models/FolioEntry";
 import VenueBooking from "@/models/VenueBooking";
 import TransactionLog from "@/models/TransactionLog";
+import { verifyApiPermission } from "@/lib/auth";
 
 export async function GET(req) {
+  const auth = await verifyApiPermission(req, "/dashboard/finance/summary", "view");
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
   try {
     await dbConnect();
     const { searchParams } = new URL(req.url);

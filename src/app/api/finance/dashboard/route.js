@@ -6,8 +6,14 @@ import Invoice from "@/models/Invoice";
 import Purchase from "@/models/Purchase";
 import FolioEntry from "@/models/FolioEntry";
 import TransactionLog from "@/models/TransactionLog";
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
   try {
     await dbConnect();
 

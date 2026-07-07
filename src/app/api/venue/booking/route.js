@@ -2,10 +2,18 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import VenueBooking from "@/models/VenueBooking";
 import Customer from "@/models/Customer";
-import { verifyToken } from "@/lib/auth";
+import { verifyMultiplePathsPermission, verifyApiPermission } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
 export async function GET(req) {
+  const auth = await verifyMultiplePathsPermission(req, [
+    "/dashboard/venue/dashboard",
+    "/dashboard/venue/history"
+  ], "view");
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
   try {
     await dbConnect();
     const { searchParams } = new URL(req.url);
@@ -74,7 +82,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const auth = verifyToken(req);
+  const auth = await verifyApiPermission(req, "/dashboard/venue/book", "add");
   if (auth.error) {
     return NextResponse.json({ message: auth.error }, { status: auth.status });
   }
@@ -117,6 +125,23 @@ export async function POST(req) {
 
     if (start > end) {
       return NextResponse.json({ message: "Start date must be before or equal to end date" }, { status: 400 });
+    }
+
+    // Deduplication check: check if an identical booking was created in the last 15 seconds
+    const fifteenSecondsAgo = new Date(Date.now() - 15000);
+    const potentialDuplicate = await VenueBooking.findOne({
+      customer,
+      eventTitle,
+      startDate: start,
+      endDate: end,
+      totalAmount: Number(totalAmount),
+      createdAt: { $gte: fifteenSecondsAgo }
+    });
+
+    if (potentialDuplicate) {
+      return NextResponse.json({ 
+        message: "Duplicate booking submission detected. Please wait a moment." 
+      }, { status: 409 });
     }
 
     // Availability validation (race-condition check)

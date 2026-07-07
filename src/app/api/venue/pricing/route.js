@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import VenuePricing from "@/models/VenuePricing";
-import { verifyToken } from "@/lib/auth";
+import { verifyApiPermission, verifyMultiplePathsPermission } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 
 const defaultPrices = [
@@ -16,6 +16,14 @@ const defaultPrices = [
 ];
 
 export async function GET(req) {
+  const auth = await verifyMultiplePathsPermission(req, [
+    "/dashboard/venue/pricing",
+    "/dashboard/venue/book"
+  ], "view");
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
   try {
     await dbConnect();
     const prices = await VenuePricing.find().sort({ createdAt: 1 });
@@ -27,7 +35,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const auth = verifyToken(req);
+  const auth = await verifyApiPermission(req, "/dashboard/venue/pricing", "edit");
   if (auth.error) {
     return NextResponse.json({ message: auth.error }, { status: auth.status });
   }
@@ -108,13 +116,9 @@ export async function POST(req) {
 }
 
 export async function DELETE(req) {
-  const auth = verifyToken(req);
+  const auth = await verifyApiPermission(req, "/dashboard/venue/pricing", "delete");
   if (auth.error) {
     return NextResponse.json({ message: auth.error }, { status: auth.status });
-  }
-
-  if (auth.user?.role !== "superadmin") {
-    return NextResponse.json({ message: "Unauthorized. Admin role required." }, { status: 403 });
   }
 
   try {
@@ -144,3 +148,4 @@ export async function DELETE(req) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
