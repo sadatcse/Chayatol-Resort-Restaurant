@@ -109,6 +109,34 @@ const menuItems = () => {
       ],
     },
 
+    // Venue Booking
+    {
+      title: "Venue Booking",
+      icon: <MdEventAvailable className="text-lg" />,
+      children: [
+        {
+          title: "Venue Dashboard",
+          path: "/dashboard/venue/dashboard",
+          icon: <MdDashboard className="text-base" />,
+        },
+        {
+          title: "Book Venue",
+          path: "/dashboard/venue/book",
+          icon: <MdAddCircle className="text-base" />,
+        },
+        {
+          title: "Booking History",
+          path: "/dashboard/venue/history",
+          icon: <MdHistory className="text-base" />,
+        },
+        {
+          title: "Venue Pricing",
+          path: "/dashboard/venue/pricing",
+          icon: <MdAttachMoney className="text-base" />,
+        },
+      ],
+    },
+
     // Restaurant
     {
       title: "Restaurant",
@@ -216,6 +244,11 @@ const menuItems = () => {
       title: "Finance",
       icon: <MdAccountBalanceWallet className="text-lg" />,
       children: [
+        {
+          title: "Financial Summary",
+          path: "/dashboard/finance/summary",
+          icon: <MdAssessment className="text-base" />,
+        },
         {
           title: "Expense Entry",
           path: "/dashboard/finance/expenses",

@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import { motion, AnimatePresence } from "framer-motion";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import DebitVoucherTemplate from "@/components/Receipt/DebitVoucherTemplate";
 
 import SectionHeader from "@/components/Comon/SectionHeader";
 import Pagination from "@/components/Comon/Pagination";
@@ -84,6 +85,14 @@ const ExpensesPage = () => {
   } = useStandardPrint({
     documentTitle: "Expense_Ledger_Report",
     onAfterPrint: () => setIsPrinting(false)
+  });
+
+  const {
+    printData: printChallan,
+    setPrintData: setPrintChallan,
+    printRef: challanPrintRef,
+  } = useStandardPrint({
+    documentTitle: "Expense_Challan_Debit_Voucher",
   });
 
   const handlePrintReport = async () => {
@@ -573,6 +582,15 @@ const ExpensesPage = () => {
                         </td>
                         <td className="pr-6 py-4 print:hidden">
                           <div className="flex justify-center items-center gap-1.5">
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => setPrintChallan(expense)}
+                              className="btn btn-sm btn-circle btn-ghost text-brand-sage hover:text-brand-primary hover:bg-brand-primary/10 transition-colors shadow-none cursor-pointer"
+                              title="Print Debit Voucher (Challan)"
+                            >
+                              <FiPrinter size={16} />
+                            </motion.button>
                             {(canEdit || canDelete) ? (
                               <>
                                 {canEdit && (
@@ -804,6 +822,13 @@ const ExpensesPage = () => {
               </tbody>
             </table>
           </PrintReportTemplate>
+        )}
+
+        {printChallan && (
+          <DebitVoucherTemplate
+            ref={challanPrintRef}
+            expense={printChallan}
+          />
         )}
       </div>
     </div>

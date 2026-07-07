@@ -25,7 +25,7 @@ const CashFlowReport = () => {
     startDate: "",
     endDate: "",
     cashFlow: {
-      inflow: { room: 0, restaurant: 0, total: 0 },
+      inflow: { room: 0, restaurant: 0, venue: 0, total: 0 },
       outflow: { general: 0, vendorPayments: 0, refunds: 0, total: 0 },
       netCashFlow: 0
     }
@@ -84,6 +84,7 @@ const CashFlowReport = () => {
       { LineItem: "CASH INFLOWS (OPERATING RECEIPTS)", Amount: "" },
       { LineItem: "  Guest Booking Cash Payments", Amount: cashFlow.inflow.room },
       { LineItem: "  Restaurant POS Cash Sales", Amount: cashFlow.inflow.restaurant },
+      { LineItem: "  Venue Booking Cash Payments", Amount: cashFlow.inflow.venue || 0 },
       { LineItem: "TOTAL CASH INFLOW (A)", Amount: cashFlow.inflow.total },
       { LineItem: "", Amount: "" },
       { LineItem: "CASH OUTFLOWS (OPERATING PAYMENTS)", Amount: "" },
@@ -104,6 +105,7 @@ const CashFlowReport = () => {
       { LineItem: "CASH INFLOWS (OPERATING RECEIPTS)", Amount: "" },
       { LineItem: "  Guest Booking Cash Payments", Amount: cashFlow.inflow.room },
       { LineItem: "  Restaurant POS Cash Sales", Amount: cashFlow.inflow.restaurant },
+      { LineItem: "  Venue Booking Cash Payments", Amount: cashFlow.inflow.venue || 0 },
       { LineItem: "TOTAL CASH INFLOW (A)", Amount: cashFlow.inflow.total },
       { LineItem: "", Amount: "" },
       { LineItem: "CASH OUTFLOWS (OPERATING PAYMENTS)", Amount: "" },
@@ -199,6 +201,10 @@ const CashFlowReport = () => {
                   <span>Restaurant sales POS Receipts</span>
                   <span className="font-mono font-bold">৳{cashFlow.inflow.restaurant.toLocaleString()}</span>
                 </div>
+                <div className="flex justify-between pl-4">
+                  <span>Venue Booking Cash Payments</span>
+                  <span className="font-mono font-bold">৳{(cashFlow.inflow.venue || 0).toLocaleString()}</span>
+                </div>
                 <div className="flex justify-between font-black text-brand-charcoal dark:text-brand-offwhite border-t border-brand-beige/50 dark:border-brand-beige/10 pt-2">
                   <span>TOTAL OPERATIONAL CASH INFLOW (A)</span>
                   <span className="font-mono">৳{cashFlow.inflow.total.toLocaleString()}</span>
@@ -273,6 +279,10 @@ const CashFlowReport = () => {
                     <tr>
                       <td style={{ padding: "6px 8px", border: "1px solid #ddd" }}>Restaurant Sales POS Receipts</td>
                       <td style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "right", fontFamily: "monospace", fontWeight: "bold" }}>৳{printData.cashFlow?.inflow?.restaurant?.toLocaleString()}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 8px", border: "1px solid #ddd" }}>Venue Booking Cash Payments</td>
+                      <td style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "right", fontFamily: "monospace", fontWeight: "bold" }}>৳{(printData.cashFlow?.inflow?.venue || 0).toLocaleString()}</td>
                     </tr>
                     <tr style={{ fontWeight: "bold", backgroundColor: "#f3f4f6" }}>
                       <td style={{ padding: "6px 8px", border: "1px solid #ddd" }}>TOTAL OPERATIONAL CASH INFLOW (A)</td>

@@ -5,6 +5,7 @@ import ReservationPayment from "@/models/ReservationPayment";
 import Invoice from "@/models/Invoice";
 import Purchase from "@/models/Purchase";
 import FolioEntry from "@/models/FolioEntry";
+import TransactionLog from "@/models/TransactionLog";
 
 export async function GET(req) {
   try {
@@ -39,6 +40,14 @@ export async function GET(req) {
       todayRevenue += inv.grandTotal || 0;
     });
 
+    const todayVenueLogs = await TransactionLog.find({
+      transactionTime: { $gte: startOfToday, $lte: endOfToday },
+      details: { $regex: /venue booking/i }
+    });
+    todayVenueLogs.forEach(vl => {
+      todayRevenue += vl.amount || 0;
+    });
+
     let todayExpense = 0;
     todayExpenses.forEach(e => {
       todayExpense += e.amount;
@@ -62,6 +71,14 @@ export async function GET(req) {
     });
     monthInvoices.forEach(inv => {
       monthlyRevenue += inv.grandTotal || 0;
+    });
+
+    const monthVenueLogs = await TransactionLog.find({
+      transactionTime: { $gte: startOfMonth, $lte: endOfMonth },
+      details: { $regex: /venue booking/i }
+    });
+    monthVenueLogs.forEach(vl => {
+      monthlyRevenue += vl.amount || 0;
     });
 
     let monthlyExpense = 0;

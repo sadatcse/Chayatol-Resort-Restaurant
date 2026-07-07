@@ -25,7 +25,7 @@ const ProfitLossReport = () => {
     endDate: "",
     categoryBreakdown: [],
     pandL: {
-      revenue: { room: 0, restaurant: 0, total: 0 },
+      revenue: { room: 0, restaurant: 0, venue: 0, total: 0 },
       expenses: { general: 0, purchases: 0, refunds: 0, total: 0 },
       netProfit: 0
     }
@@ -84,6 +84,7 @@ const ProfitLossReport = () => {
       { LineItem: "OPERATING REVENUE", Amount: "" },
       { LineItem: "  Room Reservation Bookings", Amount: pandL.revenue.room },
       { LineItem: "  Restaurant Sales Invoices", Amount: pandL.revenue.restaurant },
+      { LineItem: "  Venue Reservation Bookings", Amount: pandL.revenue.venue || 0 },
       { LineItem: "TOTAL REVENUE (A)", Amount: pandL.revenue.total },
       { LineItem: "", Amount: "" },
       { LineItem: "OPERATIONAL COST & COGS", Amount: "" },
@@ -113,6 +114,7 @@ const ProfitLossReport = () => {
       { LineItem: "OPERATING REVENUE", Amount: "" },
       { LineItem: "  Room Reservation Bookings", Amount: pandL.revenue.room },
       { LineItem: "  Restaurant Sales Invoices", Amount: pandL.revenue.restaurant },
+      { LineItem: "  Venue Reservation Bookings", Amount: pandL.revenue.venue || 0 },
       { LineItem: "TOTAL REVENUE (A)", Amount: pandL.revenue.total },
       { LineItem: "", Amount: "" },
       { LineItem: "OPERATIONAL COST & COGS", Amount: "" },
@@ -217,6 +219,10 @@ const ProfitLossReport = () => {
                   <span>Restaurant sales POS Invoices</span>
                   <span className="font-mono font-bold">৳{pandL.revenue.restaurant.toLocaleString()}</span>
                 </div>
+                <div className="flex justify-between pl-4">
+                  <span>Venue Reservation Bookings</span>
+                  <span className="font-mono font-bold">৳{(pandL.revenue.venue || 0).toLocaleString()}</span>
+                </div>
                 <div className="flex justify-between font-black text-brand-charcoal dark:text-brand-offwhite border-t border-brand-beige/50 dark:border-brand-beige/10 pt-2">
                   <span>TOTAL OPERATING REVENUE (A)</span>
                   <span className="font-mono">৳{pandL.revenue.total.toLocaleString()}</span>
@@ -294,6 +300,10 @@ const ProfitLossReport = () => {
                     <tr>
                       <td style={{ padding: "6px 8px", border: "1px solid #ddd" }}>Restaurant Sales POS Invoices</td>
                       <td style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "right", fontFamily: "monospace", fontWeight: "bold" }}>৳{printData.pandL?.revenue?.restaurant?.toLocaleString()}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "6px 8px", border: "1px solid #ddd" }}>Venue Reservation Bookings</td>
+                      <td style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "right", fontFamily: "monospace", fontWeight: "bold" }}>৳{(printData.pandL?.revenue?.venue || 0).toLocaleString()}</td>
                     </tr>
                     <tr style={{ fontWeight: "bold", backgroundColor: "#f3f4f6" }}>
                       <td style={{ padding: "6px 8px", border: "1px solid #ddd" }}>TOTAL OPERATING REVENUE (A)</td>

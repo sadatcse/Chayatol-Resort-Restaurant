@@ -7,6 +7,8 @@ import Invoice from "@/models/Invoice";
 import Purchase from "@/models/Purchase";
 import VendorPayment from "@/models/VendorPayment";
 import FolioEntry from "@/models/FolioEntry";
+import VenueBooking from "@/models/VenueBooking";
+import TransactionLog from "@/models/TransactionLog";
 
 export async function GET(req) {
   try {
@@ -116,12 +118,33 @@ export async function GET(req) {
       totalVendorPaymentsPaid += vp.amount || 0;
     });
 
+    // 6. Fetch Venue Bookings (Accrual Basis)
+    const venueBookings = await VenueBooking.find({
+      createdAt: { $gte: startDate, $lte: endDate },
+      bookingStatus: { $ne: "Cancelled" }
+    });
+    let venueAccrualRevenue = 0;
+    venueBookings.forEach(vb => {
+      venueAccrualRevenue += vb.totalAmount || 0;
+    });
+
+    // 7. Fetch Venue Cash Collections (Cash Basis via TransactionLog)
+    const venueLogs = await TransactionLog.find({
+      transactionTime: { $gte: startDate, $lte: endDate },
+      details: { $regex: /venue booking/i }
+    });
+    let venueCashInflow = 0;
+    venueLogs.forEach(vl => {
+      venueCashInflow += vl.amount || 0;
+    });
+
     // Profit & Loss Aggregations (Accrual Basis)
     const pandL = {
       revenue: {
         room: roomRevenue,
         restaurant: restaurantRevenue,
-        total: roomRevenue + restaurantRevenue
+        venue: venueAccrualRevenue,
+        total: roomRevenue + restaurantRevenue + venueAccrualRevenue
       },
       expenses: {
         general: totalGeneralExpenses,
@@ -129,7 +152,7 @@ export async function GET(req) {
         refunds: bookingRefunds,
         total: totalGeneralExpenses + totalPurchaseAccrual + bookingRefunds
       },
-      netProfit: (roomRevenue + restaurantRevenue) - (totalGeneralExpenses + totalPurchaseAccrual + bookingRefunds)
+      netProfit: (roomRevenue + restaurantRevenue + venueAccrualRevenue) - (totalGeneralExpenses + totalPurchaseAccrual + bookingRefunds)
     };
 
     // Cash Flow Aggregations (Cash Basis)
@@ -137,7 +160,8 @@ export async function GET(req) {
       inflow: {
         room: roomRevenue,
         restaurant: restaurantRevenue,
-        total: roomRevenue + restaurantRevenue
+        venue: venueCashInflow,
+        total: roomRevenue + restaurantRevenue + venueCashInflow
       },
       outflow: {
         general: totalGeneralExpenses,
@@ -145,7 +169,7 @@ export async function GET(req) {
         refunds: bookingRefunds,
         total: totalGeneralExpenses + totalVendorPaymentsPaid + bookingRefunds
       },
-      netCashFlow: (roomRevenue + restaurantRevenue) - (totalGeneralExpenses + totalVendorPaymentsPaid + bookingRefunds)
+      netCashFlow: (roomRevenue + restaurantRevenue + venueCashInflow) - (totalGeneralExpenses + totalVendorPaymentsPaid + bookingRefunds)
     };
 
     return NextResponse.json({
