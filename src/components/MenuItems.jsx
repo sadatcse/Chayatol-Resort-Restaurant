@@ -392,6 +392,21 @@ const menuItems = () => {
           path: "/dashboard/reports/custom-orders",
           icon: <MdHistory className="text-base" />,
         },
+        {
+          title: "Resort Bookings Report",
+          path: "/dashboard/reports/resort-bookings",
+          icon: <MdTrendingUp className="text-base" />,
+        },
+        {
+          title: "Venue Bookings Report",
+          path: "/dashboard/reports/venue-bookings",
+          icon: <MdShowChart className="text-base" />,
+        },
+        {
+          title: "Payment Collections Report",
+          path: "/dashboard/reports/payments",
+          icon: <MdPayments className="text-base" />,
+        },
       ],
     },
 
@@ -403,6 +418,11 @@ const menuItems = () => {
         {
           title: "User Access Logs",
           path: "/dashboard/user-access",
+          icon: <MdListAlt className="text-base" />,
+        },
+        {
+          title: "Transaction Logs",
+          path: "/dashboard/transaction-logs",
           icon: <MdListAlt className="text-base" />,
         },
         {
@@ -488,11 +508,7 @@ const menuItems = () => {
           path: "/dashboard/settings/roles",
           icon: <MdBadge className="text-base" />,
         },
-        {
-          title: "Access Control",
-          path: "/dashboard/setting/permission",
-          icon: <MdPayments className="text-base" />,
-        },
+
         {
           title: "Kitchen Settings",
           path: "/dashboard/setting/kitchen",

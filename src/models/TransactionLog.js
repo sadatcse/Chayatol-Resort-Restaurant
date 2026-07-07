@@ -3,6 +3,9 @@ const { Schema } = mongoose;
 
 const TransactionLogSchema = new Schema(
   {
+    logId: {
+      type: String,
+    },
     transactionType: {
       type: String,
       required: [true, "Transaction type is required"],
