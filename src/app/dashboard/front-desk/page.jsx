@@ -558,6 +558,8 @@ const FrontDeskTimelinePage = () => {
             updated[index].nightlyRate = roomObj.priceWithBreakfast || 0;
           } else if (selectedMeal === "All-Day Food Included") {
             updated[index].nightlyRate = roomObj.priceWithAllDayFood || 0;
+          } else if (selectedMeal === "Day-Long Included") {
+            updated[index].nightlyRate = roomObj.priceWithDayLong || 0;
           } else {
             updated[index].nightlyRate = roomObj.price || 0;
           }
@@ -729,6 +731,8 @@ const FrontDeskTimelinePage = () => {
             updated[index].nightlyRate = typeRoom.priceWithBreakfast || 0;
           } else if (selectedMeal === "All-Day Food Included") {
             updated[index].nightlyRate = typeRoom.priceWithAllDayFood || 0;
+          } else if (selectedMeal === "Day-Long Included") {
+            updated[index].nightlyRate = typeRoom.priceWithDayLong || 0;
           } else {
             updated[index].nightlyRate = typeRoom.price || 0;
           }
@@ -752,6 +756,8 @@ const FrontDeskTimelinePage = () => {
             updated[index].nightlyRate = roomObj.priceWithBreakfast || 0;
           } else if (selectedMeal === "All-Day Food Included") {
             updated[index].nightlyRate = roomObj.priceWithAllDayFood || 0;
+          } else if (selectedMeal === "Day-Long Included") {
+            updated[index].nightlyRate = roomObj.priceWithDayLong || 0;
           } else {
             updated[index].nightlyRate = roomObj.price || 0;
           }
@@ -764,6 +770,8 @@ const FrontDeskTimelinePage = () => {
             updated[index].nightlyRate = typeRoom.priceWithBreakfast || 0;
           } else if (selectedMeal === "All-Day Food Included") {
             updated[index].nightlyRate = typeRoom.priceWithAllDayFood || 0;
+          } else if (selectedMeal === "Day-Long Included") {
+            updated[index].nightlyRate = typeRoom.priceWithDayLong || 0;
           } else {
             updated[index].nightlyRate = typeRoom.price || 0;
           }
@@ -3538,6 +3546,7 @@ const FrontDeskTimelinePage = () => {
                         <option value="Room Only">Room Only</option>
                         <option value="Breakfast Included">Breakfast Included</option>
                         <option value="All-Day Food Included">All-Day Food Included</option>
+                        <option value="Day-Long Included">Day-Long Included</option>
                       </select>
                     </div>
 
@@ -3971,6 +3980,7 @@ const FrontDeskTimelinePage = () => {
                         <option value="Room Only">Room Only</option>
                         <option value="Breakfast Included">Breakfast Included</option>
                         <option value="All-Day Food Included">All-Day Food Included</option>
+                        <option value="Day-Long Included">Day-Long Included</option>
                       </select>
                     </div>
 

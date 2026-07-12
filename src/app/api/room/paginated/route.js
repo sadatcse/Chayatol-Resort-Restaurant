@@ -24,10 +24,13 @@ export async function GET(req) {
         query.priceWithBreakfast = { $gt: 0 };
       } else if (inclusion === "allday") {
         query.priceWithAllDayFood = { $gt: 0 };
+      } else if (inclusion === "daylong") {
+        query.priceWithDayLong = { $gt: 0 };
       } else if (inclusion === "roomonly") {
-        // Rooms where they only support base room pricing (both extra options are 0 or empty)
+        // Rooms where they only support base room pricing (all extra options are 0 or empty)
         query.priceWithBreakfast = { $eq: 0 };
         query.priceWithAllDayFood = { $eq: 0 };
+        query.priceWithDayLong = { $eq: 0 };
       }
     }
 

@@ -3,11 +3,13 @@
 import React, { useState, useEffect, useCallback, Suspense, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiSearch, FiRefreshCw, FiEye, FiX, FiPrinter } from "react-icons/fi";
+import { FaPrint } from "react-icons/fa";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
+import CustomOrdersThermalTemplate from "@/components/Receipt/CustomOrdersThermalTemplate";
 import useStandardPrint from "@/hooks/useStandardPrint";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 import usePagePermission from "@/hooks/usePagePermission";
@@ -16,6 +18,13 @@ function CustomOrdersContent() {
     const axiosSecure = useAxiosSecure();
     const receiptRef = useRef();
     const { canEdit } = usePagePermission();
+    const thermalPrintRef = useRef();
+
+    const handleThermalPrintClick = () => {
+        if (thermalPrintRef.current) {
+            thermalPrintRef.current.printReceipt();
+        }
+    };
 
     const getFormattedDate = (date) => {
         return date.toISOString().slice(0, 10);
@@ -187,12 +196,23 @@ function CustomOrdersContent() {
                         <p className="text-sm text-gray-500 mt-1">Run advanced sales query logs from the transaction database</p>
                     </div>
                     {orders.length > 0 && canEdit && (
-                        <ExportButtons
-                            onExportExcel={handleExportExcel}
-                            onExportCsv={handleExportCsv}
-                            onPrint={handlePrintClick}
-                            isLoading={isLoading}
-                        />
+                        <div className="flex gap-2 items-center flex-wrap">
+                            <ExportButtons
+                                onExportExcel={handleExportExcel}
+                                onExportCsv={handleExportCsv}
+                                onPrint={handlePrintClick}
+                                isLoading={isLoading}
+                            />
+                            <button
+                                onClick={handleThermalPrintClick}
+                                disabled={isLoading}
+                                className="btn btn-sm bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-850 text-white border-none rounded-full flex items-center gap-2 px-4 shadow-sm active:scale-95 transition-all text-xs font-semibold cursor-pointer h-9"
+                                title="Print Thermal Receipt"
+                            >
+                                <FaPrint className="text-sm shrink-0" />
+                                <span>Thermal Print</span>
+                            </button>
+                        </div>
                     )}
                 </header>
 
@@ -500,6 +520,16 @@ function CustomOrdersContent() {
                         </table>
                     </PrintReportTemplate>
                 )}
+                <div className="hidden">
+                    <CustomOrdersThermalTemplate
+                        ref={thermalPrintRef}
+                        profileData={companyInfo}
+                        data={orders}
+                        fromDate={fromDate}
+                        toDate={toDate}
+                        summary={summary}
+                    />
+                </div>
             </div>
         </div>
     );

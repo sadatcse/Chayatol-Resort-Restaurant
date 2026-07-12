@@ -99,6 +99,11 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
         totalLine: { fontWeight: "bold", fontSize: "14px" },
     };
 
+    const subTotalVal = invoiceData.subtotal || invoiceData.subTotal || 0;
+    const vatRate = invoiceData.vatRate !== undefined ? invoiceData.vatRate : (subTotalVal ? Math.round(((invoiceData.vat || 0) / subTotalVal) * 100) : 0);
+    const sdRate = invoiceData.sdRate !== undefined ? invoiceData.sdRate : (subTotalVal ? Math.round(((invoiceData.sd || 0) / subTotalVal) * 100) : 0);
+    const scRate = invoiceData.scRate !== undefined ? invoiceData.scRate : (subTotalVal ? Math.round(((invoiceData.serviceCharge || invoiceData.sc || 0) / subTotalVal) * 100) : 0);
+
     return (
         <div ref={internalPrintRef} style={styles.container}>
             {/* Header */}
@@ -182,14 +187,18 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
 
             {/* Totals Section */}
             <div style={{ textAlign: "right" }}>
-                <p style={styles.infoText}>Subtotal: ৳ {(invoiceData.subtotal || invoiceData.subTotal || 0).toFixed(0)}</p>
+                <p style={styles.infoText}>Subtotal: ৳ {subTotalVal.toFixed(0)}</p>
                 
                 {invoiceData?.vat > 0 && (
-                    <p style={styles.infoText}>VAT: ৳ {invoiceData.vat.toFixed(0)}</p>
+                    <p style={styles.infoText}>VAT ({vatRate}%): ৳ {invoiceData.vat.toFixed(0)}</p>
                 )}
 
                 {invoiceData?.sd > 0 && (
-                    <p style={styles.infoText}>SD: ৳ {invoiceData.sd.toFixed(0)}</p>
+                    <p style={styles.infoText}>SD ({sdRate}%): ৳ {invoiceData.sd.toFixed(0)}</p>
+                )}
+
+                {((invoiceData?.serviceCharge || invoiceData?.sc) > 0) && (
+                    <p style={styles.infoText}>Service Charge ({scRate}%): ৳ {(invoiceData.serviceCharge || invoiceData.sc || 0).toFixed(0)}</p>
                 )}
 
                 {invoiceData?.deliveryCharge > 0 && (

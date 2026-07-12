@@ -20,6 +20,7 @@ const INITIAL_ROOM_FORM = {
   price: "",
   priceWithBreakfast: "",
   priceWithAllDayFood: "",
+  priceWithDayLong: "",
   capacity: "",
   status: "Available"
 };
@@ -80,6 +81,7 @@ const RoomAndPlansPage = () => {
         price: roomToEdit.price || "",
         priceWithBreakfast: roomToEdit.priceWithBreakfast || "",
         priceWithAllDayFood: roomToEdit.priceWithAllDayFood || "",
+        priceWithDayLong: roomToEdit.priceWithDayLong || "",
         capacity: roomToEdit.capacity || "",
         status: roomToEdit.status || "Available"
       });
@@ -122,6 +124,7 @@ const RoomAndPlansPage = () => {
       price: Number(roomFormData.price),
       priceWithBreakfast: Number(roomFormData.priceWithBreakfast || 0),
       priceWithAllDayFood: Number(roomFormData.priceWithAllDayFood || 0),
+      priceWithDayLong: Number(roomFormData.priceWithDayLong || 0),
       capacity: Number(roomFormData.capacity || 2),
       status: roomFormData.status
     };
@@ -269,6 +272,7 @@ const RoomAndPlansPage = () => {
                   <option value="roomonly">Room Only</option>
                   <option value="breakfast">With Breakfast</option>
                   <option value="allday">With All-Day Food</option>
+                  <option value="daylong">With Day-Long Food</option>
                 </select>
               </div>
 
@@ -339,6 +343,7 @@ const RoomAndPlansPage = () => {
                             <div className="font-bold text-brand-secondary">Room Only: ৳{room.price}</div>
                             <div className="text-xs text-brand-sage">w/ Breakfast: ৳{room.priceWithBreakfast || 0}</div>
                             <div className="text-xs text-brand-sage">All-Day Food: ৳{room.priceWithAllDayFood || 0}</div>
+                            <div className="text-xs text-brand-sage">Day-Long Food: ৳{room.priceWithDayLong || 0}</div>
                           </td>
                           <td className="py-4 font-bold">{room.capacity} Person(s)</td>
                           <td className="py-4">
@@ -485,17 +490,30 @@ const RoomAndPlansPage = () => {
                 </div>
               </div>
 
-              <div className="form-control w-full">
-                <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Status *</span></label>
-                <select
-                  value={roomFormData.status}
-                  onChange={(e) => setRoomFormData({ ...roomFormData, status: e.target.value })}
-                  className="select select-bordered border-brand-primary dark:border-brand-primary/50 w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
-                >
-                  <option value="Available">Available</option>
-                  <option value="Occupied">Occupied</option>
-                  <option value="Maintenance">Maintenance</option>
-                </select>
+              <div className="flex gap-4">
+                <div className="form-control w-1/2">
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Price w/ Day-Long Food</span></label>
+                  <input
+                    type="number"
+                    value={roomFormData.priceWithDayLong}
+                    onChange={(e) => setRoomFormData({ ...roomFormData, priceWithDayLong: e.target.value })}
+                    className="input input-bordered border-brand-primary dark:border-brand-primary/50 w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
+                    placeholder="e.g. 3000"
+                  />
+                </div>
+
+                <div className="form-control w-1/2">
+                  <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Status *</span></label>
+                  <select
+                    value={roomFormData.status}
+                    onChange={(e) => setRoomFormData({ ...roomFormData, status: e.target.value })}
+                    className="select select-bordered border-brand-primary dark:border-brand-primary/50 w-full bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite"
+                  >
+                    <option value="Available">Available</option>
+                    <option value="Occupied">Occupied</option>
+                    <option value="Maintenance">Maintenance</option>
+                  </select>
+                </div>
               </div>
             </div>
 

@@ -141,6 +141,8 @@ export async function POST(req) {
           nightlyRate = room.priceWithBreakfast || 0;
         } else if (mealPlan === "All-Day Food Included") {
           nightlyRate = room.priceWithAllDayFood || 0;
+        } else if (mealPlan === "Day-Long Included") {
+          nightlyRate = room.priceWithDayLong || 0;
         } else {
           nightlyRate = room.price || 0;
         }

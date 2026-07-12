@@ -481,6 +481,8 @@ const ReservationsPage = () => {
             updated[index].nightlyRate = room.priceWithBreakfast || 0;
           } else if (selectedMeal === "All-Day Food Included") {
             updated[index].nightlyRate = room.priceWithAllDayFood || 0;
+          } else if (selectedMeal === "Day-Long Included") {
+            updated[index].nightlyRate = room.priceWithDayLong || 0;
           } else {
             updated[index].nightlyRate = room.price || 0;
           }
@@ -1457,6 +1459,7 @@ const ReservationsPage = () => {
                         <option value="Room Only">Room Only</option>
                         <option value="Breakfast Included">Breakfast Included</option>
                         <option value="All-Day Food Included">All-Day Food Included</option>
+                        <option value="Day-Long Included">Day-Long Included</option>
                       </select>
                     </div>
 

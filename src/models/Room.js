@@ -29,6 +29,11 @@ const RoomSchema = Schema(
       default: 0,
       min: [0, "Price must be a positive number"],
     },
+    priceWithDayLong: {
+      type: Number,
+      default: 0,
+      min: [0, "Price must be a positive number"],
+    },
     capacity: {
       type: Number,
       required: [true, "Please provide the room capacity"],

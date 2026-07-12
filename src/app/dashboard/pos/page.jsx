@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useContext, useRef, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { useState, useEffect, useContext, useRef, useMemo, Suspense, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import Swal from "sweetalert2";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
@@ -14,9 +14,13 @@ import OrderSummary from "@/components/pos/OrderSummary";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import KitchenReceiptTemplate from "@/components/Receipt/KitchenReceiptTemplate";
 import usePagePermission from "@/hooks/usePagePermission";
-import { FaUtensils, FaGift, FaTruck, FaHotel } from "react-icons/fa";
+import { FaUtensils, FaGift, FaTruck, FaHotel, FaLock, FaMoneyBillWave, FaCheck, FaPrint, FaUniversity } from "react-icons/fa";
+import { FaCcVisa, FaCcAmex } from "react-icons/fa6";
+import { RiMastercardFill } from "react-icons/ri";
+import { FiX } from "react-icons/fi";
 
 function POSContent() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const invoiceId = searchParams.get("invoiceId");
 
@@ -70,12 +74,27 @@ function POSContent() {
     const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
     const [activeStays, setActiveStays] = useState([]);
 
+    // Checkout modal states
+    const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+    const [checkoutStep, setCheckoutStep] = useState("action"); // "action" or "payment"
+    const [checkoutMode, setCheckoutMode] = useState(""); // "print-bill", "pay-and-print", "collect-only"
+
+    const handlePayAndPrintClick = () => {
+        if (addedProducts.length === 0) {
+            toast.warn("Please add products to the cart first.");
+            return;
+        }
+        setIsCheckoutModalOpen(true);
+        setCheckoutStep("action");
+    };
+
     // Auxiliary Data (Tables, Rooms, Company info)
     const [tables, setTables] = useState([]);
     const [rooms, setRooms] = useState([]);
     const [companyInfo, setCompanyInfo] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
+    const [reloadCounter, setReloadCounter] = useState(0);
     const [idempotencyKey, setIdempotencyKey] = useState("");
     const generateIdempotencyKey = () => {
         return "pos-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
@@ -128,7 +147,7 @@ function POSContent() {
         const fetchAuxData = async () => {
             try {
                 const [tablesRes, roomsRes, companyRes, paymentRes, chargesRes, staysRes, controlRes] = await Promise.all([
-                    axiosSecure.get("/restauranttable").catch((err) => { console.error("POS tables error:", err); return { data: [] }; }),
+                    axiosSecure.get("/restauranttable/status").catch((err) => { console.error("POS tables error:", err); return { data: [] }; }),
                     axiosSecure.get("/room?all=true").catch((err) => { console.error("POS rooms error:", err); return { data: [] }; }),
                     axiosSecure.get("/company").catch((err) => { console.error("POS company error:", err); return { data: [] }; }),
                     axiosSecure.get("/paymenttype").catch((err) => { console.error("POS paymenttype error:", err); return { data: [] }; }),
@@ -162,6 +181,21 @@ function POSContent() {
         };
         fetchAuxData();
     }, [axiosSecure]);
+
+    const refreshTableStatuses = useCallback(async () => {
+        try {
+            const res = await axiosSecure.get("/restauranttable/status");
+            if (res.data) setTables(res.data);
+        } catch (err) {
+            console.error("Error refreshing table statuses:", err);
+        }
+    }, [axiosSecure]);
+
+    useEffect(() => {
+        if (isTableModalOpen) {
+            refreshTableStatuses();
+        }
+    }, [isTableModalOpen, refreshTableStatuses]);
 
     // Load Invoice for Edit Mode
     useEffect(() => {
@@ -227,7 +261,7 @@ function POSContent() {
             }
         };
         fetchInvoice();
-    }, [invoiceId, axiosSecure]);
+    }, [invoiceId, axiosSecure, reloadCounter]);
 
     // Handlers
     const handleMainPaymentButtonClick = (method) => {
@@ -459,7 +493,7 @@ function POSContent() {
     const change = (invoiceSummary.paid || 0) > totals.payable ? (invoiceSummary.paid || 0) - totals.payable : 0;
 
     // Print & Save Order
-    const printInvoice = async (isPrintAction) => {
+    const printInvoice = async (isPrintAction, checkoutModeOverride, paymentMethodOverride) => {
         if (isProcessing) return;
         if (addedProducts.length === 0) return;
 
@@ -479,8 +513,21 @@ function POSContent() {
 
         let finalPaymentMethod = isPrintAction ? (selectedPaymentMethod || "Cash") : "Due";
         let finalPaymentStatus = isPrintAction ? "Paid" : "Unpaid";
+        let finalOrderStatus = isPrintAction ? "served" : "Pending";
 
-        if (roomNo) {
+        if (checkoutModeOverride) {
+            if (checkoutModeOverride === 'print-bill') {
+                finalPaymentMethod = "Due";
+                finalPaymentStatus = "Unpaid";
+                finalOrderStatus = "Pending";
+            } else {
+                finalPaymentMethod = paymentMethodOverride || selectedPaymentMethod || "Cash";
+                finalPaymentStatus = "Paid";
+                finalOrderStatus = "served";
+            }
+        }
+
+        if (roomNo && checkoutModeOverride !== 'print-bill') {
             const result = await Swal.fire({
                 title: 'Room Guest Payment Options',
                 text: `How would you like to settle the order for Room ${roomNo}?`,
@@ -501,13 +548,8 @@ function POSContent() {
                 finalPaymentStatus = "Unpaid";
             } else if (result.isDenied) {
                 // Pay Now
-                if (isPrintAction) {
-                    finalPaymentMethod = selectedPaymentMethod || "Cash";
-                    finalPaymentStatus = "Paid";
-                } else {
-                    finalPaymentMethod = "Due";
-                    finalPaymentStatus = "Unpaid";
-                }
+                finalPaymentMethod = paymentMethodOverride || selectedPaymentMethod || "Cash";
+                finalPaymentStatus = "Paid";
             } else {
                 // Cancelled
                 setIsProcessing(false);
@@ -562,7 +604,7 @@ function POSContent() {
             paymentMethod: finalPaymentMethod,
             paymentStatus: finalPaymentStatus,
             invoiceType: "Restaurant",
-            orderStatus: isPrintAction ? "served" : "Pending"
+            orderStatus: finalOrderStatus
         };
 
         if (customDateTime) {
@@ -780,6 +822,7 @@ function POSContent() {
     };
 
     const resetOrder = () => {
+        router.push("/dashboard/pos");
         setIdempotencyKey(generateIdempotencyKey());
         setAddedProducts([]);
         setCustomer(null);
@@ -854,7 +897,7 @@ function POSContent() {
                 payable={totals.payable}
                 paid={invoiceSummary.paid}
                 change={change}
-                printInvoice={printInvoice}
+                printInvoice={handlePayAndPrintClick}
                 handleKitchenClick={handleKitchenClick}
                 resetOrder={resetOrder}
                 isProcessing={isProcessing}
@@ -940,20 +983,40 @@ function POSContent() {
                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
                                 {tables.map((table) => {
                                     const isSelected = TableName === table.tableName;
+                                    const isOccupied = ['pending', 'cooking', 'served'].includes(table.status) && table.tableName !== TableName;
+                                    const isReserved = table.status === 'reserved';
                                     return (
                                         <button
                                             key={table._id}
+                                            disabled={isOccupied}
                                             onClick={() => {
                                                 setTableName(table.tableName);
                                                 setIsTableModalOpen(false);
                                             }}
-                                            className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105
+                                            className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all hover:scale-105 relative
                                                 ${isSelected
-                                                    ? "bg-brand-primary border-brand-primary text-white"
-                                                    : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300"}`}
+                                                    ? "bg-brand-primary border-brand-primary text-white cursor-pointer"
+                                                    : isOccupied
+                                                        ? "border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20 text-red-400 dark:text-red-500/70 cursor-not-allowed opacity-75"
+                                                        : "border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 dark:hover:border-brand-primary text-gray-700 dark:text-zinc-300 cursor-pointer"}`}
                                         >
-                                            <FaUtensils size={16} className={isSelected ? "text-white" : "text-brand-primary dark:text-brand-sage"} />
+                                            {isOccupied ? (
+                                                <FaLock size={15} className="text-red-500 dark:text-red-400" />
+                                            ) : (
+                                                <FaUtensils size={15} className={isSelected ? "text-white" : "text-brand-primary dark:text-brand-sage"} />
+                                            )}
                                             <span className="text-xs font-bold text-center leading-tight">{table.tableName}</span>
+                                            
+                                            {isOccupied && (
+                                                <span className="text-[8px] bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-extrabold uppercase scale-90">
+                                                    Occupied
+                                                </span>
+                                            )}
+                                            {isReserved && !isOccupied && (
+                                                <span className="text-[8px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1 py-0.5 rounded font-extrabold uppercase scale-90">
+                                                    Reserved
+                                                </span>
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -1079,6 +1142,144 @@ function POSContent() {
                                 </div>
                             );
                         })()}
+                    </div>
+                </div>
+            )}
+
+            {/* Checkout Action Modal */}
+            {isCheckoutModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 max-w-md w-full border border-brand-beige/25 dark:border-zinc-850 animate-scale-in mx-4">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-extrabold text-gray-800 dark:text-zinc-100 uppercase tracking-widest">
+                                Checkout Options
+                            </h3>
+                            <button
+                                onClick={() => setIsCheckoutModalOpen(false)}
+                                className="text-gray-450 hover:text-gray-600 dark:hover:text-zinc-350 font-bold text-sm cursor-pointer"
+                            >
+                                <FiX size={20} />
+                            </button>
+                        </div>
+
+                        {checkoutStep === "action" ? (
+                            <div className="flex flex-col gap-4">
+                                <button
+                                    onClick={() => {
+                                        setIsCheckoutModalOpen(false);
+                                        printInvoice(true, "print-bill", "Due");
+                                    }}
+                                    className="flex items-center gap-4 p-4 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/35 transition-all text-left cursor-pointer group"
+                                >
+                                    <div className="p-3 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
+                                        <FaPrint size={20} />
+                                    </div>
+                                    <div>
+                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">Print Customer Bill</span>
+                                        <span className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">Hold order as Unpaid/Due and print preliminary bill.</span>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        setCheckoutMode("pay-and-print");
+                                        setCheckoutStep("payment");
+                                    }}
+                                    className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/35 transition-all text-left cursor-pointer group"
+                                >
+                                    <div className="p-3 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
+                                        <FaMoneyBillWave size={20} />
+                                    </div>
+                                    <div>
+                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">Pay Bill & Get Payment (Print)</span>
+                                        <span className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">Settle order as Paid and print final receipt.</span>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        setCheckoutMode("collect-only");
+                                        setCheckoutStep("payment");
+                                    }}
+                                    className="flex items-center gap-4 p-4 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/35 transition-all text-left cursor-pointer group"
+                                >
+                                    <div className="p-3 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
+                                        <FaCheck size={20} />
+                                    </div>
+                                    <div>
+                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">Collect Only Payment (No Print)</span>
+                                        <span className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">Settle order as Paid without printing a physical receipt.</span>
+                                    </div>
+                                </button>
+                            </div>
+                        ) : (
+                            <div>
+                                <h4 className="text-sm font-bold text-gray-500 dark:text-zinc-400 mb-4">
+                                    Select Payment Method:
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                    {(() => {
+                                        const options = [];
+                                        const hasCash = paymentTypes.some(pt => pt.name === "Cash");
+                                        const hasCard = paymentTypes.some(pt => pt.name === "Card");
+                                        const hasMobile = paymentTypes.some(pt => pt.name === "Mobile");
+                                        const hasBank = paymentTypes.some(pt => pt.name === "Bank");
+                                        const useFallback = !paymentTypes || paymentTypes.length === 0;
+
+                                        if (hasCash || useFallback) {
+                                            options.push({ name: "Cash", method: "Cash", sub: "", icon: <FaMoneyBillWave size={16} /> });
+                                        }
+                                        if (hasCard || useFallback) {
+                                            options.push({ name: "Visa Card", method: "Card", sub: "Visa Card", icon: <FaCcVisa size={16} /> });
+                                            options.push({ name: "Master Card", method: "Card", sub: "Master Card", icon: <RiMastercardFill size={16} /> });
+                                            options.push({ name: "Amex Card", method: "Card", sub: "Amex Card", icon: <FaCcAmex size={16} /> });
+                                        }
+                                        if (hasMobile || useFallback) {
+                                            options.push({ name: "Bkash", method: "Mobile", sub: "Bkash", icon: <span className="font-extrabold text-[10px] text-pink-600">bKash</span> });
+                                            options.push({ name: "Nagad", method: "Mobile", sub: "Nagad", icon: <span className="font-extrabold text-[10px] text-orange-600">Nagad</span> });
+                                            options.push({ name: "Rocket", method: "Mobile", sub: "Rocket", icon: <span className="font-extrabold text-[10px] text-purple-600">Rocket</span> });
+                                        }
+                                        if (hasBank || useFallback) {
+                                            options.push({ name: "Bank", method: "Bank", sub: "", icon: <FaUniversity size={16} /> });
+                                        }
+
+                                        paymentTypes.forEach(pt => {
+                                            if (!["Cash", "Card", "Mobile", "Bank"].includes(pt.name)) {
+                                                options.push({ name: pt.name, method: pt.name, sub: "", icon: <FaUniversity size={16} /> });
+                                            }
+                                        });
+
+                                        return options.map((opt) => (
+                                            <button
+                                                key={opt.name}
+                                                onClick={() => {
+                                                    setIsCheckoutModalOpen(false);
+                                                    printInvoice(
+                                                        checkoutMode === "pay-and-print",
+                                                        checkoutMode,
+                                                        opt.sub || opt.method
+                                                    );
+                                                }}
+                                                className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 text-gray-700 dark:text-zinc-300 font-bold text-xs cursor-pointer text-left transition-all hover:scale-102"
+                                            >
+                                                <div className="text-brand-primary dark:text-brand-sage shrink-0">
+                                                    {opt.icon}
+                                                </div>
+                                                <span>{opt.name}</span>
+                                            </button>
+                                        ));
+                                    })()}
+                                </div>
+                                <div className="flex justify-between items-center border-t border-gray-200 dark:border-zinc-800 pt-4">
+                                    <button
+                                        onClick={() => setCheckoutStep("action")}
+                                        className="btn btn-sm btn-ghost text-xs cursor-pointer font-bold uppercase tracking-wider"
+                                    >
+                                        Back
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

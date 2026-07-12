@@ -22,7 +22,7 @@ const seedUsers = async () => {
 
             {
                 name: 'Apon Khan',
-                email: 'apon@gmail.com',
+                email: 'sadatcse@gmail.com',
                 password: '12345678',
                 role: 'admin',
                 mobileNumber: '01812345678',

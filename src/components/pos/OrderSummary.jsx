@@ -216,9 +216,18 @@ const OrderSummary = ({
                                         className="select select-bordered select-sm w-full dark:bg-zinc-800 dark:border-zinc-700 bg-white"
                                     >
                                         <option value="">Select Table</option>
-                                        {tables.map(t => (
-                                            <option key={t._id} value={t.tableName}>{t.tableName}</option>
-                                        ))}
+                                        {tables.map(t => {
+                                            const isOccupied = ['pending', 'cooking', 'served'].includes(t.status) && t.tableName !== TableName;
+                                            const isReserved = t.status === 'reserved';
+                                            let suffix = "";
+                                            if (isOccupied) suffix = " (Occupied)";
+                                            else if (isReserved) suffix = " (Reserved)";
+                                            return (
+                                                <option key={t._id} value={t.tableName} disabled={isOccupied}>
+                                                    {t.tableName}{suffix}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
                             )}

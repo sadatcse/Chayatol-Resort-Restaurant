@@ -22,7 +22,7 @@ const ReservationRoomSchema = Schema({
   },
   mealPlan: {
     type: String,
-    enum: ["Room Only", "Breakfast Included", "All-Day Food Included"],
+    enum: ["Room Only", "Breakfast Included", "All-Day Food Included", "Day-Long Included"],
     default: "Room Only"
   },
   nightlyRate: {
