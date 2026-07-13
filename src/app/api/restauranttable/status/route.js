@@ -18,18 +18,20 @@ export async function GET(req) {
     // 1. Get all tables
     const tables = await RestaurantTable.find().sort({ tableName: 1 }).lean();
 
-    // 2. Get active unpaid restaurant invoices (orderStatus != 'served' or paymentStatus == 'Unpaid')
-    const activeInvoices = await Invoice.find({
-      invoiceType: "Restaurant",
-      paymentStatus: "Unpaid",
-      orderStatus: { $ne: "served" }
-    }).lean();
-
-    // 3. Get today's active table reservations
+    // 2. Define today's active date range
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
+    // 3. Get active unpaid restaurant invoices for today (orderStatus != 'served' or paymentStatus == 'Unpaid')
+    const activeInvoices = await Invoice.find({
+      invoiceType: "Restaurant",
+      paymentStatus: "Unpaid",
+      orderStatus: { $ne: "served" },
+      dateTime: { $gte: startOfToday, $lte: endOfToday }
+    }).lean();
+
+    // 4. Get today's active table reservations
     const activeReservations = await TableReservation.find({
       startTime: { $gte: startOfToday, $lte: endOfToday },
       status: { $in: ["Pending", "Confirmed"] }
@@ -40,7 +42,7 @@ export async function GET(req) {
       const name = table.tableName;
 
       // Find if there is an active invoice for this table
-      const matchedInvoice = activeInvoices.find(inv => 
+      const matchedInvoice = activeInvoices.find(inv =>
         (inv.tableName && inv.tableName.toLowerCase() === name.toLowerCase()) ||
         (inv.tableNo && inv.tableNo.toLowerCase() === name.toLowerCase())
       );
@@ -64,14 +66,14 @@ export async function GET(req) {
       }
 
       // Check if there is an active reservation close to current time (e.g. within 2 hours)
-      const matchedReservation = activeReservations.find(res => 
+      const matchedReservation = activeReservations.find(res =>
         res.tableName && res.tableName.toLowerCase() === name.toLowerCase()
       );
 
       if (matchedReservation) {
         const resTime = new Date(matchedReservation.startTime);
         const diffHours = Math.abs(now - resTime) / 3600000;
-        
+
         // If reservation start time is within 2 hours
         if (diffHours <= 2) {
           return {

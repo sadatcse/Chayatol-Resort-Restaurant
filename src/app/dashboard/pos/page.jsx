@@ -253,15 +253,18 @@ function POSContent() {
                         setAddedProducts(mappedCart);
                     }
                 }
+                // Clear the invoiceId query param from URL so that navigating away and back doesn't reload this order
+                router.replace("/dashboard/pos");
             } catch (err) {
                 console.error("Error loading invoice for edit", err);
                 toast.error("Could not load invoice for editing.");
+                router.replace("/dashboard/pos");
             } finally {
                 setIsProcessing(false);
             }
         };
         fetchInvoice();
-    }, [invoiceId, axiosSecure, reloadCounter]);
+    }, [invoiceId, axiosSecure, reloadCounter, router]);
 
     // Handlers
     const handleMainPaymentButtonClick = (method) => {
@@ -1006,7 +1009,7 @@ function POSContent() {
                                                 <FaUtensils size={15} className={isSelected ? "text-white" : "text-brand-primary dark:text-brand-sage"} />
                                             )}
                                             <span className="text-xs font-bold text-center leading-tight">{table.tableName}</span>
-                                            
+
                                             {isOccupied && (
                                                 <span className="text-[8px] bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-extrabold uppercase scale-90">
                                                     Occupied
