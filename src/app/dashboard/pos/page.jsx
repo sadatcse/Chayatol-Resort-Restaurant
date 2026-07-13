@@ -200,6 +200,8 @@ function POSContent() {
     // Load Invoice for Edit Mode
     useEffect(() => {
         if (!invoiceId) return;
+        // Prevent refetching if we are already editing this invoice
+        if (currentInvoiceId === invoiceId) return;
         const fetchInvoice = async () => {
             try {
                 setIsProcessing(true);
@@ -253,8 +255,6 @@ function POSContent() {
                         setAddedProducts(mappedCart);
                     }
                 }
-                // Clear the invoiceId query param from URL so that navigating away and back doesn't reload this order
-                router.replace("/dashboard/pos");
             } catch (err) {
                 console.error("Error loading invoice for edit", err);
                 toast.error("Could not load invoice for editing.");
@@ -264,7 +264,7 @@ function POSContent() {
             }
         };
         fetchInvoice();
-    }, [invoiceId, axiosSecure, reloadCounter, router]);
+    }, [invoiceId, currentInvoiceId, axiosSecure, reloadCounter, router]);
 
     // Handlers
     const handleMainPaymentButtonClick = (method) => {
@@ -671,6 +671,7 @@ function POSContent() {
                 setDeliveryProvider("");
                 setCurrentInvoiceId(null);
                 setKotRound(1);
+                router.replace("/dashboard/pos");
             }
         } catch (e) {
             console.error("Order save failure", e);
@@ -792,6 +793,7 @@ function POSContent() {
                 setCurrentInvoiceId(savedInvoice._id);
                 setAddedProducts(updatedProducts);
                 setKotRound(prev => prev + 1);
+                router.replace(`/dashboard/pos?invoiceId=${savedInvoice._id}`);
 
                 // --- Build per-kitchen KOT queue (same mechanism as Pay & Print) ---
                 if (printKOTEnabled) {
@@ -824,7 +826,7 @@ function POSContent() {
         }
     };
 
-    const resetOrder = () => {
+    const resetOrder = useCallback(() => {
         router.push("/dashboard/pos");
         setIdempotencyKey(generateIdempotencyKey());
         setAddedProducts([]);
@@ -847,7 +849,18 @@ function POSContent() {
             setSelectedCategory("All");
         }
         toast.info("POS Order Reset!");
-    };
+    }, [categories, router]);
+
+    // Watch for URL transitions: if the invoiceId query parameter is cleared from the URL,
+    // but we are currently in edit mode (currentInvoiceId is set), it means the user clicked
+    // the "POS System" link in the sidebar or header to start a new order.
+    useEffect(() => {
+        if (!invoiceId && currentInvoiceId) {
+            Promise.resolve().then(() => {
+                resetOrder();
+            });
+        }
+    }, [invoiceId, currentInvoiceId, resetOrder]);
 
     return (
         <div className="flex flex-col lg:flex-row gap-4 p-4 min-h-screen bg-slate-50 dark:bg-zinc-950 font-sans">
