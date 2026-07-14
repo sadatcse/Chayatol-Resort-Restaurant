@@ -62,6 +62,12 @@ const AccordionItem = ({ item, isSidebarOpen }) => {
               <li key={child.title}>
                 <Link
                   href={child.path}
+                  onClick={(e) => {
+                    if (pathname === child.path) {
+                      e.preventDefault();
+                      window.location.href = child.path;
+                    }
+                  }}
                   className={`flex items-center gap-3 p-2 my-1 text-sm rounded-md transition-colors ${linkClass(
                     child.path
                   )}`}
@@ -82,6 +88,12 @@ const AccordionItem = ({ item, isSidebarOpen }) => {
     <li>
       <Link
         href={item.path}
+        onClick={(e) => {
+          if (pathname === item.path) {
+            e.preventDefault();
+            window.location.href = item.path;
+          }
+        }}
         className={`flex items-center gap-3 p-3 my-1 rounded-md transition-colors ${linkClass(
           item.path
         )}`}

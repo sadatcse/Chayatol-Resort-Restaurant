@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useContext, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { FaUserCircle } from "react-icons/fa";
 import { RiMenuFold4Fill as RiFoldIcon } from "react-icons/ri";
@@ -43,6 +43,7 @@ const Header = ({ isSidebarOpen, toggleSidebar }) => {
   const { user, logoutUser } = useContext(AuthContext);
   const axiosSecure = useAxiosSecure();
   const router = useRouter();
+  const pathname = usePathname();
   const { mode, toggleMode, loading } = useThemeMode();
 
   const fetchNotifications = useCallback(async () => {
@@ -123,6 +124,12 @@ const Header = ({ isSidebarOpen, toggleSidebar }) => {
       <div className="hidden lg:flex items-center gap-1">
         <Link
           href="/dashboard/front-desk"
+          onClick={(e) => {
+            if (pathname === "/dashboard/front-desk") {
+              e.preventDefault();
+              window.location.href = "/dashboard/front-desk";
+            }
+          }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-primary/10 dark:hover:bg-brand-dark-grey transition-colors duration-200"
         >
           <MdDashboard className="text-sm text-brand-primary" />
@@ -130,6 +137,12 @@ const Header = ({ isSidebarOpen, toggleSidebar }) => {
         </Link>
         <Link
           href="/dashboard/tables/view"
+          onClick={(e) => {
+            if (pathname === "/dashboard/tables/view") {
+              e.preventDefault();
+              window.location.href = "/dashboard/tables/view";
+            }
+          }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-primary/10 dark:hover:bg-brand-dark-grey transition-colors duration-200"
         >
           <MdTableRestaurant className="text-sm text-brand-primary" />
@@ -137,6 +150,12 @@ const Header = ({ isSidebarOpen, toggleSidebar }) => {
         </Link>
         <Link
           href="/dashboard/pos"
+          onClick={(e) => {
+            if (pathname === "/dashboard/pos") {
+              e.preventDefault();
+              window.location.href = "/dashboard/pos";
+            }
+          }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-primary/10 dark:hover:bg-brand-dark-grey transition-colors duration-200"
         >
           <MdReceiptLong className="text-sm text-brand-primary" />
@@ -241,7 +260,13 @@ const Header = ({ isSidebarOpen, toggleSidebar }) => {
               <div className="p-2 border-t border-brand-beige/50 dark:border-brand-dark-grey/50 text-center bg-brand-offwhite/50 dark:bg-brand-charcoal/50">
                 <Link
                   href="/dashboard/lost-found/settings"
-                  onClick={() => setNotifOpen(false)}
+                  onClick={(e) => {
+                    setNotifOpen(false);
+                    if (pathname === "/dashboard/lost-found/settings") {
+                      e.preventDefault();
+                      window.location.href = "/dashboard/lost-found/settings";
+                    }
+                  }}
                   className="text-[10px] text-brand-primary dark:text-brand-sage font-bold hover:underline"
                 >
                   View All Notifications
@@ -287,7 +312,13 @@ const Header = ({ isSidebarOpen, toggleSidebar }) => {
               <div className="flex flex-col text-sm">
                 <Link
                   href="/dashboard/profile"
-                  onClick={() => setProfileOpen(false)}
+                  onClick={(e) => {
+                    setProfileOpen(false);
+                    if (pathname === "/dashboard/profile") {
+                      e.preventDefault();
+                      window.location.href = "/dashboard/profile";
+                    }
+                  }}
                   className="py-2.5 px-4 hover:bg-brand-offwhite dark:hover:bg-brand-dark-grey text-left font-semibold"
                 >
                   My Profile

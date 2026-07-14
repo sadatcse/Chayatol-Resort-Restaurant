@@ -854,12 +854,15 @@ function POSContent() {
     // Watch for URL transitions: if the invoiceId query parameter is cleared from the URL,
     // but we are currently in edit mode (currentInvoiceId is set), it means the user clicked
     // the "POS System" link in the sidebar or header to start a new order.
+    const prevInvoiceIdRef = useRef(invoiceId);
+
     useEffect(() => {
-        if (!invoiceId && currentInvoiceId) {
+        if (prevInvoiceIdRef.current && !invoiceId && currentInvoiceId) {
             Promise.resolve().then(() => {
                 resetOrder();
             });
         }
+        prevInvoiceIdRef.current = invoiceId;
     }, [invoiceId, currentInvoiceId, resetOrder]);
 
     return (
