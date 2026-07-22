@@ -59,12 +59,14 @@ const FoodPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
 
   const { foods, totalPages, totalItems, isLoading, refetch } = useFood(
     currentPage,
     itemsPerPage,
-    debouncedSearchTerm
+    debouncedSearchTerm,
+    selectedCategory
   );
 
   const { categories, isLoading: isCategoriesLoading } = useFoodCategories(1, 100);
@@ -465,19 +467,39 @@ const FoodPage = () => {
         title="Food Menu Management"
         subtitle="Manage restaurant food items, pricing, and categories."
       >
-        <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-80 h-12">
-          <FiSearch className="text-brand-sage text-lg" />
-          <input
-            type="text"
-            className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none"
-            placeholder="Search food items..."
-            value={searchTerm}
-            onChange={e => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
-        </label>
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          <div className="relative w-full sm:w-52">
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="select select-bordered border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite rounded-full px-4 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full h-12 text-xs font-extrabold focus:outline-none focus:border-brand-primary cursor-pointer"
+            >
+              <option value="All">All Categories ({categories.length})</option>
+              {categories.map((cat) => (
+                <option key={cat._id || cat.categoryName} value={cat.categoryName}>
+                  {cat.categoryName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <label className="input input-bordered border-brand-primary focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary flex items-center gap-3 bg-white dark:bg-brand-charcoal/50 rounded-full px-5 shadow-sm border-brand-beige dark:border-brand-beige/20 w-full md:w-72 h-12">
+            <FiSearch className="text-brand-sage text-lg" />
+            <input
+              type="text"
+              className="grow placeholder-brand-sage text-brand-charcoal dark:text-brand-offwhite bg-transparent border-none outline-none focus:outline-none"
+              placeholder="Search food items..."
+              value={searchTerm}
+              onChange={e => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </label>
+        </div>
       </SectionHeader>
 
       <div className="flex flex-wrap justify-between items-center bg-white dark:bg-brand-charcoal p-4 rounded-2xl shadow-sm border border-brand-beige dark:border-brand-beige/20 mb-6 gap-4">

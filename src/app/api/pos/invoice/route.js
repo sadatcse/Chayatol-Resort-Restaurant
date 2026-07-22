@@ -96,6 +96,9 @@ export async function POST(req) {
     if (data.sc !== undefined && data.serviceCharge === undefined) {
       data.serviceCharge = data.sc;
     }
+    if (data.serviceCharge !== undefined && data.sc === undefined) {
+      data.sc = data.serviceCharge;
+    }
     if (data.tableName && !data.tableNo) {
       data.tableNo = data.tableName;
     } else if (data.tableNo && !data.tableName) {

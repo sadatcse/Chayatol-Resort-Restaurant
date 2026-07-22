@@ -11,13 +11,19 @@ export async function GET(request) {
     const page = parseInt(searchParams.get("page")) || 1;
     const limit = parseInt(searchParams.get("limit")) || 10;
     const search = searchParams.get("search") || "";
+    const category = searchParams.get("category") || "";
 
     const query = {};
     if (search) {
       query.$or = [
         { foodName: { $regex: search, $options: "i" } },
         { foodType: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
       ];
+    }
+
+    if (category && category !== "All") {
+      query.category = { $regex: `^${category}$`, $options: "i" };
     }
 
     const skip = (page - 1) * limit;

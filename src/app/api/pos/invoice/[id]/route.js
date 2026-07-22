@@ -52,6 +52,9 @@ export async function PUT(req, { params }) {
     if (updateData.sc !== undefined && updateData.serviceCharge === undefined) {
       updateData.serviceCharge = updateData.sc;
     }
+    if (updateData.serviceCharge !== undefined && updateData.sc === undefined) {
+      updateData.sc = updateData.serviceCharge;
+    }
 
     if (updateData.tableName && !updateData.tableNo) {
       updateData.tableNo = updateData.tableName;

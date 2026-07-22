@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import useAxiosSecure from "./useAxiosSecure";
 
-const useFood = (page = 1, limit = 10, search = "") => {
+const useFood = (page = 1, limit = 10, search = "", category = "") => {
   const [foods, setFoods] = useState([]);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -12,7 +12,7 @@ const useFood = (page = 1, limit = 10, search = "") => {
     setIsLoading(true);
     try {
       const { data } = await axiosSecure.get(
-        `/food/get?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`
+        `/food/get?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&category=${encodeURIComponent(category)}`
       );
       if (data.success) {
         setFoods(data.data);
@@ -27,7 +27,7 @@ const useFood = (page = 1, limit = 10, search = "") => {
     } finally {
       setIsLoading(false);
     }
-  }, [axiosSecure, page, limit, search]);
+  }, [axiosSecure, page, limit, search, category]);
 
   useEffect(() => {
     fetchFoods();

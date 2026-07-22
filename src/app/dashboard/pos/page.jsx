@@ -238,21 +238,58 @@ function POSContent() {
 
                     // Map products back into cart format
                     if (inv.products && inv.products.length > 0) {
-                        const mappedCart = inv.products.map(p => ({
-                            _id: p.productId,
-                            productName: p.productName,
-                            quantity: p.qty,
-                            printedQty: p.printedQty || 0,
-                            addedInRound: p.addedInRound || 1,
-                            price: p.rate,
-                            vat: p.vat || 0,
-                            sd: p.sd || 0,
-                            cookStatus: p.cookStatus || 'PENDING',
-                            isComplimentary: p.isComplimentary,
-                            drinkBar: p.drinkBar || false,
-                            history: p.history || []
-                        }));
+                        const invHasSc = (inv.serviceCharge || inv.sc || 0) > 0;
+                        const invHasVat = (inv.vat || 0) > 0;
+                        const invHasSd = (inv.sd || 0) > 0;
+
+                        const mappedCart = inv.products.map(p => {
+                            let itemSc = 0;
+                            if (p.sc > 0 || p.serviceCharge > 0) {
+                                itemSc = p.sc || p.serviceCharge;
+                            } else if (invHasSc) {
+                                itemSc = 1;
+                            } else if (p.sc === undefined && p.serviceCharge === undefined) {
+                                itemSc = 1;
+                            } else {
+                                itemSc = 0;
+                            }
+
+                            let itemVat = 0;
+                            if (p.vat > 0) {
+                                itemVat = p.vat;
+                            } else if (invHasVat || p.vat === undefined) {
+                                itemVat = 1;
+                            }
+
+                            let itemSd = 0;
+                            if (p.sd > 0) {
+                                itemSd = p.sd;
+                            } else if (invHasSd) {
+                                itemSd = 1;
+                            }
+
+                            return {
+                                _id: p.productId,
+                                productName: p.productName,
+                                quantity: p.qty,
+                                printedQty: p.printedQty || 0,
+                                addedInRound: p.addedInRound || 1,
+                                price: p.rate,
+                                vat: itemVat,
+                                sd: itemSd,
+                                sc: itemSc,
+                                cookStatus: p.cookStatus || 'PENDING',
+                                isComplimentary: p.isComplimentary,
+                                drinkBar: p.drinkBar || false,
+                                history: p.history || []
+                            };
+                        });
                         setAddedProducts(mappedCart);
+                    }
+
+                    if (inv.discount !== undefined && inv.discount > 0) {
+                        setInvoiceSummary(prev => ({ ...prev, discount: inv.discount }));
+                        setDiscountType("Fixed");
                     }
                 }
             } catch (err) {
@@ -360,9 +397,9 @@ function POSContent() {
                 printedQty: 0,
                 addedInRound: kotRound,
                 price: food.price,
-                vat: food.vat || 0,
-                sd: food.sd || 0,
-                sc: food.sc || 0,
+                vat: food.vat !== undefined ? food.vat : 1,
+                sd: food.sd !== undefined ? food.sd : 0,
+                sc: food.sc !== undefined ? food.sc : 1,
                 cookStatus: 'PENDING',
                 isComplimentary: false,
                 drinkBar: food.category?.toLowerCase() === "drinks" || food.category?.toLowerCase() === "beverage" || food.drinkBar === true,
@@ -572,8 +609,9 @@ function POSContent() {
                 addedInRound: p.addedInRound || kotRound,
                 rate: p.price,
                 subtotal: roundAmount(p.price * p.quantity),
-                vat: p.vat || 0,
-                sd: p.sd || 0,
+                vat: p.vat !== undefined ? p.vat : 1,
+                sd: p.sd !== undefined ? p.sd : 0,
+                sc: p.sc !== undefined ? p.sc : 1,
                 cookStatus: p.cookStatus || 'PENDING',
                 isComplimentary: p.isComplimentary,
                 drinkBar: p.drinkBar,
@@ -737,8 +775,9 @@ function POSContent() {
                 addedInRound: p.addedInRound || kotRound,
                 rate: p.price,
                 subtotal: roundAmount(p.price * p.quantity),
-                vat: p.vat || 0,
-                sd: p.sd || 0,
+                vat: p.vat !== undefined ? p.vat : 1,
+                sd: p.sd !== undefined ? p.sd : 0,
+                sc: p.sc !== undefined ? p.sc : 1,
                 cookStatus: p.cookStatus || 'PENDING',
                 isComplimentary: p.isComplimentary,
                 drinkBar: p.drinkBar,

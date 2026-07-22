@@ -152,6 +152,7 @@ const invoiceSchema = new Schema(
         subtotal: { type: Number, default: 0 },
         vat: { type: Number, default: 0 },
         sd: { type: Number, default: 0 },
+        sc: { type: Number, default: 0 },
         cookStatus: { type: String, default: "PENDING" },
         isComplimentary: { type: Boolean, default: false },
         drinkBar: { type: Boolean, default: false },
