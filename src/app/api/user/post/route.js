@@ -2,8 +2,14 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import User from "@/models/User";
 import { logTransaction } from "@/lib/logger";
+import { verifyToken } from "@/lib/auth";
 
 export async function POST(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
   try {
     await dbConnect();
     const userData = await req.json();

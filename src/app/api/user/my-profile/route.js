@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import User from "@/models/User";
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(request) {
+  const auth = verifyToken(request);
+  if (auth.error) {
+    return NextResponse.json({ message: auth.error }, { status: auth.status });
+  }
+
   try {
     await dbConnect();
-    const { searchParams } = new URL(request.url);
-    const email = searchParams.get("email");
 
-    if (!email) {
-      return NextResponse.json({ message: "Email query param is required" }, { status: 400 });
-    }
-
-    const user = await User.findOne({ email }).select("-password");
+    // Identity comes from the verified token, not the query string — a
+    // client-supplied ?email= would let anyone fetch anyone else's profile.
+    const user = await User.findById(auth.user.id).select("-password");
     if (!user) {
       return NextResponse.json({ message: "User profile not found" }, { status: 404 });
     }

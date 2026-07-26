@@ -21,9 +21,5 @@ const RoomTypeSchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.RoomType) {
-  delete mongoose.models.RoomType;
-}
-
-const RoomType = mongoose.model("RoomType", RoomTypeSchema);
+const RoomType = mongoose.models.RoomType || mongoose.model("RoomType", RoomTypeSchema);
 export default RoomType;

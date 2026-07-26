@@ -7,6 +7,7 @@ import ControlSettings from "@/models/ControlSettings";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
+import { getNextSequence } from "@/lib/sequence";
 
 export async function GET(req) {
   try {
@@ -159,10 +160,14 @@ export async function POST(req) {
       roomsToUpdate.push({ room, nights: r.nights || 1 });
     }
 
-    // Generate stay number: STY-YYYYMMDD-XXXX
-    const stayCount = await Stay.countDocuments({});
+    // Generate stay number: STY-YYYYMMDD-XXXX. Uses a single global counter
+    // (shared with the reservation->check-in conversion route, which
+    // generates the same style of number) so two concurrent check-ins can
+    // never be assigned the same stay number, and the two code paths that
+    // both mint stayNo values can never collide with each other either.
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const stayNo = `STY-${dateStr}-${(stayCount + 1).toString().padStart(4, "0")}`;
+    const staySeq = await getNextSequence("stay", async () => Stay.countDocuments({}));
+    const stayNo = `STY-${dateStr}-${staySeq.toString().padStart(4, "0")}`;
 
     // Get resort settings check-out time
     const settings = await ControlSettings.findOne() || { checkOutTime: "12:00" };

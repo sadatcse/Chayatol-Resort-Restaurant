@@ -48,9 +48,5 @@ const VendorPaymentSchema = Schema(
 );
 
 // Clear model cache in Next.js dev server to prevent stale schemas
-if (mongoose.models.VendorPayment) {
-  delete mongoose.models.VendorPayment;
-}
-
 const VendorPayment = mongoose.models.VendorPayment || mongoose.model("VendorPayment", VendorPaymentSchema);
 export default VendorPayment;

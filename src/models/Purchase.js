@@ -88,10 +88,6 @@ const PurchaseSchema = Schema(
 );
 
 // Clear model cache in Next.js dev server to prevent stale schemas
-if (mongoose.models.Purchase) {
-  delete mongoose.models.Purchase;
-}
-
-const Purchase = mongoose.model("Purchase", PurchaseSchema);
+const Purchase = mongoose.models.Purchase || mongoose.model("Purchase", PurchaseSchema);
 
 export default Purchase;

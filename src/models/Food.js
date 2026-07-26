@@ -58,8 +58,5 @@ const FoodSchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.Food) {
-  delete mongoose.models.Food;
-}
-const Food = mongoose.model("Food", FoodSchema);
+const Food = mongoose.models.Food || mongoose.model("Food", FoodSchema);
 export default Food;

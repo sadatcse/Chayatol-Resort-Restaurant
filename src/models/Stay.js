@@ -75,9 +75,12 @@ const StaySchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.Stay) {
-  delete mongoose.models.Stay;
-}
+// Backs the "In House" status lookups used throughout POS/room-service and
+// checkout, the reservation<->stay conversion lookup, and the front-desk
+// timeline's check-in/check-out date range queries — previously unindexed.
+StaySchema.index({ status: 1 });
+StaySchema.index({ reservationId: 1 });
+StaySchema.index({ checkInDate: 1, actualCheckOutDate: 1 });
 
-const Stay = mongoose.model("Stay", StaySchema);
+const Stay = mongoose.models.Stay || mongoose.model("Stay", StaySchema);
 export default Stay;

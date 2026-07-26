@@ -26,6 +26,8 @@ const calculateCompleteness = (customer) => {
   return score;
 };
 
+const generateIdempotencyKey = () => "venue-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
+
 const VenueBookPage = () => {
   const axiosSecure = useAxiosSecure();
   const router = useRouter();
@@ -90,6 +92,7 @@ const VenueBookPage = () => {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerToEdit, setCustomerToEdit] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(generateIdempotencyKey);
 
   const calculateDynamicRate = (day, space, rooms, food, plans) => {
     const onlyVenueName = `${day} - Only Venue${food === "With Food" ? " + Food" : ""}`;
@@ -288,6 +291,7 @@ const VenueBookPage = () => {
   // Submit Booking creation
   const handleBookVenue = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (!selectedCust) {
       Swal.fire("Required", "Please select a Customer.", "warning");
@@ -323,12 +327,14 @@ const VenueBookPage = () => {
         paidAmount: Number(paidAmount),
         discount: Number(discountAmount),
         paymentMethod: selectedPaymentMethod,
-        specialInstructions
+        specialInstructions,
+        idempotencyKey
       };
 
       const response = await axiosSecure.post("/venue/booking", payload);
       const createdBooking = response.data;
-      
+      setIdempotencyKey(generateIdempotencyKey());
+
       // Inject full customer object to printData for invoice formatting
       const fullPrintBooking = {
         ...createdBooking,

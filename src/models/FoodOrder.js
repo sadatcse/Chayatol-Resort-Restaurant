@@ -51,9 +51,5 @@ const FoodOrderSchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.FoodOrder) {
-  delete mongoose.models.FoodOrder;
-}
-
-const FoodOrder = mongoose.model("FoodOrder", FoodOrderSchema);
+const FoodOrder = mongoose.models.FoodOrder || mongoose.model("FoodOrder", FoodOrderSchema);
 export default FoodOrder;

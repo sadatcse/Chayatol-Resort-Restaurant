@@ -4,6 +4,7 @@ import ReturnNote from "@/models/ReturnNote";
 import LostFoundClaim from "@/models/LostFoundClaim";
 import LostFoundItem from "@/models/LostFoundItem";
 import { verifyLostFoundPermission, logLostFoundActivity, createLostFoundNotification } from "@/lib/lostFoundHelpers";
+import { getNextSequence } from "@/lib/sequence";
 
 export async function POST(req) {
   const auth = await verifyLostFoundPermission(req, "lost_found.return.create");
@@ -46,21 +47,17 @@ export async function POST(req) {
       return NextResponse.json({ message: "This item has already been returned" }, { status: 400 });
     }
 
-    // Auto-generate Return Note number: RN-YYYYMMDD-XXXX
+    // Auto-generate Return Note number: RN-YYYYMMDD-XXXX, via an atomic
+    // counter so two concurrent returns can never collide on the same number.
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
-    const regex = new RegExp(`^RN-${dateStr}-\\d{4}$`);
-    const lastNote = await ReturnNote.findOne({ returnNumber: regex })
-      .sort({ returnNumber: -1 })
-      .select("returnNumber");
-
-    let nextNum = 1;
-    if (lastNote) {
-      const parts = lastNote.returnNumber.split("-");
-      const lastNum = parseInt(parts[2], 10);
-      if (!isNaN(lastNum)) {
-        nextNum = lastNum + 1;
-      }
-    }
+    const nextNum = await getNextSequence(`lost-found-return-${dateStr}`, async () => {
+      const regex = new RegExp(`^RN-${dateStr}-\\d{4}$`);
+      const lastNote = await ReturnNote.findOne({ returnNumber: regex })
+        .sort({ returnNumber: -1 })
+        .select("returnNumber");
+      if (!lastNote) return 0;
+      return parseInt(lastNote.returnNumber.split("-")[2], 10) || 0;
+    });
     const sequenceNum = String(nextNum).padStart(4, "0");
     const returnNumber = `RN-${dateStr}-${sequenceNum}`;
 

@@ -11,6 +11,8 @@ import { AuthContext } from "@/providers/AuthProvider";
 import CustomerModal from "@/components/CustomerModal";
 import { calculateCompleteness } from "@/lib/customerHelper";
 
+const generateIdempotencyKey = () => "checkin-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
+
 const WalkInCheckInPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
@@ -22,6 +24,7 @@ const WalkInCheckInPage = () => {
   const [paymentTypes, setPaymentTypes] = useState([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(generateIdempotencyKey);
 
   // Form states
   const [customer, setCustomer] = useState("");
@@ -142,6 +145,7 @@ const WalkInCheckInPage = () => {
   };
 
   const handleWalkInCheckin = async () => {
+    if (isSubmitting) return;
     if (!customer) {
       Swal.fire("Validation Error", "Please select a customer.", "warning");
       return;
@@ -201,11 +205,13 @@ const WalkInCheckInPage = () => {
       customer,
       rooms,
       expectedCheckOutDate,
-      initialPayment: initialPayment.amount > 0 ? initialPayment : null
+      initialPayment: initialPayment.amount > 0 ? initialPayment : null,
+      idempotencyKey
     };
 
     try {
       await axiosSecure.post("/stays", payload);
+      setIdempotencyKey(generateIdempotencyKey());
       Swal.fire({
         title: "Checked In!",
         text: "Walk-in guest checked in successfully.",

@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+import dbConnect from "@/lib/db";
 import Review from "@/models/Review";
-
-const MONGO_URI = process.env.MONGODB_URI;
-
-async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) return;
-  await mongoose.connect(MONGO_URI);
-}
+import { verifyToken } from "@/lib/auth";
 
 export async function DELETE(req, { params }) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     const id = params.id;
 
     const deleted = await Review.findByIdAndDelete(id);

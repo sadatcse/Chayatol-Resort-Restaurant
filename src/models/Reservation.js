@@ -94,9 +94,11 @@ const ReservationSchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.Reservation) {
-  delete mongoose.models.Reservation;
-}
+// Backs the status filter and check-in date range queries used by the
+// reservations list, dashboard, and front-desk timeline — previously
+// unindexed full collection scans.
+ReservationSchema.index({ status: 1 });
+ReservationSchema.index({ checkInDate: 1 });
 
-const Reservation = mongoose.model("Reservation", ReservationSchema);
+const Reservation = mongoose.models.Reservation || mongoose.model("Reservation", ReservationSchema);
 export default Reservation;

@@ -200,9 +200,12 @@ const invoiceSchema = new Schema(
   }
 );
 
-if (mongoose.models.Invoice) {
-  delete mongoose.models.Invoice;
-}
+// Backs the restauranttable/status board query (invoiceType + paymentStatus
+// + orderStatus) and the finance/report date-range + payment-status filters
+// used by reports and the finance dashboard — previously full collection scans.
+invoiceSchema.index({ invoiceType: 1, paymentStatus: 1, orderStatus: 1 });
+invoiceSchema.index({ paymentStatus: 1, createdAt: -1 });
+invoiceSchema.index({ dateTime: -1 });
 
-const Invoice = mongoose.model("Invoice", invoiceSchema);
+const Invoice = mongoose.models.Invoice || mongoose.model("Invoice", invoiceSchema);
 export default Invoice;

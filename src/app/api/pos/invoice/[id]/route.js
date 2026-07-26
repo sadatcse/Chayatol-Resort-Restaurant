@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
+import dbConnect from "@/lib/db";
 import Invoice from "@/models/Invoice";
 import User from "@/models/User";
-
-const MONGO_URI = process.env.MONGODB_URI;
-
-async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) return;
-  await mongoose.connect(MONGO_URI);
-}
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(req, { params }) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     const { id } = await params;
-    
+
     const invoice = await Invoice.findById(id).populate("createdBy", "name");
     if (!invoice) {
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
@@ -28,8 +28,13 @@ export async function GET(req, { params }) {
 }
 
 export async function PUT(req, { params }) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     const { id } = await params;
     const updateData = await req.json();
     
@@ -112,8 +117,13 @@ export async function PUT(req, { params }) {
 }
 
 export async function DELETE(req, { params }) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     const { id } = await params;
     
     const deletedInvoice = await Invoice.findByIdAndDelete(id);

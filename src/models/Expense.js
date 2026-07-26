@@ -55,9 +55,5 @@ const ExpenseSchema = new Schema(
 );
 
 // Clear model cache in Next.js dev server to prevent stale schemas
-if (mongoose.models.Expense) {
-  delete mongoose.models.Expense;
-}
-
-const Expense = mongoose.model("Expense", ExpenseSchema);
+const Expense = mongoose.models.Expense || mongoose.model("Expense", ExpenseSchema);
 export default Expense;

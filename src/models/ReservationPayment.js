@@ -35,9 +35,5 @@ const ReservationPaymentSchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.ReservationPayment) {
-  delete mongoose.models.ReservationPayment;
-}
-
-const ReservationPayment = mongoose.model("ReservationPayment", ReservationPaymentSchema);
+const ReservationPayment = mongoose.models.ReservationPayment || mongoose.model("ReservationPayment", ReservationPaymentSchema);
 export default ReservationPayment;

@@ -7,6 +7,7 @@ import Stay from "@/models/Stay";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
+import { getNextSequence } from "@/lib/sequence";
 
 export async function GET(req) {
   try {
@@ -200,10 +201,11 @@ export async function POST(req) {
       }
     }
 
-    // Generate unique reservation number: RES-YYYYMMDD-XXXX
-    const count = await Reservation.countDocuments({});
+    // Generate unique reservation number: RES-YYYYMMDD-XXXX, via an atomic
+    // counter so two concurrent reservations can never collide.
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const reservationNo = `RES-${dateStr}-${(count + 1).toString().padStart(4, "0")}`;
+    const reservationSeq = await getNextSequence("reservation", async () => Reservation.countDocuments({}));
+    const reservationNo = `RES-${dateStr}-${reservationSeq.toString().padStart(4, "0")}`;
 
     let reservation;
     try {

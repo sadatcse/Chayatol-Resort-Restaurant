@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useContext } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { AuthContext } from "@/providers/AuthProvider";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
@@ -91,25 +92,42 @@ export default function DashboardLayout({ children }) {
 
         {/* Main Content */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6">
-          {hasViewPermission ? (
-            children
-          ) : (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-brand-white dark:bg-brand-charcoal rounded-3xl shadow-xl border border-brand-beige/50 dark:border-brand-dark-grey/50 max-w-xl mx-auto mt-12">
-              <div className="w-16 h-16 bg-red-50 dark:bg-red-950/20 text-red-500 rounded-full flex items-center justify-center mb-5">
-                <FiLock className="text-3xl" />
-              </div>
-              <h1 className="text-2xl font-bold mb-3 text-brand-black dark:text-brand-offwhite">Access Restricted</h1>
-              <p className="text-brand-dark-grey dark:text-brand-sage text-sm leading-relaxed max-w-sm mb-6">
-                You do not have permission to view this section. Please contact your administrator if you believe this is an error.
-              </p>
-              <button 
-                onClick={() => router.push("/dashboard/home")}
-                className="btn bg-brand-primary text-white border-none rounded-xl hover:bg-brand-secondary font-semibold text-xs px-6 py-2.5 transition-all duration-300 cursor-pointer"
+          <AnimatePresence mode="wait">
+            {hasViewPermission ? (
+              <motion.div
+                key={pathname}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
               >
-                Go Back Home
-              </button>
-            </div>
-          )}
+                {children}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="restricted"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-brand-white dark:bg-brand-charcoal rounded-3xl shadow-xl border border-brand-beige/50 dark:border-brand-dark-grey/50 max-w-xl mx-auto mt-12"
+              >
+                <div className="w-16 h-16 bg-red-50 dark:bg-red-950/20 text-red-500 rounded-full flex items-center justify-center mb-5">
+                  <FiLock className="text-3xl" />
+                </div>
+                <h1 className="text-2xl font-bold mb-3 text-brand-black dark:text-brand-offwhite">Access Restricted</h1>
+                <p className="text-brand-dark-grey dark:text-brand-sage text-sm leading-relaxed max-w-sm mb-6">
+                  You do not have permission to view this section. Please contact your administrator if you believe this is an error.
+                </p>
+                <button
+                  onClick={() => router.push("/dashboard/home")}
+                  className="btn bg-brand-primary text-white border-none rounded-xl hover:bg-brand-secondary font-semibold text-xs px-6 py-2.5 transition-all duration-300 cursor-pointer"
+                >
+                  Go Back Home
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
       </div>
     </div>

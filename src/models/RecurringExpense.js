@@ -63,9 +63,5 @@ const RecurringExpenseSchema = new Schema(
 );
 
 // Clear model cache in Next.js dev server to prevent stale schemas
-if (mongoose.models.RecurringExpense) {
-  delete mongoose.models.RecurringExpense;
-}
-
-const RecurringExpense = mongoose.model("RecurringExpense", RecurringExpenseSchema);
+const RecurringExpense = mongoose.models.RecurringExpense || mongoose.model("RecurringExpense", RecurringExpenseSchema);
 export default RecurringExpense;

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Food from "@/models/Food";
+import { verifyToken } from "@/lib/auth";
 
 export async function POST(request) {
+  const auth = verifyToken(request);
+  if (auth.error) {
+    return NextResponse.json({ success: false, message: auth.error }, { status: auth.status });
+  }
+
   try {
     await connectDB();
     const data = await request.json();

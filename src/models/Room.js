@@ -79,8 +79,9 @@ const RoomSchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.Room) {
-  delete mongoose.models.Room;
-}
-const Room = mongoose.model("Room", RoomSchema);
+// Backs the default "Available" room lookup used by booking/check-in flows
+// and the paginated room list's status filter — previously unindexed.
+RoomSchema.index({ status: 1 });
+
+const Room = mongoose.models.Room || mongoose.model("Room", RoomSchema);
 export default Room;

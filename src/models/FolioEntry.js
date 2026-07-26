@@ -36,9 +36,5 @@ const FolioEntrySchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.FolioEntry) {
-  delete mongoose.models.FolioEntry;
-}
-
-const FolioEntry = mongoose.model("FolioEntry", FolioEntrySchema);
+const FolioEntry = mongoose.models.FolioEntry || mongoose.model("FolioEntry", FolioEntrySchema);
 export default FolioEntry;

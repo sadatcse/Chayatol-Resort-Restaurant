@@ -163,6 +163,7 @@ const CustomerModal = ({ isOpen, onClose, customerToEdit, onSuccess, initialPhon
   };
 
   const handleAddOrEditCustomer = async () => {
+    if (isSubmitting) return;
     // 1. Full Legal Name validation
     if (!formData.fullName || !formData.fullName.trim()) {
       setActiveTab("basic");

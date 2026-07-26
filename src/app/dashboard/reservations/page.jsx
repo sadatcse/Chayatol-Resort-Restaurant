@@ -21,6 +21,8 @@ import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 
+const generateIdempotencyKey = () => "res-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
+
 const ReservationsPage = () => {
   const axiosSecure = useAxiosSecure();
   const { user: currentUser } = useContext(AuthContext);
@@ -267,14 +269,9 @@ const ReservationsPage = () => {
   const [editId, setEditId] = useState(null);
   const [originalCheckInDate, setOriginalCheckInDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [idempotencyKey, setIdempotencyKey] = useState("");
-  const generateIdempotencyKey = () => {
-    return "res-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
-  };
-
-  useEffect(() => {
-    setIdempotencyKey(generateIdempotencyKey());
-  }, []);
+  const [isPaySubmitting, setIsPaySubmitting] = useState(false);
+  const [isCheckinSubmitting, setIsCheckinSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(generateIdempotencyKey);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -650,28 +647,35 @@ const ReservationsPage = () => {
       confirmButtonText: 'Cancel Reservation',
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
-      preConfirm: () => {
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
         const fee = document.getElementById('swal-fee').value;
         const reason = document.getElementById('swal-reason').value;
         if (fee === undefined || isNaN(fee) || Number(fee) < 0) {
           Swal.showValidationMessage('Please enter a valid cancellation fee');
           return false;
         }
-        return {
-          cancellationFee: Number(fee),
-          cancellationReason: reason
-        };
+        // Submitting the request from inside preConfirm (rather than after
+        // the dialog closes) means SweetAlert keeps its own confirm button
+        // disabled and shows a loading state for the whole request, so a
+        // second click can't fire a second cancellation for this reservation.
+        try {
+          await axiosSecure.post(`/reservations/${res._id}/cancel`, {
+            cancellationFee: Number(fee),
+            cancellationReason: reason
+          });
+          return true;
+        } catch (err) {
+          Swal.showValidationMessage(err.response?.data?.message || 'Failed to cancel reservation.');
+          return false;
+        }
       }
     });
 
     if (formValues) {
-      try {
-        await axiosSecure.post(`/reservations/${res._id}/cancel`, formValues);
-        Swal.fire("Cancelled", "The reservation has been cancelled successfully.", "success");
-        await refetch();
-      } catch (err) {
-        Swal.fire("Error", err.response?.data?.message || "Failed to cancel reservation.", "error");
-      }
+      Swal.fire("Cancelled", "The reservation has been cancelled successfully.", "success");
+      await refetch();
     }
   };
 
@@ -716,11 +720,13 @@ const ReservationsPage = () => {
       showCancelButton: true,
       confirmButtonColor: '#d33',
       confirmButtonText: 'Record Refund Payout',
-      preConfirm: () => {
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
         const method = document.getElementById('swal-refund-method').value;
         const ref = document.getElementById('swal-refund-ref').value;
         const receiver = document.getElementById('swal-refund-receiver').value;
-        
+
         if (!method) {
           Swal.showValidationMessage('Refund method is required');
           return false;
@@ -729,25 +735,29 @@ const ReservationsPage = () => {
           Swal.showValidationMessage('Receiver name is required');
           return false;
         }
-        return { method, ref, receiver };
+        // Submitting from inside preConfirm keeps SweetAlert's own confirm
+        // button disabled/loading for the whole request, so a second click
+        // can't record the same refund payout twice.
+        try {
+          const payload = {
+            paymentType: method,
+            amount: -Number(refundAmt), // negative amount represents cash return
+            transactionRef: ref || "",
+            notes: `Refund for cancelled booking ${res.reservationNo}`,
+            receivedBy: receiver
+          };
+          await axiosSecure.post(`/reservations/${res._id}/payments`, payload);
+          return true;
+        } catch (err) {
+          Swal.showValidationMessage(err.response?.data?.message || 'Failed to log refund payout.');
+          return false;
+        }
       }
     });
 
     if (formValues) {
-      try {
-        const payload = {
-          paymentType: formValues.method,
-          amount: -Number(refundAmt), // negative amount represents cash return
-          transactionRef: formValues.ref || "",
-          notes: `Refund for cancelled booking ${res.reservationNo}`,
-          receivedBy: formValues.receiver
-        };
-        await axiosSecure.post(`/reservations/${res._id}/payments`, payload);
-        Swal.fire("Refund Logged", `Refund payout of ৳${refundAmt} recorded in database.`, "success");
-        await refetch();
-      } catch (err) {
-        Swal.fire("Error", err.response?.data?.message || "Failed to log refund payout.", "error");
-      }
+      Swal.fire("Refund Logged", `Refund payout of ৳${refundAmt} recorded in database.`, "success");
+      await refetch();
     }
   };
 
@@ -791,6 +801,7 @@ const ReservationsPage = () => {
   };
 
   const handleAddPayment = async () => {
+    if (isPaySubmitting) return;
     if (!canEdit) {
       Swal.fire("Restricted", "You do not have permission to record payments.", "warning");
       return;
@@ -804,6 +815,7 @@ const ReservationsPage = () => {
       return;
     }
 
+    setIsPaySubmitting(true);
     try {
       await axiosSecure.post(`/reservations/${payResId}/payments`, payFormData);
       // Reload list
@@ -814,6 +826,8 @@ const ReservationsPage = () => {
       Swal.fire("Success", "Payment/deposit recorded.", "success");
     } catch (error) {
       Swal.fire("Failed", error.response?.data?.message || "Failed to record payment.", "error");
+    } finally {
+      setIsPaySubmitting(false);
     }
   };
 
@@ -836,6 +850,7 @@ const ReservationsPage = () => {
   };
 
   const handleConfirmCheckin = async () => {
+    if (isCheckinSubmitting) return;
     if (!canEdit) {
       Swal.fire("Restricted", "You do not have permission to perform check-in operations.", "warning");
       return;
@@ -847,6 +862,7 @@ const ReservationsPage = () => {
       }
     }
 
+    setIsCheckinSubmitting(true);
     try {
       await axiosSecure.post(`/reservations/${checkinRes._id}/convert`, {
         roomAssignments: checkinAssignments
@@ -856,6 +872,8 @@ const ReservationsPage = () => {
       Swal.fire("Checked In", `Stay records and ledger initialized for ${checkinRes.reservationNo}.`, "success");
     } catch (error) {
       Swal.fire("Check-in Failed", error.response?.data?.message || "Failed to perform check-in.", "error");
+    } finally {
+      setIsCheckinSubmitting(false);
     }
   };
 
@@ -1618,8 +1636,13 @@ const ReservationsPage = () => {
                       />
                     </div>
                   </div>
-                  <button type="button" onClick={handleAddPayment} className="btn btn-xs bg-brand-primary text-white border-none w-full rounded-lg h-8 uppercase tracking-widest font-bold text-[10px]">
-                    Submit Deposit
+                  <button type="button" onClick={handleAddPayment} disabled={isPaySubmitting} className="btn btn-xs bg-brand-primary text-white border-none w-full rounded-lg h-8 uppercase tracking-widest font-bold text-[10px] disabled:opacity-50">
+                    {isPaySubmitting ? (
+                      <>
+                        <span className="loading loading-spinner loading-xs"></span>
+                        Submitting...
+                      </>
+                    ) : "Submit Deposit"}
                   </button>
                 </div>
               )}
@@ -1676,8 +1699,13 @@ const ReservationsPage = () => {
 
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsCheckinModalOpen(false)} className="btn btn-ghost hover:bg-brand-beige text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
-                <button onClick={handleConfirmCheckin} className="btn bg-green-600 hover:bg-green-700 text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">
-                  Confirm Arrival
+                <button onClick={handleConfirmCheckin} disabled={isCheckinSubmitting} className="btn bg-green-600 hover:bg-green-700 text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md disabled:opacity-50">
+                  {isCheckinSubmitting ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm"></span>
+                      Confirming...
+                    </>
+                  ) : "Confirm Arrival"}
                 </button>
               </div>
             </div>

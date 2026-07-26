@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Permission from "@/models/Permission";
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(req, { params }) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     await dbConnect();
     const { role } = await params;

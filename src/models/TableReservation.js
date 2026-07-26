@@ -53,9 +53,5 @@ const TableReservationSchema = new Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.TableReservation) {
-  delete mongoose.models.TableReservation;
-}
-
-const TableReservation = mongoose.model("TableReservation", TableReservationSchema);
+const TableReservation = mongoose.models.TableReservation || mongoose.model("TableReservation", TableReservationSchema);
 export default TableReservation;

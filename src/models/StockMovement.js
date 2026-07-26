@@ -84,9 +84,6 @@ StockMovementSchema.index({ stock: 1, createdAt: -1 });
 StockMovementSchema.index({ ingredient: 1, createdAt: -1 });
 StockMovementSchema.index({ type: 1 });
 
-if (mongoose.models.StockMovement) {
-  delete mongoose.models.StockMovement;
-}
-const StockMovement = mongoose.model("StockMovement", StockMovementSchema);
+const StockMovement = mongoose.models.StockMovement || mongoose.model("StockMovement", StockMovementSchema);
 
 export default StockMovement;

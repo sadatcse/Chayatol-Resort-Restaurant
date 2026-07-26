@@ -37,9 +37,5 @@ const ServiceOrderSchema = Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.ServiceOrder) {
-  delete mongoose.models.ServiceOrder;
-}
-
-const ServiceOrder = mongoose.model("ServiceOrder", ServiceOrderSchema);
+const ServiceOrder = mongoose.models.ServiceOrder || mongoose.model("ServiceOrder", ServiceOrderSchema);
 export default ServiceOrder;

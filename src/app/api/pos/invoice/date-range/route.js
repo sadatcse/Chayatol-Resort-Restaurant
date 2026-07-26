@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+import dbConnect from "@/lib/db";
 import Invoice from "@/models/Invoice";
-
-const MONGO_URI = process.env.MONGODB_URI;
-
-async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) return;
-  await mongoose.connect(MONGO_URI);
-}
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");

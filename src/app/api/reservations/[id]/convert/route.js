@@ -9,6 +9,7 @@ import ControlSettings from "@/models/ControlSettings";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
+import { getNextSequence } from "@/lib/sequence";
 
 export async function POST(req, { params }) {
   const auth = verifyToken(req);
@@ -83,10 +84,12 @@ export async function POST(req, { params }) {
       roomsToUpdate.push(room);
     }
 
-    // Generate stay number: STY-YYYYMMDD-XXXX
-    const stayCount = await Stay.countDocuments({});
+    // Generate stay number: STY-YYYYMMDD-XXXX. Shares the same atomic "stay"
+    // counter as the walk-in check-in route (stays/route.js) so the two
+    // code paths that both mint stayNo values can never collide.
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const stayNo = `STY-${dateStr}-${(stayCount + 1).toString().padStart(4, "0")}`;
+    const staySeq = await getNextSequence("stay", async () => Stay.countDocuments({}));
+    const stayNo = `STY-${dateStr}-${staySeq.toString().padStart(4, "0")}`;
 
     // Get resort settings check-out time
     const settings = await ControlSettings.findOne() || { checkOutTime: "12:00" };

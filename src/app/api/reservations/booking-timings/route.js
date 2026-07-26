@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+import dbConnect from "@/lib/db";
 import Reservation from "@/models/Reservation";
-
-const MONGO_URI = process.env.MONGODB_URI;
-
-async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) return;
-  await mongoose.connect(MONGO_URI);
-}
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

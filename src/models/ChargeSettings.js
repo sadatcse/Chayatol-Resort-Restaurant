@@ -50,7 +50,4 @@ const chargeSettingsSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-if (mongoose.models.ChargeSettings) {
-  delete mongoose.models.ChargeSettings;
-}
-export default mongoose.model("ChargeSettings", chargeSettingsSchema);
+export default mongoose.models.ChargeSettings || mongoose.model("ChargeSettings", chargeSettingsSchema);

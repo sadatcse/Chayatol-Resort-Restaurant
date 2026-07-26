@@ -32,9 +32,5 @@ const ReviewSchema = new Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.Review) {
-  delete mongoose.models.Review;
-}
-
-const Review = mongoose.model("Review", ReviewSchema);
+const Review = mongoose.models.Review || mongoose.model("Review", ReviewSchema);
 export default Review;

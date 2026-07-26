@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useContext } from "react";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import { AuthContext } from "@/providers/AuthProvider";
@@ -107,7 +108,12 @@ const Login = () => {
   return (
     <>
       {/* Premium Theme Switcher */}
-      <div className="fixed top-6 right-8 z-40">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="fixed top-6 right-8 z-40"
+      >
         <button
           onClick={handleThemeToggle}
           className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm font-medium transition-all duration-300 cursor-pointer ${theme === "dark"
@@ -127,7 +133,7 @@ const Login = () => {
             </>
           )}
         </button>
-      </div>
+      </motion.div>
 
       {/* Main Container */}
       <div className={`min-h-screen flex items-center justify-center p-4 transition-all duration-500 ${theme === "dark"
@@ -136,7 +142,11 @@ const Login = () => {
         }`}>
 
         {/* Login Card */}
-        <div className={`flex rounded-3xl shadow-2xl overflow-hidden max-w-4xl w-full border transition-all duration-300 ${theme === "dark"
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className={`flex rounded-3xl shadow-2xl overflow-hidden max-w-4xl w-full border transition-all duration-300 ${theme === "dark"
           ? "bg-brand-charcoal/90 border-brand-dark-grey/50"
           : "bg-brand-white/95 border-brand-beige/50"
           }`}>
@@ -275,16 +285,28 @@ const Login = () => {
               </button>
             </form>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Forgot Password Modal */}
-      {showForgotModal && (
-        <div className="fixed inset-0 bg-brand-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4 animate-fade-in">
-          <div className={`p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full relative border transition-all duration-300 ${theme === "dark"
-            ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite"
-            : "bg-brand-white border-brand-beige text-brand-charcoal"
-            }`}>
+      <AnimatePresence>
+        {showForgotModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-brand-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.97 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className={`p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full relative border transition-all duration-300 ${theme === "dark"
+              ? "bg-brand-charcoal border-brand-dark-grey text-brand-offwhite"
+              : "bg-brand-white border-brand-beige text-brand-charcoal"
+              }`}>
             <button
               onClick={() => setShowForgotModal(false)}
               className="absolute top-4 right-5 text-2xl font-semibold text-brand-sage hover:text-brand-charcoal dark:hover:text-brand-white transition-colors cursor-pointer"
@@ -314,9 +336,10 @@ const Login = () => {
                 Send Reset Link
               </button>
             </form>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

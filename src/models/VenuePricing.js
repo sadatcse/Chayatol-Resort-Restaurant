@@ -22,9 +22,5 @@ const VenuePricingSchema = new Schema(
   { timestamps: true }
 );
 
-if (mongoose.models.VenuePricing) {
-  delete mongoose.models.VenuePricing;
-}
-
-const VenuePricing = mongoose.model("VenuePricing", VenuePricingSchema);
+const VenuePricing = mongoose.models.VenuePricing || mongoose.model("VenuePricing", VenuePricingSchema);
 export default VenuePricing;

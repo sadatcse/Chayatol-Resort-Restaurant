@@ -6,7 +6,10 @@ import { verifyToken } from "@/lib/auth";
 
 export async function PUT(req) {
   const auth = verifyToken(req);
-  
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     await dbConnect();
     const routeData = await req.json();

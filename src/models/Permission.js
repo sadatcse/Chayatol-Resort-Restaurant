@@ -18,9 +18,5 @@ const permissionSchema = new Schema(
 
 permissionSchema.index({ role: 1, path: 1 }, { unique: true });
 
-if (mongoose.models.Permission) {
-  delete mongoose.models.Permission;
-}
-
-const Permission = mongoose.model("Permission", permissionSchema);
+const Permission = mongoose.models.Permission || mongoose.model("Permission", permissionSchema);
 export default Permission;

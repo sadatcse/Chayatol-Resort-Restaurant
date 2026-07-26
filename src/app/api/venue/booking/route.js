@@ -4,6 +4,7 @@ import VenueBooking from "@/models/VenueBooking";
 import Customer from "@/models/Customer";
 import { verifyMultiplePathsPermission, verifyApiPermission } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
+import { getNextSequence } from "@/lib/sequence";
 
 export async function GET(req) {
   const auth = await verifyMultiplePathsPermission(req, [
@@ -110,12 +111,23 @@ export async function POST(req) {
       paidAmount,
       discount,
       paymentMethod,
-      specialInstructions
+      specialInstructions,
+      idempotencyKey
     } = body;
 
     // Validate inputs
     if (!customer || !startDate || !endDate || !venueSize || !pricingType || !rateApplied || !duration || !eventTitle) {
       return NextResponse.json({ message: "Please provide all required fields" }, { status: 400 });
+    }
+
+    if (idempotencyKey) {
+      const existing = await VenueBooking.findOne({ idempotencyKey });
+      if (existing) {
+        // Same shape as the normal success response below (a plain booking
+        // object) so the frontend needs no special-casing for a retry that
+        // lands on an already-created booking.
+        return NextResponse.json(existing, { status: 201 });
+      }
     }
 
     const start = new Date(startDate);
@@ -139,8 +151,8 @@ export async function POST(req) {
     });
 
     if (potentialDuplicate) {
-      return NextResponse.json({ 
-        message: "Duplicate booking submission detected. Please wait a moment." 
+      return NextResponse.json({
+        message: "Duplicate booking submission detected. Please wait a moment."
       }, { status: 409 });
     }
 
@@ -169,14 +181,14 @@ export async function POST(req) {
       }, { status: 409 });
     }
 
-    // Generate booking number (VB-1001 base)
-    const lastBooking = await VenueBooking.findOne().sort({ createdAt: -1 });
-    let lastNum = 1000;
-    if (lastBooking && lastBooking.bookingNumber) {
-      const match = lastBooking.bookingNumber.match(/VB-(\d+)/);
-      if (match) lastNum = parseInt(match[1]);
-    }
-    const bookingNumber = `VB-${lastNum + 1}`;
+    // Generate booking number (VB-1001 base), atomically so two concurrent
+    // bookings can never be assigned the same number.
+    const seq = await getNextSequence("venue-booking", async () => {
+      const lastBooking = await VenueBooking.findOne().sort({ createdAt: -1 });
+      const match = lastBooking?.bookingNumber?.match(/VB-(\d+)/);
+      return match ? parseInt(match[1], 10) : 1000;
+    });
+    const bookingNumber = `VB-${seq}`;
 
     // Establish payment info
     const totalAmt = Number(totalAmount);
@@ -214,10 +226,22 @@ export async function POST(req) {
       paymentMethod: paymentMethod || "Cash",
       bookingStatus: "Confirmed",
       specialInstructions,
-      createdByUser
+      createdByUser,
+      idempotencyKey: idempotencyKey || undefined
     };
 
-    const result = await VenueBooking.create(bookingData);
+    let result;
+    try {
+      result = await VenueBooking.create(bookingData);
+    } catch (createError) {
+      if (createError.code === 11000 && idempotencyKey) {
+        const existing = await VenueBooking.findOne({ idempotencyKey });
+        if (existing) {
+          return NextResponse.json(existing, { status: 201 });
+        }
+      }
+      throw createError;
+    }
 
     await logTransaction({
       req,

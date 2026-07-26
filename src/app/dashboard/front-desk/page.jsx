@@ -265,6 +265,8 @@ const FrontDeskTimelinePage = () => {
   const [isNewResCustModalOpen, setIsNewResCustModalOpen] = useState(false);
   const [newResCustToEdit, setNewResCustToEdit] = useState(null);
   const [isNewResSubmitting, setIsNewResSubmitting] = useState(false);
+  const [isResPaySubmitting, setIsResPaySubmitting] = useState(false);
+  const [isFdCheckinSubmitting, setIsFdCheckinSubmitting] = useState(false);
 
   // Status Modal states
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -1273,6 +1275,7 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleAddResPayment = async () => {
+    if (isResPaySubmitting) return;
     if (!canEdit) {
       Swal.fire("Restricted", "You do not have permission to manage reservation payments.", "warning");
       return;
@@ -1281,6 +1284,7 @@ const FrontDeskTimelinePage = () => {
       Swal.fire("Validation Error", "Please provide payment type and non-zero amount.", "warning");
       return;
     }
+    setIsResPaySubmitting(true);
     try {
       await axiosSecure.post(`/reservations/${selectedRes._id}/payments`, resPayFormData);
       await fetchResPayments(selectedRes._id);
@@ -1294,6 +1298,8 @@ const FrontDeskTimelinePage = () => {
       Swal.fire("Success", "Payment/deposit recorded.", "success");
     } catch (error) {
       Swal.fire("Failed", error.response?.data?.message || "Failed to record payment.", "error");
+    } finally {
+      setIsResPaySubmitting(false);
     }
   };
 
@@ -1323,31 +1329,37 @@ const FrontDeskTimelinePage = () => {
       confirmButtonText: 'Cancel Reservation',
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
-      preConfirm: () => {
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
         const fee = document.getElementById('swal-fee').value;
         const reason = document.getElementById('swal-reason').value;
         if (fee === undefined || isNaN(fee) || Number(fee) < 0) {
           Swal.showValidationMessage('Please enter a valid cancellation fee');
           return false;
         }
-        return {
-          cancellationFee: Number(fee),
-          cancellationReason: reason
-        };
+        // Submitting from inside preConfirm keeps SweetAlert's own confirm
+        // button disabled/loading for the whole request, so a second click
+        // can't cancel the same reservation twice.
+        try {
+          await axiosSecure.post(`/reservations/${res._id}/cancel`, {
+            cancellationFee: Number(fee),
+            cancellationReason: reason
+          });
+          return true;
+        } catch (err) {
+          Swal.showValidationMessage(err.response?.data?.message || 'Failed to cancel reservation.');
+          return false;
+        }
       }
     });
 
     if (formValues) {
-      try {
-        await axiosSecure.post(`/reservations/${res._id}/cancel`, formValues);
-        setIsResDetailModalOpen(false);
-        setSelectedRes(null);
-        setSelectedBlock(null);
-        Swal.fire("Cancelled", "The reservation has been cancelled successfully.", "success");
-        fetchTimelineData();
-      } catch (err) {
-        Swal.fire("Error", err.response?.data?.message || "Failed to cancel reservation.", "error");
-      }
+      setIsResDetailModalOpen(false);
+      setSelectedRes(null);
+      setSelectedBlock(null);
+      Swal.fire("Cancelled", "The reservation has been cancelled successfully.", "success");
+      fetchTimelineData();
     }
   };
 
@@ -1387,7 +1399,9 @@ const FrontDeskTimelinePage = () => {
       showCancelButton: true,
       confirmButtonColor: '#d33',
       confirmButtonText: 'Record Refund Payout',
-      preConfirm: () => {
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
         const method = document.getElementById('swal-refund-method').value;
         const ref = document.getElementById('swal-refund-ref').value;
         const receiver = document.getElementById('swal-refund-receiver').value;
@@ -1399,30 +1413,33 @@ const FrontDeskTimelinePage = () => {
           Swal.showValidationMessage('Receiver name is required');
           return false;
         }
-        return { method, ref, receiver };
+        // Submitting from inside preConfirm keeps SweetAlert's own confirm
+        // button disabled/loading for the whole request, so a second click
+        // can't record the same refund payout twice.
+        try {
+          const payload = {
+            paymentType: method,
+            amount: -Number(refundAmt),
+            transactionRef: ref || "",
+            notes: `Refund for cancelled booking ${res.reservationNo}`,
+            receivedBy: receiver
+          };
+          await axiosSecure.post(`/reservations/${res._id}/payments`, payload);
+          return true;
+        } catch (err) {
+          Swal.showValidationMessage(err.response?.data?.message || 'Failed to log refund.');
+          return false;
+        }
       }
     });
 
     if (formValues) {
-      try {
-        const payload = {
-          paymentType: formValues.method,
-          amount: -Number(refundAmt),
-          transactionRef: formValues.ref || "",
-          notes: `Refund for cancelled booking ${res.reservationNo}`,
-          receivedBy: formValues.receiver
-        };
-        await axiosSecure.post(`/reservations/${res._id}/payments`, payload);
+      // Update selectedRes with latest info
+      const resVal = await axiosSecure.get(`/reservations/${selectedRes._id}`);
+      setSelectedRes(resVal.data);
 
-        // Update selectedRes with latest info
-        const resVal = await axiosSecure.get(`/reservations/${selectedRes._id}`);
-        setSelectedRes(resVal.data);
-
-        fetchTimelineData();
-        Swal.fire("Refund Logged", `Refund payout of ৳${refundAmt} recorded.`, "success");
-      } catch (err) {
-        Swal.fire("Error", err.response?.data?.message || "Failed to log refund.", "error");
-      }
+      fetchTimelineData();
+      Swal.fire("Refund Logged", `Refund payout of ৳${refundAmt} recorded.`, "success");
     }
   };
 
@@ -1442,6 +1459,7 @@ const FrontDeskTimelinePage = () => {
   };
 
   const handleConfirmCheckin = async () => {
+    if (isFdCheckinSubmitting) return;
     if (!canEdit) {
       Swal.fire("Restricted", "You do not have permission to check-in reservations.", "warning");
       return;
@@ -1452,6 +1470,7 @@ const FrontDeskTimelinePage = () => {
         return;
       }
     }
+    setIsFdCheckinSubmitting(true);
     try {
       await axiosSecure.post(`/reservations/${selectedRes._id}/convert`, {
         roomAssignments: checkinAssignments
@@ -1464,6 +1483,8 @@ const FrontDeskTimelinePage = () => {
       Swal.fire("Checked In", `Stay records and ledger initialized.`, "success");
     } catch (error) {
       Swal.fire("Check-in Failed", error.response?.data?.message || "Failed to perform check-in.", "error");
+    } finally {
+      setIsFdCheckinSubmitting(false);
     }
   };
 
@@ -2867,8 +2888,13 @@ const FrontDeskTimelinePage = () => {
                     />
                   </div>
                 </div>
-                <button type="button" onClick={handleAddResPayment} className="btn btn-xs bg-brand-primary text-white border-none w-full rounded-lg h-8 uppercase tracking-widest font-bold text-[10px]">
-                  Submit Deposit
+                <button type="button" onClick={handleAddResPayment} disabled={isResPaySubmitting} className="btn btn-xs bg-brand-primary text-white border-none w-full rounded-lg h-8 uppercase tracking-widest font-bold text-[10px] disabled:opacity-50">
+                  {isResPaySubmitting ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs"></span>
+                      Submitting...
+                    </>
+                  ) : "Submit Deposit"}
                 </button>
               </div>
             </div>
@@ -2924,8 +2950,13 @@ const FrontDeskTimelinePage = () => {
 
               <div className="pt-4 flex justify-end gap-3">
                 <button onClick={() => setIsCheckinModalOpen(false)} className="btn btn-ghost hover:bg-brand-beige text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">Cancel</button>
-                <button onClick={handleConfirmCheckin} className="btn bg-green-600 hover:bg-green-700 text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md">
-                  Confirm Arrival
+                <button onClick={handleConfirmCheckin} disabled={isFdCheckinSubmitting} className="btn bg-green-600 hover:bg-green-700 text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md disabled:opacity-50">
+                  {isFdCheckinSubmitting ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm"></span>
+                      Confirming...
+                    </>
+                  ) : "Confirm Arrival"}
                 </button>
               </div>
             </div>

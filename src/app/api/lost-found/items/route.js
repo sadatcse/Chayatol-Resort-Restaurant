@@ -5,6 +5,7 @@ import LostFoundCategory from "@/models/LostFoundCategory";
 import LostFoundLocation from "@/models/LostFoundLocation";
 import Department from "@/models/Department";
 import { verifyLostFoundPermission, logLostFoundActivity, createLostFoundNotification } from "@/lib/lostFoundHelpers";
+import { getNextSequence } from "@/lib/sequence";
 
 export async function GET(req) {
   const auth = await verifyLostFoundPermission(req, "lost_found.view");
@@ -119,21 +120,17 @@ export async function POST(req) {
       );
     }
 
-    // Auto-generate itemCode: LF-YYYYMMDD-XXXX
+    // Auto-generate itemCode: LF-YYYYMMDD-XXXX, via an atomic counter so two
+    // concurrent found-item reports can never collide on the same code.
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
-    const regex = new RegExp(`^LF-${dateStr}-\\d{4}$`);
-    const lastItem = await LostFoundItem.findOne({ itemCode: regex })
-      .sort({ itemCode: -1 })
-      .select("itemCode");
-
-    let nextNum = 1;
-    if (lastItem) {
-      const parts = lastItem.itemCode.split("-");
-      const lastNum = parseInt(parts[2], 10);
-      if (!isNaN(lastNum)) {
-        nextNum = lastNum + 1;
-      }
-    }
+    const nextNum = await getNextSequence(`lost-found-item-${dateStr}`, async () => {
+      const regex = new RegExp(`^LF-${dateStr}-\\d{4}$`);
+      const lastItem = await LostFoundItem.findOne({ itemCode: regex })
+        .sort({ itemCode: -1 })
+        .select("itemCode");
+      if (!lastItem) return 0;
+      return parseInt(lastItem.itemCode.split("-")[2], 10) || 0;
+    });
     const sequenceNum = String(nextNum).padStart(4, "0");
     const itemCode = `LF-${dateStr}-${sequenceNum}`;
 

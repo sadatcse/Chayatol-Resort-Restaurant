@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
+import dbConnect from "@/lib/db";
 import Invoice from "@/models/Invoice";
 import User from "@/models/User";
-
-const MONGO_URI = process.env.MONGODB_URI;
-
-async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) return;
-  await mongoose.connect(MONGO_URI);
-}
+import { verifyToken } from "@/lib/auth";
+import { getNextSequence } from "@/lib/sequence";
 
 export async function POST(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     const data = await req.json();
     const idempotencyKey = data.idempotencyKey;
 
@@ -53,25 +54,23 @@ export async function POST(req) {
       }
     }
 
-    // Auto-generate invoiceNo if not provided
+    // Auto-generate invoiceNo if not provided. Uses an atomic counter
+    // (getNextSequence) instead of "find the last one and add 1" so two
+    // concurrent orders can never be assigned the same invoice number.
     if (!data.invoiceNo) {
       const today = new Date();
       const dateString = today.toISOString().slice(0, 10).replace(/-/g, "");
-      
-      // Find the last invoice for today to increment the number
-      const lastInvoice = await Invoice.findOne({
-        invoiceNo: new RegExp(`^INV-${dateString}-`),
-      }).sort({ invoiceNo: -1 });
-
-      let nextNumber = "001";
-      if (lastInvoice && lastInvoice.invoiceNo) {
-        const lastParts = lastInvoice.invoiceNo.split("-");
-        const lastNum = parseInt(lastParts[2], 10);
-        if (!isNaN(lastNum)) {
-          nextNumber = (lastNum + 1).toString().padStart(3, "0");
-        }
-      }
-      data.invoiceNo = `INV-${dateString}-${nextNumber}`;
+      const seq = await getNextSequence(`invoice-${dateString}`, async () => {
+        // Bootstrap from today's highest existing invoiceNo the first time
+        // this counter is used, so it continues the existing sequence
+        // instead of colliding with numbers already assigned today.
+        const lastInvoice = await Invoice.findOne({
+          invoiceNo: new RegExp(`^INV-${dateString}-`),
+        }).sort({ invoiceNo: -1 });
+        if (!lastInvoice) return 0;
+        return parseInt(lastInvoice.invoiceNo.split("-")[2], 10) || 0;
+      });
+      data.invoiceNo = `INV-${dateString}-${String(seq).padStart(3, "0")}`;
     }
 
     // Map new POS properties to standard database structure
@@ -156,9 +155,14 @@ export async function POST(req) {
 }
 
 export async function GET(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
-    
+    await dbConnect();
+
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');

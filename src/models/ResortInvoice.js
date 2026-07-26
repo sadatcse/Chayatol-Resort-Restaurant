@@ -79,9 +79,5 @@ const resortInvoiceSchema = new Schema(
   }
 );
 
-if (mongoose.models.ResortInvoice) {
-  delete mongoose.models.ResortInvoice;
-}
-
-const ResortInvoice = mongoose.model("ResortInvoice", resortInvoiceSchema);
+const ResortInvoice = mongoose.models.ResortInvoice || mongoose.model("ResortInvoice", resortInvoiceSchema);
 export default ResortInvoice;

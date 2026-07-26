@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+import dbConnect from "@/lib/db";
 import TableReservation from "@/models/TableReservation";
 import Customer from "@/models/Customer";
-
-const MONGO_URI = process.env.MONGODB_URI;
-
-async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) return;
-  await mongoose.connect(MONGO_URI);
-}
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date"); // format YYYY-MM-DD
     const startDate = searchParams.get("startDate");
@@ -47,8 +46,13 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
+  const auth = verifyToken(req);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
-    await connectToDatabase();
+    await dbConnect();
     const data = await req.json();
 
     const newReservation = new TableReservation(data);

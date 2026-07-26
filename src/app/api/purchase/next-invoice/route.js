@@ -1,25 +1,22 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/db";
 import Purchase from "@/models/Purchase";
+import { getNextSequence } from "@/lib/sequence";
 
 export async function GET(req) {
   try {
-    await dbConnect();
     const prefix = "INV-";
 
-    const lastPurchase = await Purchase.findOne({ invoiceNumber: { $regex: `^${prefix}` } })
-      .sort({ createdAt: -1 });
+    const seq = await getNextSequence("purchase-invoice", async () => {
+      // Bootstrap from the current highest purchase invoice number the
+      // first time this counter is used, continuing the existing sequence.
+      const lastPurchase = await Purchase.findOne({ invoiceNumber: { $regex: `^${prefix}` } })
+        .sort({ createdAt: -1 });
+      if (!lastPurchase?.invoiceNumber) return 1000;
+      const lastNumber = parseInt(lastPurchase.invoiceNumber.split(prefix)[1], 10);
+      return isNaN(lastNumber) ? 1000 : lastNumber;
+    });
 
-    let nextNumber = 1001;
-
-    if (lastPurchase && lastPurchase.invoiceNumber) {
-      const lastNumber = parseInt(lastPurchase.invoiceNumber.split(prefix)[1]);
-      if (!isNaN(lastNumber)) {
-        nextNumber = lastNumber + 1;
-      }
-    }
-
-    const nextInvoiceNumber = `${prefix}${nextNumber}`;
+    const nextInvoiceNumber = `${prefix}${seq}`;
     return NextResponse.json({ nextInvoiceNumber }, { status: 200 });
   } catch (err) {
     console.error("Get next invoice number error:", err);

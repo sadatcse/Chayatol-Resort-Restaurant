@@ -19,6 +19,8 @@ import { FaCcVisa, FaCcAmex } from "react-icons/fa6";
 import { RiMastercardFill } from "react-icons/ri";
 import { FiX } from "react-icons/fi";
 
+const generateIdempotencyKey = () => "pos-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
+
 function POSContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -80,6 +82,7 @@ function POSContent() {
     const [checkoutMode, setCheckoutMode] = useState(""); // "print-bill", "pay-and-print", "collect-only"
 
     const handlePayAndPrintClick = () => {
+        if (isSubmittingRef.current || isProcessing) return;
         if (addedProducts.length === 0) {
             toast.warn("Please add products to the cart first.");
             return;
@@ -95,14 +98,7 @@ function POSContent() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
     const [reloadCounter, setReloadCounter] = useState(0);
-    const [idempotencyKey, setIdempotencyKey] = useState("");
-    const generateIdempotencyKey = () => {
-        return "pos-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
-    };
-
-    useEffect(() => {
-        setIdempotencyKey(generateIdempotencyKey());
-    }, []);
+    const [idempotencyKey, setIdempotencyKey] = useState(generateIdempotencyKey);
 
     // Customer & Modals
     const [mobile, setMobile] = useState("");
@@ -113,6 +109,12 @@ function POSContent() {
     const receiptRef = useRef();
     const kitchenReceiptRef = useRef();
     const [printData, setPrintData] = useState(null);
+
+    // Synchronous submit lock: React state (isProcessing) is asynchronous and
+    // can't be trusted to block a second invocation that starts before the
+    // first render commits (e.g. a fast double-tap on a touchscreen POS).
+    // This ref is set/checked immediately, in the same tick as the click.
+    const isSubmittingRef = useRef(false);
 
     // KOT Queue: array of { kitchenName, invoiceData } printed one by one
     const [kotQueue, setKotQueue] = useState([]);
@@ -532,9 +534,44 @@ function POSContent() {
 
     const change = (invoiceSummary.paid || 0) > totals.payable ? (invoiceSummary.paid || 0) - totals.payable : 0;
 
+    // Checkout-modal payment method choices, derived from configured payment types.
+    const paymentOptions = useMemo(() => {
+        const options = [];
+        const hasCash = paymentTypes.some(pt => pt.name === "Cash");
+        const hasCard = paymentTypes.some(pt => pt.name === "Card");
+        const hasMobile = paymentTypes.some(pt => pt.name === "Mobile");
+        const hasBank = paymentTypes.some(pt => pt.name === "Bank");
+        const useFallback = !paymentTypes || paymentTypes.length === 0;
+
+        if (hasCash || useFallback) {
+            options.push({ name: "Cash", method: "Cash", sub: "", icon: <FaMoneyBillWave size={16} /> });
+        }
+        if (hasCard || useFallback) {
+            options.push({ name: "Visa Card", method: "Card", sub: "Visa Card", icon: <FaCcVisa size={16} /> });
+            options.push({ name: "Master Card", method: "Card", sub: "Master Card", icon: <RiMastercardFill size={16} /> });
+            options.push({ name: "Amex Card", method: "Card", sub: "Amex Card", icon: <FaCcAmex size={16} /> });
+        }
+        if (hasMobile || useFallback) {
+            options.push({ name: "Bkash", method: "Mobile", sub: "Bkash", icon: <span className="font-extrabold text-[10px] text-pink-600">bKash</span> });
+            options.push({ name: "Nagad", method: "Mobile", sub: "Nagad", icon: <span className="font-extrabold text-[10px] text-orange-600">Nagad</span> });
+            options.push({ name: "Rocket", method: "Mobile", sub: "Rocket", icon: <span className="font-extrabold text-[10px] text-purple-600">Rocket</span> });
+        }
+        if (hasBank || useFallback) {
+            options.push({ name: "Bank", method: "Bank", sub: "", icon: <FaUniversity size={16} /> });
+        }
+
+        paymentTypes.forEach(pt => {
+            if (!["Cash", "Card", "Mobile", "Bank"].includes(pt.name)) {
+                options.push({ name: pt.name, method: pt.name, sub: "", icon: <FaUniversity size={16} /> });
+            }
+        });
+
+        return options;
+    }, [paymentTypes]);
+
     // Print & Save Order
     const printInvoice = async (isPrintAction, checkoutModeOverride, paymentMethodOverride) => {
-        if (isProcessing) return;
+        if (isSubmittingRef.current || isProcessing) return;
         if (addedProducts.length === 0) return;
 
         if (currentInvoiceId) {
@@ -549,6 +586,7 @@ function POSContent() {
             }
         }
 
+        isSubmittingRef.current = true;
         setIsProcessing(true);
 
         let finalPaymentMethod = isPrintAction ? (selectedPaymentMethod || "Cash") : "Due";
@@ -592,6 +630,7 @@ function POSContent() {
                 finalPaymentStatus = "Paid";
             } else {
                 // Cancelled
+                isSubmittingRef.current = false;
                 setIsProcessing(false);
                 return;
             }
@@ -669,7 +708,7 @@ function POSContent() {
             }
 
             if (res.data?.success) {
-                toast.success("Order processed successfully!");
+                const wasAlreadySubmitted = res.data.duplicated === true;
                 setIdempotencyKey(generateIdempotencyKey());
                 const savedInvoice = {
                     ...invoiceDetails,
@@ -677,27 +716,37 @@ function POSContent() {
                     invoiceSerial: res.data.data?.invoiceSerial || res.data.data?.invoiceNo || res.data.data?._id
                 };
 
-                if (isPrintAction) {
-                    // Build per-kitchen KOT queue BEFORE resetting cart
-                    if (printKOTEnabled && addedProducts.length > 0) {
-                        const kitchenMap = {};
-                        addedProducts.forEach(p => {
-                            const kitchen = (p.cookOn || "MAIN KITCHEN").toUpperCase();
-                            if (!kitchenMap[kitchen]) kitchenMap[kitchen] = [];
-                            kitchenMap[kitchen].push({ ...p, qty: p.quantity });
-                        });
-                        // Store in ref — will be flushed when customer receipt onPrintComplete fires
-                        pendingKotQueueRef.current = Object.entries(kitchenMap).map(([kitchen, items]) => ({
-                            kitchenName: kitchen,
-                            invoiceData: {
-                                ...savedInvoice,
+                if (wasAlreadySubmitted) {
+                    // The backend recognized this as a retry of a request that already
+                    // succeeded (same idempotency key) and returned the existing invoice
+                    // instead of creating a new one. Do NOT re-queue KOT prints or
+                    // re-trigger the receipt print — that would send a second ticket to
+                    // the kitchen for an order it already has.
+                    toast.info("This order was already submitted — no duplicate created.");
+                } else {
+                    toast.success("Order processed successfully!");
+                    if (isPrintAction) {
+                        // Build per-kitchen KOT queue BEFORE resetting cart
+                        if (printKOTEnabled && addedProducts.length > 0) {
+                            const kitchenMap = {};
+                            addedProducts.forEach(p => {
+                                const kitchen = (p.cookOn || "MAIN KITCHEN").toUpperCase();
+                                if (!kitchenMap[kitchen]) kitchenMap[kitchen] = [];
+                                kitchenMap[kitchen].push({ ...p, qty: p.quantity });
+                            });
+                            // Store in ref — will be flushed when customer receipt onPrintComplete fires
+                            pendingKotQueueRef.current = Object.entries(kitchenMap).map(([kitchen, items]) => ({
                                 kitchenName: kitchen,
-                                kotRound,
-                                products: items,
-                            }
-                        }));
+                                invoiceData: {
+                                    ...savedInvoice,
+                                    kitchenName: kitchen,
+                                    kotRound,
+                                    products: items,
+                                }
+                            }));
+                        }
+                        setPrintData(savedInvoice);
                     }
-                    setPrintData(savedInvoice);
                 }
 
                 // Reset
@@ -715,13 +764,14 @@ function POSContent() {
             console.error("Order save failure", e);
             Swal.fire("Error", "Could not process the order. Please try again.", "error");
         } finally {
+            isSubmittingRef.current = false;
             setIsProcessing(false);
         }
     };
 
     // Kitchen Send (KOT) — groups items by cookOn kitchen, prints one KOT per kitchen
     const handleKitchenClick = async () => {
-        if (isProcessing) return;
+        if (isSubmittingRef.current || isProcessing) return;
         if (addedProducts.length === 0) {
             toast.warn("Please add products first.");
             return;
@@ -739,6 +789,7 @@ function POSContent() {
             }
         }
 
+        isSubmittingRef.current = true;
         setIsProcessing(true);
 
         // Find items that haven't been fully printed yet (qty > printedQty)
@@ -746,6 +797,7 @@ function POSContent() {
 
         if (unprintedItems.length === 0) {
             toast.info("All items have already been sent to the kitchen.");
+            isSubmittingRef.current = false;
             setIsProcessing(false);
             return;
         }
@@ -821,7 +873,7 @@ function POSContent() {
             }
 
             if (res.data?.success) {
-                toast.success("Order sent to kitchen!");
+                const wasAlreadySubmitted = res.data.duplicated === true;
                 setIdempotencyKey(generateIdempotencyKey());
                 const savedInvoice = {
                     ...invoiceDetails,
@@ -834,33 +886,41 @@ function POSContent() {
                 setKotRound(prev => prev + 1);
                 router.replace(`/dashboard/pos?invoiceId=${savedInvoice._id}`);
 
-                // --- Build per-kitchen KOT queue (same mechanism as Pay & Print) ---
-                if (printKOTEnabled) {
-                    const kitchenMap = {};
-                    unprintedItems.forEach(p => {
-                        const kitchen = (p.cookOn || "MAIN KITCHEN").toUpperCase();
-                        if (!kitchenMap[kitchen]) kitchenMap[kitchen] = [];
-                        kitchenMap[kitchen].push({ ...p, qty: p.quantity - (p.printedQty || 0) });
-                    });
+                if (wasAlreadySubmitted) {
+                    // Same request already went to the kitchen once — don't print a
+                    // second ticket for it.
+                    toast.info("This round was already sent to the kitchen.");
+                } else {
+                    toast.success("Order sent to kitchen!");
+                    // --- Build per-kitchen KOT queue (same mechanism as Pay & Print) ---
+                    if (printKOTEnabled) {
+                        const kitchenMap = {};
+                        unprintedItems.forEach(p => {
+                            const kitchen = (p.cookOn || "MAIN KITCHEN").toUpperCase();
+                            if (!kitchenMap[kitchen]) kitchenMap[kitchen] = [];
+                            kitchenMap[kitchen].push({ ...p, qty: p.quantity - (p.printedQty || 0) });
+                        });
 
-                    const newQueue = Object.entries(kitchenMap).map(([kitchen, items]) => ({
-                        kitchenName: kitchen,
-                        invoiceData: {
-                            ...savedInvoice,
+                        const newQueue = Object.entries(kitchenMap).map(([kitchen, items]) => ({
                             kitchenName: kitchen,
-                            kotRound,
-                            products: items,
-                        }
-                    }));
+                            invoiceData: {
+                                ...savedInvoice,
+                                kitchenName: kitchen,
+                                kotRound,
+                                products: items,
+                            }
+                        }));
 
-                    // Flush immediately — no delay, prints as soon as React renders the component
-                    setKotQueue(q => [...q, ...newQueue]);
+                        // Flush immediately — no delay, prints as soon as React renders the component
+                        setKotQueue(q => [...q, ...newQueue]);
+                    }
                 }
             }
         } catch (e) {
             console.error("KOT save error", e);
             toast.error("Failed to send order to kitchen.");
         } finally {
+            isSubmittingRef.current = false;
             setIsProcessing(false);
         }
     };
@@ -1223,11 +1283,12 @@ function POSContent() {
                         {checkoutStep === "action" ? (
                             <div className="flex flex-col gap-4">
                                 <button
+                                    disabled={isProcessing}
                                     onClick={() => {
                                         setIsCheckoutModalOpen(false);
                                         printInvoice(true, "print-bill", "Due");
                                     }}
-                                    className="flex items-center gap-4 p-4 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/35 transition-all text-left cursor-pointer group"
+                                    className="flex items-center gap-4 p-4 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/35 transition-all text-left cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <div className="p-3 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
                                         <FaPrint size={20} />
@@ -1276,57 +1337,26 @@ function POSContent() {
                                     Select Payment Method:
                                 </h4>
                                 <div className="grid grid-cols-2 gap-3 mb-6">
-                                    {(() => {
-                                        const options = [];
-                                        const hasCash = paymentTypes.some(pt => pt.name === "Cash");
-                                        const hasCard = paymentTypes.some(pt => pt.name === "Card");
-                                        const hasMobile = paymentTypes.some(pt => pt.name === "Mobile");
-                                        const hasBank = paymentTypes.some(pt => pt.name === "Bank");
-                                        const useFallback = !paymentTypes || paymentTypes.length === 0;
-
-                                        if (hasCash || useFallback) {
-                                            options.push({ name: "Cash", method: "Cash", sub: "", icon: <FaMoneyBillWave size={16} /> });
-                                        }
-                                        if (hasCard || useFallback) {
-                                            options.push({ name: "Visa Card", method: "Card", sub: "Visa Card", icon: <FaCcVisa size={16} /> });
-                                            options.push({ name: "Master Card", method: "Card", sub: "Master Card", icon: <RiMastercardFill size={16} /> });
-                                            options.push({ name: "Amex Card", method: "Card", sub: "Amex Card", icon: <FaCcAmex size={16} /> });
-                                        }
-                                        if (hasMobile || useFallback) {
-                                            options.push({ name: "Bkash", method: "Mobile", sub: "Bkash", icon: <span className="font-extrabold text-[10px] text-pink-600">bKash</span> });
-                                            options.push({ name: "Nagad", method: "Mobile", sub: "Nagad", icon: <span className="font-extrabold text-[10px] text-orange-600">Nagad</span> });
-                                            options.push({ name: "Rocket", method: "Mobile", sub: "Rocket", icon: <span className="font-extrabold text-[10px] text-purple-600">Rocket</span> });
-                                        }
-                                        if (hasBank || useFallback) {
-                                            options.push({ name: "Bank", method: "Bank", sub: "", icon: <FaUniversity size={16} /> });
-                                        }
-
-                                        paymentTypes.forEach(pt => {
-                                            if (!["Cash", "Card", "Mobile", "Bank"].includes(pt.name)) {
-                                                options.push({ name: pt.name, method: pt.name, sub: "", icon: <FaUniversity size={16} /> });
-                                            }
-                                        });
-
-                                        return options.map((opt) => (
-                                            <button
-                                                key={opt.name}
-                                                onClick={() => {
-                                                    setIsCheckoutModalOpen(false);
-                                                    printInvoice(
-                                                        checkoutMode === "pay-and-print",
-                                                        checkoutMode,
-                                                        opt.sub || opt.method
-                                                    );
-                                                }}
-                                                className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 text-gray-700 dark:text-zinc-300 font-bold text-xs cursor-pointer text-left transition-all hover:scale-102"
-                                            >
-                                                <div className="text-brand-primary dark:text-brand-sage shrink-0">
-                                                    {opt.icon}
-                                                </div>
-                                                <span>{opt.name}</span>
-                                            </button>
-                                        ));
-                                    })()}
+                                    {paymentOptions.map((opt) => (
+                                        <button
+                                            key={opt.name}
+                                            disabled={isProcessing}
+                                            onClick={() => {
+                                                setIsCheckoutModalOpen(false);
+                                                printInvoice(
+                                                    checkoutMode === "pay-and-print",
+                                                    checkoutMode,
+                                                    opt.sub || opt.method
+                                                );
+                                            }}
+                                            className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 text-gray-700 dark:text-zinc-300 font-bold text-xs cursor-pointer text-left transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <div className="text-brand-primary dark:text-brand-sage shrink-0">
+                                                {opt.icon}
+                                            </div>
+                                            <span>{opt.name}</span>
+                                        </button>
+                                    ))}
                                 </div>
                                 <div className="flex justify-between items-center border-t border-gray-200 dark:border-zinc-800 pt-4">
                                     <button

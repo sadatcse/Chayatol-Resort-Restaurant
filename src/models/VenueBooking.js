@@ -115,13 +115,18 @@ const VenueBookingSchema = new Schema(
       type: String,
       default: "System",
     },
+    idempotencyKey: {
+      type: String,
+      default: null,
+      index: {
+        unique: true,
+        sparse: true,
+        partialFilterExpression: { idempotencyKey: { $type: "string" } }
+      }
+    },
   },
   { timestamps: true }
 );
 
-if (mongoose.models.VenueBooking) {
-  delete mongoose.models.VenueBooking;
-}
-
-const VenueBooking = mongoose.model("VenueBooking", VenueBookingSchema);
+const VenueBooking = mongoose.models.VenueBooking || mongoose.model("VenueBooking", VenueBookingSchema);
 export default VenueBooking;
