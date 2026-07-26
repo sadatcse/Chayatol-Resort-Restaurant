@@ -298,28 +298,28 @@ const OrderSummary = ({
                         <div className="p-3 bg-gray-50 dark:bg-zinc-850 rounded-xl space-y-2 mb-4 text-xs font-semibold">
                             <div className="flex justify-between">
                                 <span>Subtotal:</span>
-                                <span>TK {subtotal.toFixed(0)}</span>
+                                <span>TK {subtotal.toFixed(1)}</span>
                             </div>
                             {sc > 0 && (
                                 <div className="flex justify-between">
                                     <span>SC (Service Charge):</span>
-                                    <span>TK {sc.toFixed(0)}</span>
+                                    <span>TK {sc.toFixed(1)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between">
                                 <span>VAT:</span>
-                                <span>TK {vat.toFixed(0)}</span>
+                                <span>TK {vat.toFixed(1)}</span>
                             </div>
                             {sd > 0 && (
                                 <div className="flex justify-between">
                                     <span>SD:</span>
-                                    <span>TK {sd.toFixed(0)}</span>
+                                    <span>TK {sd.toFixed(1)}</span>
                                 </div>
                             )}
                             {deliveryCharge > 0 && (
                                 <div className="flex justify-between text-brand-primary dark:text-brand-sage font-bold">
                                     <span>Delivery Charge:</span>
-                                    <span>TK {deliveryCharge.toFixed(0)}</span>
+                                    <span>TK {deliveryCharge.toFixed(1)}</span>
                                 </div>
                             )}
 
@@ -350,7 +350,7 @@ const OrderSummary = ({
 
                             <div className="flex justify-between text-sm font-bold border-t border-gray-250 dark:border-zinc-800 pt-2 text-brand-primary dark:text-brand-sage">
                                 <span>Payable:</span>
-                                <span>TK {payable.toFixed(0)}</span>
+                                <span>TK {payable.toFixed(1)}</span>
                             </div>
 
                             <div className="border-t border-gray-200 dark:border-zinc-800 pt-2">
@@ -368,7 +368,7 @@ const OrderSummary = ({
                             </div>
                             <div className="flex justify-between text-xs font-bold text-green-600 dark:text-green-400">
                                 <span>Change Return:</span>
-                                <span>TK {change.toFixed(0)}</span>
+                                <span>TK {change.toFixed(1)}</span>
                             </div>
                         </div>
 

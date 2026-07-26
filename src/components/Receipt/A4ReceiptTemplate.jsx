@@ -362,8 +362,8 @@ const A4ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplet
                                     <td>{idx + 1}</td>
                                     <td style={{ fontWeight: "bold" }}>{item.itemName || "N/A"}</td>
                                     <td className="text-right">{item.quantity || 0}</td>
-                                    <td className="text-right">৳ {(item.unitPrice || 0).toFixed(2)}</td>
-                                    <td className="text-right">৳ {(item.totalPrice || 0).toFixed(2)}</td>
+                                    <td className="text-right">৳ {(item.unitPrice || 0).toFixed(1)}</td>
+                                    <td className="text-right">৳ {(item.totalPrice || 0).toFixed(1)}</td>
                                 </tr>
                             ))
                         ) : (
@@ -380,42 +380,42 @@ const A4ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplet
                         <tbody>
                             <tr>
                                 <td className="summary-label">Subtotal</td>
-                                <td className="text-right">৳ {(invoiceData.subtotal || invoiceData.subTotal || 0).toFixed(2)}</td>
+                                <td className="text-right">৳ {(invoiceData.subtotal || invoiceData.subTotal || 0).toFixed(1)}</td>
                             </tr>
                             {invoiceData.discount > 0 && (
                                 <tr>
                                     <td className="summary-label">Discount</td>
-                                    <td className="text-right" style={{ color: "#059669" }}>- ৳ {invoiceData.discount.toFixed(2)}</td>
+                                    <td className="text-right" style={{ color: "#059669" }}>- ৳ {invoiceData.discount.toFixed(1)}</td>
                                 </tr>
                             )}
                             {invoiceData.vat > 0 && (
                                 <tr>
                                     <td className="summary-label">VAT</td>
-                                    <td className="text-right">+ ৳ {invoiceData.vat.toFixed(2)}</td>
+                                    <td className="text-right">+ ৳ {invoiceData.vat.toFixed(1)}</td>
                                 </tr>
                             )}
                             {invoiceData.sd > 0 && (
                                 <tr>
                                     <td className="summary-label">SD</td>
-                                    <td className="text-right">+ ৳ {invoiceData.sd.toFixed(2)}</td>
+                                    <td className="text-right">+ ৳ {invoiceData.sd.toFixed(1)}</td>
                                 </tr>
                             )}
                             {invoiceData.serviceCharge > 0 && (
                                 <tr>
                                     <td className="summary-label">Service Charge</td>
-                                    <td className="text-right">+ ৳ {invoiceData.serviceCharge.toFixed(2)}</td>
+                                    <td className="text-right">+ ৳ {invoiceData.serviceCharge.toFixed(1)}</td>
                                 </tr>
                             )}
                             {invoiceData.deliveryCharge > 0 && (
                                 <tr>
                                     <td className="summary-label">Delivery Charge</td>
-                                    <td className="text-right">+ ৳ {invoiceData.deliveryCharge.toFixed(2)}</td>
+                                    <td className="text-right">+ ৳ {invoiceData.deliveryCharge.toFixed(1)}</td>
                                 </tr>
                             )}
                             <tr className="grand-total-row">
                                 <td style={{ fontWeight: "800" }}>GRAND TOTAL</td>
                                 <td className="text-right" style={{ fontSize: "16px", fontWeight: "800" }}>
-                                    ৳ {(invoiceData.totalAmount || invoiceData.grandTotal || 0).toFixed(2)}
+                                    ৳ {(invoiceData.totalAmount || invoiceData.grandTotal || 0).toFixed(1)}
                                 </td>
                             </tr>
                         </tbody>

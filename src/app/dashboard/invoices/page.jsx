@@ -568,7 +568,7 @@ export default function InvoicesPage() {
                     </span>
                   </td>
                   <td className="text-gray-600 dark:text-gray-300">{inv.paymentMethod}</td>
-                  <td className="font-bold text-brand-dark-grey dark:text-gray-200">{inv.grandTotal.toFixed(2)}</td>
+                  <td className="font-bold text-brand-dark-grey dark:text-gray-200">{inv.grandTotal.toFixed(1)}</td>
                   <td>
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       inv.paymentStatus === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -701,7 +701,7 @@ export default function InvoicesPage() {
                           {batch.items?.map((item, idx) => (
                             <div key={idx} className="flex justify-between text-sm dark:text-gray-300">
                               <span>{item.itemName} x{item.quantity}</span>
-                              <span>৳ {item.totalPrice?.toFixed(2) || item.totalPrice}</span>
+                              <span>৳ {item.totalPrice?.toFixed(1) || item.totalPrice}</span>
                             </div>
                           ))}
                         </div>
@@ -713,7 +713,7 @@ export default function InvoicesPage() {
                     {selectedInvoice.products.map((item, idx) => (
                       <div key={idx} className="flex justify-between text-sm dark:text-gray-300">
                         <span>{item.productName || item.itemName} x{item.qty || item.quantity}</span>
-                        <span>৳ {(item.subtotal || item.totalPrice || (item.rate * item.qty))?.toFixed(2)}</span>
+                        <span>৳ {(item.subtotal || item.totalPrice || (item.rate * item.qty))?.toFixed(1)}</span>
                       </div>
                     ))}
                   </div>
@@ -722,7 +722,7 @@ export default function InvoicesPage() {
                     {selectedInvoice.items?.map((item, idx) => (
                       <div key={idx} className="flex justify-between text-sm dark:text-gray-300">
                         <span>{item.itemName} x{item.quantity}</span>
-                        <span>৳ {item.totalPrice?.toFixed(2) || item.totalPrice}</span>
+                        <span>৳ {item.totalPrice?.toFixed(1) || item.totalPrice}</span>
                       </div>
                     ))}
                   </div>
@@ -732,41 +732,41 @@ export default function InvoicesPage() {
               <div className="bg-gray-50 dark:bg-brand-dark-grey p-4 rounded-lg mt-4 border border-gray-200 dark:border-gray-700 space-y-1 text-sm dark:text-gray-300">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span>৳ {selectedInvoice.subTotal?.toFixed(2) || '0.00'}</span>
+                  <span>৳ {selectedInvoice.subTotal?.toFixed(1) || '0.0'}</span>
                 </div>
                 {selectedInvoice.discount > 0 && (
                   <div className="flex justify-between text-red-500">
                     <span>Discount:</span>
-                    <span>- ৳ {selectedInvoice.discount?.toFixed(2) || '0.00'}</span>
+                    <span>- ৳ {selectedInvoice.discount?.toFixed(1) || '0.0'}</span>
                   </div>
                 )}
                 {selectedInvoice.vat > 0 && (
                   <div className="flex justify-between">
                     <span>VAT:</span>
-                    <span>+ ৳ {selectedInvoice.vat?.toFixed(2) || '0.00'}</span>
+                    <span>+ ৳ {selectedInvoice.vat?.toFixed(1) || '0.0'}</span>
                   </div>
                 )}
                 {selectedInvoice.sd > 0 && (
                   <div className="flex justify-between">
                     <span>SD:</span>
-                    <span>+ ৳ {selectedInvoice.sd?.toFixed(2) || '0.00'}</span>
+                    <span>+ ৳ {selectedInvoice.sd?.toFixed(1) || '0.0'}</span>
                   </div>
                 )}
                 {selectedInvoice.serviceCharge > 0 && (
                   <div className="flex justify-between">
                     <span>Service Charge:</span>
-                    <span>+ ৳ {selectedInvoice.serviceCharge?.toFixed(2) || '0.00'}</span>
+                    <span>+ ৳ {selectedInvoice.serviceCharge?.toFixed(1) || '0.0'}</span>
                   </div>
                 )}
                 {selectedInvoice.deliveryCharge > 0 && (
                   <div className="flex justify-between text-brand-primary font-bold">
                     <span>Delivery Charge:</span>
-                    <span>+ ৳ {selectedInvoice.deliveryCharge?.toFixed(2) || '0.00'}</span>
+                    <span>+ ৳ {selectedInvoice.deliveryCharge?.toFixed(1) || '0.0'}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg dark:text-white pt-2 border-t mt-2 dark:border-gray-600">
                   <span>Grand Total:</span>
-                  <span className="text-brand-primary">৳ {selectedInvoice.grandTotal?.toFixed(2) || '0.00'}</span>
+                  <span className="text-brand-primary">৳ {selectedInvoice.grandTotal?.toFixed(1) || '0.0'}</span>
                 </div>
               </div>
             </div>

@@ -14,6 +14,7 @@ import OrderSummary from "@/components/pos/OrderSummary";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import KitchenReceiptTemplate from "@/components/Receipt/KitchenReceiptTemplate";
 import usePagePermission from "@/hooks/usePagePermission";
+import { roundMoney } from "@/lib/money";
 import { FaUtensils, FaGift, FaTruck, FaHotel, FaLock, FaMoneyBillWave, FaCheck, FaPrint, FaUniversity } from "react-icons/fa";
 import { FaCcVisa, FaCcAmex } from "react-icons/fa6";
 import { RiMastercardFill } from "react-icons/ri";
@@ -204,6 +205,10 @@ function POSContent() {
         if (!invoiceId) return;
         // Prevent refetching if we are already editing this invoice
         if (currentInvoiceId === invoiceId) return;
+        // Wait for the food catalog so VAT/SD/SC applicability can be looked
+        // up the same way addProduct() does for a freshly-added item — see
+        // note below on why we don't infer it from the invoice's own totals.
+        if (loadingProducts) return;
         const fetchInvoice = async () => {
             try {
                 setIsProcessing(true);
@@ -238,37 +243,29 @@ function POSContent() {
                         setMobile(inv.customer.phone || "");
                     }
 
-                    // Map products back into cart format
+                    // Map products back into cart format.
+                    //
+                    // VAT/SD/SC applicability per item is looked up fresh from
+                    // the food catalog (the same source addProduct() uses for
+                    // a brand-new cart line), NOT inferred from the invoice's
+                    // own stored totals. This keeps New POS and Edit POS on
+                    // the exact same logic: whatever is dynamically on/off
+                    // for a product right now is what applies when the order
+                    // is (re)saved. Inferring per-item flags from the
+                    // invoice-level total previously caused an item that was
+                    // originally exempt (e.g. sc=0) to get silently charged
+                    // service charge on re-save just because some other item
+                    // on the same invoice had it — because the fallback
+                    // applied the aggregate flag to every item uniformly.
                     if (inv.products && inv.products.length > 0) {
-                        const invHasSc = (inv.serviceCharge || inv.sc || 0) > 0;
-                        const invHasVat = (inv.vat || 0) > 0;
-                        const invHasSd = (inv.sd || 0) > 0;
-
                         const mappedCart = inv.products.map(p => {
-                            let itemSc = 0;
-                            if (p.sc > 0 || p.serviceCharge > 0) {
-                                itemSc = p.sc || p.serviceCharge;
-                            } else if (invHasSc) {
-                                itemSc = 1;
-                            } else if (p.sc === undefined && p.serviceCharge === undefined) {
-                                itemSc = 1;
-                            } else {
-                                itemSc = 0;
-                            }
-
-                            let itemVat = 0;
-                            if (p.vat > 0) {
-                                itemVat = p.vat;
-                            } else if (invHasVat || p.vat === undefined) {
-                                itemVat = 1;
-                            }
-
-                            let itemSd = 0;
-                            if (p.sd > 0) {
-                                itemSd = p.sd;
-                            } else if (invHasSd) {
-                                itemSd = 1;
-                            }
+                            const catalogFood = foods.find(f => f._id === p.productId);
+                            // Fall back to the invoice's own stored per-item
+                            // flag only if the product no longer exists in
+                            // the catalog (e.g. it was later deleted).
+                            const itemVat = catalogFood ? (catalogFood.vat || 0) : (p.vat !== undefined ? p.vat : 1);
+                            const itemSd = catalogFood ? (catalogFood.sd || 0) : (p.sd !== undefined ? p.sd : 0);
+                            const itemSc = catalogFood ? (catalogFood.sc || 0) : (p.sc !== undefined ? p.sc : 1);
 
                             return {
                                 _id: p.productId,
@@ -303,7 +300,7 @@ function POSContent() {
             }
         };
         fetchInvoice();
-    }, [invoiceId, currentInvoiceId, axiosSecure, reloadCounter, router]);
+    }, [invoiceId, currentInvoiceId, axiosSecure, reloadCounter, router, foods, loadingProducts]);
 
     // Handlers
     const handleMainPaymentButtonClick = (method) => {
@@ -433,7 +430,7 @@ function POSContent() {
         setAddedProducts(prev => prev.map(p => p._id === id ? { ...p, isComplimentary: !p.isComplimentary } : p));
     };
 
-    const roundAmount = (amt) => Math.round(amt * 100) / 100;
+    const roundAmount = roundMoney;
 
     // Totals calculations
     const totals = useMemo(() => {
@@ -512,6 +509,14 @@ function POSContent() {
             }
         }
 
+        // Round every component to one decimal place BEFORE summing, so the
+        // printed total always equals the sum of the printed line items
+        // (no drift between what's shown per-line and the grand total).
+        vatVal = roundAmount(vatVal);
+        sdVal = roundAmount(sdVal);
+        scVal = roundAmount(scVal);
+        deliveryChargeVal = roundAmount(deliveryChargeVal);
+
         let discountAmount = 0;
         const discountInput = parseFloat(invoiceSummary.discount || 0);
         if (discountType === 'Percent') {
@@ -519,10 +524,11 @@ function POSContent() {
         } else {
             discountAmount = discountInput;
         }
+        discountAmount = roundAmount(discountAmount);
 
         const payable = subtotal + vatVal + sdVal + scVal + deliveryChargeVal - discountAmount;
         return {
-            subtotal,
+            subtotal: roundAmount(subtotal),
             vat: vatVal,
             sd: sdVal,
             sc: scVal,
@@ -532,7 +538,7 @@ function POSContent() {
         };
     }, [addedProducts, invoiceSummary.discount, discountType, orderType, deliveryProvider, chargeSettings]);
 
-    const change = (invoiceSummary.paid || 0) > totals.payable ? (invoiceSummary.paid || 0) - totals.payable : 0;
+    const change = (invoiceSummary.paid || 0) > totals.payable ? roundAmount((invoiceSummary.paid || 0) - totals.payable) : 0;
 
     // Checkout-modal payment method choices, derived from configured payment types.
     const paymentOptions = useMemo(() => {

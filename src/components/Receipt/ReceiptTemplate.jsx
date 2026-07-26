@@ -148,9 +148,9 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
                             <tr key={index}>
                                 <td style={styles.tableDataCell}>{item.productName || "Unknown"}</td>
                                 <td style={styles.tableCellRight}>{item.qty || item.quantity || 0}</td>
-                                <td style={styles.tableCellRight}>৳ {(item.rate || item.unitPrice || 0).toFixed(0)}</td>
+                                <td style={styles.tableCellRight}>৳ {(item.rate || item.unitPrice || 0).toFixed(1)}</td>
                                 <td style={styles.tableCellRight}>
-                                    {item.isComplimentary ? "FREE" : `৳ ${(item.subtotal || item.totalPrice || 0).toFixed(0)}`}
+                                    {item.isComplimentary ? "FREE" : `৳ ${(item.subtotal || item.totalPrice || 0).toFixed(1)}`}
                                 </td>
                             </tr>
                         ))}
@@ -171,9 +171,9 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
                             <tr key={index}>
                                 <td style={styles.tableDataCell}>{item.itemName || "Unknown"}</td>
                                 <td style={styles.tableCellRight}>{item.quantity || 0}</td>
-                                <td style={styles.tableCellRight}>{(item.unitPrice || 0).toFixed(0)}</td>
+                                <td style={styles.tableCellRight}>{(item.unitPrice || 0).toFixed(1)}</td>
                                 <td style={styles.tableCellRight}>
-                                    {(item.totalPrice || 0).toFixed(0)}
+                                    {(item.totalPrice || 0).toFixed(1)}
                                 </td>
                             </tr>
                         ))}
@@ -187,43 +187,43 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
 
             {/* Totals Section */}
             <div style={{ textAlign: "right" }}>
-                <p style={styles.infoText}>Subtotal: ৳ {subTotalVal.toFixed(0)}</p>
-                
+                <p style={styles.infoText}>Subtotal: ৳ {subTotalVal.toFixed(1)}</p>
+
                 {invoiceData?.vat > 0 && (
-                    <p style={styles.infoText}>VAT ({vatRate}%): ৳ {invoiceData.vat.toFixed(0)}</p>
+                    <p style={styles.infoText}>VAT ({vatRate}%): ৳ {invoiceData.vat.toFixed(1)}</p>
                 )}
 
                 {invoiceData?.sd > 0 && (
-                    <p style={styles.infoText}>SD ({sdRate}%): ৳ {invoiceData.sd.toFixed(0)}</p>
+                    <p style={styles.infoText}>SD ({sdRate}%): ৳ {invoiceData.sd.toFixed(1)}</p>
                 )}
 
                 {((invoiceData?.serviceCharge || invoiceData?.sc) > 0) && (
-                    <p style={styles.infoText}>Service Charge ({scRate}%): ৳ {(invoiceData.serviceCharge || invoiceData.sc || 0).toFixed(0)}</p>
+                    <p style={styles.infoText}>Service Charge ({scRate}%): ৳ {(invoiceData.serviceCharge || invoiceData.sc || 0).toFixed(1)}</p>
                 )}
 
                 {invoiceData?.deliveryCharge > 0 && (
-                    <p style={styles.infoText}>Delivery Charge: ৳ {invoiceData.deliveryCharge.toFixed(0)}</p>
+                    <p style={styles.infoText}>Delivery Charge: ৳ {invoiceData.deliveryCharge.toFixed(1)}</p>
                 )}
 
                 {invoiceData?.discount > 0 && (
-                    <p style={styles.infoText}>Discount: ৳ {invoiceData.discount.toFixed(0)}</p>
+                    <p style={styles.infoText}>Discount: ৳ {invoiceData.discount.toFixed(1)}</p>
                 )}
                 <p style={styles.totalLine}>
-                    Total: ৳ {(invoiceData?.totalAmount || invoiceData?.grandTotal || 0).toFixed(0)}
+                    Total: ৳ {(invoiceData?.totalAmount || invoiceData?.grandTotal || 0).toFixed(1)}
                 </p>
-                
+
                 {invoiceData?.paymentMethod?.toLowerCase() === "room bill" && (
                     <p style={{ fontSize: "14px", fontWeight: "black", textAlign: "right", margin: "6px 0", letterSpacing: "0.5px" }}>
                         *** ADDED TO ROOM BILL ***
                     </p>
                 )}
-                
+
                 {(invoiceData?.paidAmount > 0 || invoiceData?.paid > 0) && (
-                    <p style={styles.infoText}>Paid: ৳ {(invoiceData.paidAmount || invoiceData.paid || 0).toFixed(0)}</p>
+                    <p style={styles.infoText}>Paid: ৳ {(invoiceData.paidAmount || invoiceData.paid || 0).toFixed(1)}</p>
                 )}
 
                 {(invoiceData?.changeAmount > 0 || invoiceData?.change > 0) && (
-                    <p style={styles.infoText}>Change Return: ৳ {(invoiceData.changeAmount || invoiceData.change || 0).toFixed(0)}</p>
+                    <p style={styles.infoText}>Change Return: ৳ {(invoiceData.changeAmount || invoiceData.change || 0).toFixed(1)}</p>
                 )}
             </div>
 
