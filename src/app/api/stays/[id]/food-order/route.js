@@ -126,6 +126,9 @@ export async function POST(req, { params }) {
       orderStatus: "Served"
     });
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     // Create Folio Entry if chargeable
     if (isChargeable !== false) {
       const description = `Food Order - ${orderItems.length} item(s) (Subtotal: ৳${orderSubtotal.toFixed(2)}, VAT: ৳${orderVat.toFixed(2)}, SC: ৳${orderSc.toFixed(2)}, SD: ৳${orderSd.toFixed(2)})`;
@@ -135,7 +138,9 @@ export async function POST(req, { params }) {
         description,
         debit: totalCost,
         credit: 0,
-        referenceId: foodOrder._id
+        referenceId: foodOrder._id,
+        createdBy: staffId,
+        staffName
       });
     }
 

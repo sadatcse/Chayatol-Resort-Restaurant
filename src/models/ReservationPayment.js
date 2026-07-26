@@ -30,6 +30,10 @@ const ReservationPaymentSchema = Schema(
     receivedBy: {
       type: String,
       trim: true
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   { timestamps: true }

@@ -55,6 +55,9 @@ export async function POST(req, { params }) {
       return NextResponse.json({ message: "Duplicate payment detected. Please wait a moment." }, { status: 409 });
     }
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     // Create payment
     const payment = await ReservationPayment.create({
       reservationId: id,
@@ -62,7 +65,8 @@ export async function POST(req, { params }) {
       amount: Number(amount),
       transactionRef: transactionRef || "",
       notes: notes || "",
-      receivedBy: receivedBy || ""
+      receivedBy: receivedBy || staffName,
+      createdBy: staffId
     });
 
     // Calculate total reservation cost

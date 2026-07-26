@@ -97,6 +97,9 @@ export async function POST(req, { params }) {
     const expectedCO = new Date(reservation.checkOutDate);
     expectedCO.setHours(coHours || 12, coMinutes || 0, 0, 0);
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     // Create Stay record
     const stay = await Stay.create({
       stayNo,
@@ -105,7 +108,9 @@ export async function POST(req, { params }) {
       rooms: stayRooms,
       checkInDate: new Date(),
       expectedCheckOutDate: expectedCO,
-      status: "In House"
+      status: "In House",
+      createdBy: staffId,
+      staffName
     });
 
     // Update Room statuses to Occupied
@@ -138,7 +143,9 @@ export async function POST(req, { params }) {
         type: "Room Charge",
         description: `Room ${room.roomNumber} Charge - ${resRoom.nights} night(s) at ৳${resRoom.nightlyRate}/night`,
         debit: chargeAmount,
-        credit: 0
+        credit: 0,
+        createdBy: staffId,
+        staffName
       });
     }
 
@@ -151,7 +158,9 @@ export async function POST(req, { params }) {
         description: `Advance Deposit (${p.paymentType}) - Ref: ${p.transactionRef || "N/A"}`,
         debit: 0,
         credit: p.amount,
-        referenceId: p._id
+        referenceId: p._id,
+        createdBy: staffId,
+        staffName
       });
     }
 

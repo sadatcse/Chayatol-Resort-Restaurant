@@ -171,6 +171,9 @@ export async function POST(req, { params }) {
       await room.save();
     }
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     // Log the transfers/extensions in folio
     for (const log of transferLogs) {
       await FolioEntry.create({
@@ -178,7 +181,9 @@ export async function POST(req, { params }) {
         type: "Room Charge",
         description: `Room Transfer during Extension: Transferred from Room ${log.oldRoomNo} to Room ${log.newRoomNo}. Nightly rate updated from ৳${log.oldRate} to ৳${log.newRate}`,
         debit: 0,
-        credit: 0
+        credit: 0,
+        createdBy: staffId,
+        staffName
       });
     }
 
@@ -193,7 +198,9 @@ export async function POST(req, { params }) {
         type: "Room Charge",
         description: `Room ${roomNo} Stay Extension - ${extraNights} night(s) at ৳${r.nightlyRate}/night`,
         debit: chargeAmount,
-        credit: 0
+        credit: 0,
+        createdBy: staffId,
+        staffName
       });
     }
 

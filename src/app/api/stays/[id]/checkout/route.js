@@ -34,6 +34,9 @@ export async function POST(req, { params }) {
     const totalCredit = folioEntries.reduce((acc, entry) => acc + entry.credit, 0);
     const currentDue = totalDebit - totalCredit;
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     let paymentsTotal = 0;
     const recordedPayments = [];
 
@@ -46,7 +49,9 @@ export async function POST(req, { params }) {
             type: "Payment",
             description: `Final Settlement (${p.paymentType}) - Ref: ${p.transactionRef || "N/A"}`,
             debit: 0,
-            credit: Number(p.amount)
+            credit: Number(p.amount),
+            createdBy: staffId,
+            staffName
           });
           paymentsTotal += Number(p.amount);
           recordedPayments.push(entry);

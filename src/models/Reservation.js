@@ -74,6 +74,14 @@ const ReservationSchema = Schema(
     notes: {
       type: String
     },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    },
+    staffName: {
+      type: String,
+      trim: true
+    },
     cancellationFee: {
       type: Number,
       default: 0

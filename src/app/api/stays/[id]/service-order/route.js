@@ -69,6 +69,9 @@ export async function POST(req, { params }) {
       isChargeable: isChargeable !== undefined ? isChargeable : true
     });
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     // Create Folio Entry if chargeable
     if (isChargeable !== false) {
       const description = `Service Charge: ${service.serviceName}`;
@@ -78,7 +81,9 @@ export async function POST(req, { params }) {
         description,
         debit: totalCost,
         credit: 0,
-        referenceId: serviceOrder._id
+        referenceId: serviceOrder._id,
+        createdBy: staffId,
+        staffName
       });
     }
 

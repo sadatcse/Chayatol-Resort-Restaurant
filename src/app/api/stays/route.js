@@ -181,6 +181,9 @@ export async function POST(req) {
     const expectedCO = new Date(expectedCheckOutDate);
     expectedCO.setHours(coHours || 12, coMinutes || 0, 0, 0);
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     let stay;
     try {
       // Create Stay record
@@ -192,6 +195,8 @@ export async function POST(req) {
         expectedCheckOutDate: expectedCO,
         status: "In House",
         notes: notes || "",
+        createdBy: staffId,
+        staffName,
         idempotencyKey
       });
     } catch (saveError) {
@@ -220,9 +225,11 @@ export async function POST(req) {
       await FolioEntry.create({
         stayId: stay._id,
         type: "Room Charge",
-        description: `Room ${rUpdate.room.roomNumber} Walk-in Charge - ${rUpdate.nights} night(s) at ৳${sr.nightlyRate}/night`,
+        description: `Room ${rUpdate.room.roomNumber} Walk-In Charge - ${rUpdate.nights} night(s) at ৳${sr.nightlyRate}/night`,
         debit: chargeAmount,
-        credit: 0
+        credit: 0,
+        createdBy: staffId,
+        staffName
       });
     }
 
@@ -230,10 +237,12 @@ export async function POST(req) {
     if (initialPayment && initialPayment.amount > 0) {
       await FolioEntry.create({
         stayId: stay._id,
-        type: "Payment",
-        description: `Walk-in Payment (${initialPayment.paymentType}) - Ref: ${initialPayment.transactionRef || "N/A"}`,
+        type: "Advance Payment",
+        description: `Walk-In Deposit (${initialPayment.paymentType}) - Ref: ${initialPayment.transactionRef || "N/A"}`,
         debit: 0,
-        credit: Number(initialPayment.amount)
+        credit: Number(initialPayment.amount),
+        createdBy: staffId,
+        staffName
       });
     }
 

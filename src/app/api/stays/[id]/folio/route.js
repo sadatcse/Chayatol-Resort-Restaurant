@@ -39,12 +39,17 @@ export async function POST(req, { params }) {
       return NextResponse.json({ message: "Guest stay record not found." }, { status: 404 });
     }
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     const entry = await FolioEntry.create({
       stayId: id,
       type,
       description,
       debit: Number(debit || 0),
-      credit: Number(credit || 0)
+      credit: Number(credit || 0),
+      createdBy: staffId,
+      staffName
     });
 
     await logTransaction({

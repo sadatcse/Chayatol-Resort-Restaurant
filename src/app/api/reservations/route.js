@@ -207,6 +207,9 @@ export async function POST(req) {
     const reservationSeq = await getNextSequence("reservation", async () => Reservation.countDocuments({}));
     const reservationNo = `RES-${dateStr}-${reservationSeq.toString().padStart(4, "0")}`;
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     let reservation;
     try {
       reservation = await Reservation.create({
@@ -218,6 +221,8 @@ export async function POST(req) {
         status: status || "Draft",
         rooms,
         notes: notes || "",
+        createdBy: staffId,
+        staffName,
         idempotencyKey
       });
     } catch (saveError) {

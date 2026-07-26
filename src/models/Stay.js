@@ -62,6 +62,14 @@ const StaySchema = Schema(
     notes: {
       type: String
     },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    },
+    staffName: {
+      type: String,
+      trim: true
+    },
     idempotencyKey: {
       type: String,
       default: null,

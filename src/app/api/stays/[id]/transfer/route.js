@@ -65,6 +65,9 @@ export async function POST(req, { params }) {
     newRoom.status = "Occupied";
     await newRoom.save();
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     // Log the room transfer in the guest's folio ledger
     const logDesc = `Room Transfer: Transferred from Room ${oldRoomNumber} to Room ${newRoom.roomNumber}. Reason: ${reason || "N/A"}`;
     await FolioEntry.create({
@@ -72,7 +75,9 @@ export async function POST(req, { params }) {
       type: "Room Charge",
       description: logDesc,
       debit: 0,
-      credit: 0
+      credit: 0,
+      createdBy: staffId,
+      staffName
     });
 
     await logTransaction({

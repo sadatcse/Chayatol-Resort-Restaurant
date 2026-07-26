@@ -1036,6 +1036,7 @@ const StaysPage = () => {
                           <tr>
                             <th>Date</th>
                             <th>Description</th>
+                            <th>Staff</th>
                             <th className="text-right">Debit (+)</th>
                             <th className="text-right">Credit (-)</th>
                           </tr>
@@ -1057,6 +1058,7 @@ const StaysPage = () => {
                                   entry.description
                                 )}
                               </td>
+                              <td className="text-brand-sage text-[10px] font-semibold">{entry.staffName || "Front Desk Staff"}</td>
                               <td className="text-right font-bold text-red-600">{entry.debit > 0 ? `৳${entry.debit}` : "-"}</td>
                               <td className="text-right font-bold text-green-600">{entry.credit > 0 ? `৳${entry.credit}` : "-"}</td>
                             </tr>
@@ -1573,8 +1575,12 @@ const StaysPage = () => {
                   className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-8"
                 >
                   <option value="all">Total Bill (All Charges)</option>
-                  <option value="room">Room Charges Only</option>
-                  <option value="food">Food Charges Only</option>
+                  {folioEntries.some(e => e.type === "Room Charge" && e.debit > 0) && (
+                    <option value="room">Room Charges Only</option>
+                  )}
+                  {folioEntries.some(e => e.type === "Food Charge" && e.debit > 0) && (
+                    <option value="food">Food Charges Only</option>
+                  )}
                 </select>
               </div>
               <div className="form-control w-full">

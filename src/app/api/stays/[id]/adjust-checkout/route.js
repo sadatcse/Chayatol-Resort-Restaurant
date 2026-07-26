@@ -30,6 +30,9 @@ export async function POST(req, { params }) {
     stay.expectedCheckOutDate = new Date(newCheckOutDate);
     await stay.save();
 
+    const staffId = auth.user?.id || auth.user?._id || null;
+    const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
+
     // Create adjustment folio entry if adjustment amount is > 0
     if (adjustmentType && adjustmentType !== "none" && adjustmentAmount > 0) {
       await FolioEntry.create({
@@ -38,6 +41,8 @@ export async function POST(req, { params }) {
         description: `Stay Adjusted: Check-out changed from ${new Date(oldCheckOut).toLocaleDateString("en-GB")} to ${new Date(newCheckOutDate).toLocaleDateString("en-GB")}. Note: ${reason || "N/A"}`,
         debit: adjustmentType === "debit" ? adjustmentAmount : 0,
         credit: adjustmentType === "credit" ? adjustmentAmount : 0,
+        createdBy: staffId,
+        staffName
       });
     } else {
       // Just record a log entry about the date change in folio
@@ -47,6 +52,8 @@ export async function POST(req, { params }) {
         description: `Stay Adjusted: Check-out changed from ${new Date(oldCheckOut).toLocaleDateString("en-GB")} to ${new Date(newCheckOutDate).toLocaleDateString("en-GB")}. (No amount adjusted). Note: ${reason || "N/A"}`,
         debit: 0,
         credit: 0,
+        createdBy: staffId,
+        staffName
       });
     }
 

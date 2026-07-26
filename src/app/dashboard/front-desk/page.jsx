@@ -2623,8 +2623,12 @@ const FrontDeskTimelinePage = () => {
                   className="select select-bordered select-xs border-brand-primary bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite w-full h-8"
                 >
                   <option value="all">Total Bill (All Charges)</option>
-                  <option value="room">Room Charges Only</option>
-                  <option value="food">Food Charges Only</option>
+                  {folioEntries.some(e => e.type === "Room Charge" && e.debit > 0) && (
+                    <option value="room">Room Charges Only</option>
+                  )}
+                  {folioEntries.some(e => e.type === "Food Charge" && e.debit > 0) && (
+                    <option value="food">Food Charges Only</option>
+                  )}
                 </select>
               </div>
               <div className="form-control w-full">

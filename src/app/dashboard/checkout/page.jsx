@@ -385,6 +385,7 @@ function CheckoutContent() {
                                                         <tr>
                                                             <th className="p-3 text-left">Date</th>
                                                             <th className="p-3 text-left">Description</th>
+                                                            <th className="p-3 text-left">Staff</th>
                                                             <th className="p-3 text-right">Debit (+)</th>
                                                             <th className="p-3 text-right">Credit (-)</th>
                                                         </tr>
@@ -406,13 +407,14 @@ function CheckoutContent() {
                                                                         entry.description
                                                                     )}
                                                                 </td>
+                                                                <td className="p-3 text-brand-sage text-[11px] font-semibold">{entry.staffName || "Front Desk Staff"}</td>
                                                                 <td className="p-3 text-right text-red-500">{entry.debit > 0 ? `৳ ${entry.debit.toFixed(0)}` : "-"}</td>
                                                                 <td className="p-3 text-right text-green-500">{entry.credit > 0 ? `৳ ${entry.credit.toFixed(0)}` : "-"}</td>
                                                             </tr>
                                                         ))}
                                                         {folioEntries.length === 0 && (
                                                             <tr>
-                                                                <td colSpan="4" className="p-6 text-center text-brand-sage">No account ledger transactions.</td>
+                                                                <td colSpan="5" className="p-6 text-center text-brand-sage">No account ledger transactions.</td>
                                                             </tr>
                                                         )}
                                                     </tbody>

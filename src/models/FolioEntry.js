@@ -31,6 +31,14 @@ const FolioEntrySchema = Schema(
     },
     referenceId: {
       type: Schema.Types.ObjectId
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    },
+    staffName: {
+      type: String,
+      trim: true
     }
   },
   { timestamps: true }

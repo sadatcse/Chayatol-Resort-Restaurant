@@ -61,6 +61,9 @@ const menuItems = () => {
       icon: <MdHome className="text-lg" />,
     },
 
+    // Daily Closing
+
+
     // Front Office
     {
       title: "Front Office",
@@ -178,12 +181,14 @@ const menuItems = () => {
           path: "/dashboard/reviews",
           icon: <MdFeedback className="text-base" />,
         },
-        {
-          title: "Daily Closing",
-          path: "/dashboard/daily-closing",
-          icon: <MdLockClock className="text-base" />,
-        },
+
       ],
+    },
+
+    {
+      title: "Daily Closing",
+      path: "/dashboard/daily-closing",
+      icon: <MdLockClock className="text-lg" />,
     },
 
     // Inventory
