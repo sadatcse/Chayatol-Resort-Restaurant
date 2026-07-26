@@ -24,7 +24,13 @@ export async function GET(req) {
 
     let query = {};
     if (status) {
-      query.status = status;
+      if (status.includes(",")) {
+        query.status = { $in: status.split(",").map(s => s.trim()) };
+      } else if (status === "In House") {
+        query.status = { $in: ["In House", "Extended"] };
+      } else {
+        query.status = status;
+      }
     }
 
     if (from || to) {

@@ -31,7 +31,7 @@ function RoomTransferContent() {
     const fetchActiveStays = useCallback(async () => {
         setIsLoading(true);
         try {
-            const { data } = await axiosSecure.get("/stays?status=In House&limit=1000");
+            const { data } = await axiosSecure.get("/stays?status=In House,Extended&limit=1000");
             if (data?.data) {
                 setStays(data.data);
             }
