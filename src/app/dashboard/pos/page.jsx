@@ -598,6 +598,10 @@ function POSContent() {
                 finalPaymentMethod = "Due";
                 finalPaymentStatus = "Unpaid";
                 finalOrderStatus = "Pending";
+            } else if (checkoutModeOverride === 'room-bill') {
+                finalPaymentMethod = "Room Bill";
+                finalPaymentStatus = "Unpaid";
+                finalOrderStatus = "served";
             } else {
                 finalPaymentMethod = paymentMethodOverride || selectedPaymentMethod || "Cash";
                 finalPaymentStatus = "Paid";
@@ -605,7 +609,7 @@ function POSContent() {
             }
         }
 
-        if (roomNo && checkoutModeOverride !== 'print-bill') {
+        if (roomNo && checkoutModeOverride !== 'print-bill' && checkoutModeOverride !== 'room-bill' && !paymentMethodOverride) {
             const result = await Swal.fire({
                 title: 'Room Guest Payment Options',
                 text: `How would you like to settle the order for Room ${roomNo}?`,
@@ -1282,6 +1286,51 @@ function POSContent() {
 
                         {checkoutStep === "action" ? (
                             <div className="flex flex-col gap-4">
+                                {/* Option 1: Add to Room Bill */}
+                                <button
+                                    disabled={isProcessing}
+                                    onClick={() => {
+                                        if (roomNo) {
+                                            setIsCheckoutModalOpen(false);
+                                            printInvoice(true, "room-bill", "Room Bill");
+                                        } else {
+                                            setIsCheckoutModalOpen(false);
+                                            setIsRoomModalOpen(true);
+                                        }
+                                    }}
+                                    className="flex items-center gap-4 p-4 rounded-xl border border-purple-200 dark:border-purple-900 bg-purple-50/50 dark:bg-purple-950/20 hover:bg-purple-100/50 dark:hover:bg-purple-900/35 transition-all text-left cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <div className="p-3 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
+                                        <FaHotel size={20} />
+                                    </div>
+                                    <div>
+                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">
+                                            Add to Room Bill {roomNo ? `(Room ${roomNo})` : "(Room Service)"}
+                                        </span>
+                                        <span className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">
+                                            {roomNo ? `Post charge directly to Room ${roomNo} guest folio.` : "Select occupied room and post to guest room folio."}
+                                        </span>
+                                    </div>
+                                </button>
+
+                                {/* Option 2: Pay Now */}
+                                <button
+                                    onClick={() => {
+                                        setCheckoutMode("pay-and-print");
+                                        setCheckoutStep("payment");
+                                    }}
+                                    className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/35 transition-all text-left cursor-pointer group"
+                                >
+                                    <div className="p-3 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
+                                        <FaMoneyBillWave size={20} />
+                                    </div>
+                                    <div>
+                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">Pay Now (Direct Payment)</span>
+                                        <span className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">Select payment method (Cash, bKash, Card, Bank) and settle.</span>
+                                    </div>
+                                </button>
+
+                                {/* Option 3: Print Customer Bill */}
                                 <button
                                     disabled={isProcessing}
                                     onClick={() => {
@@ -1294,40 +1343,8 @@ function POSContent() {
                                         <FaPrint size={20} />
                                     </div>
                                     <div>
-                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">Print Customer Bill</span>
+                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">Print Customer Bill Only</span>
                                         <span className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">Hold order as Unpaid/Due and print preliminary bill.</span>
-                                    </div>
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        setCheckoutMode("pay-and-print");
-                                        setCheckoutStep("payment");
-                                    }}
-                                    className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/35 transition-all text-left cursor-pointer group"
-                                >
-                                    <div className="p-3 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
-                                        <FaMoneyBillWave size={20} />
-                                    </div>
-                                    <div>
-                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">Pay Bill & Get Payment (Print)</span>
-                                        <span className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">Settle order as Paid and print final receipt.</span>
-                                    </div>
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        setCheckoutMode("collect-only");
-                                        setCheckoutStep("payment");
-                                    }}
-                                    className="flex items-center gap-4 p-4 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/35 transition-all text-left cursor-pointer group"
-                                >
-                                    <div className="p-3 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
-                                        <FaCheck size={20} />
-                                    </div>
-                                    <div>
-                                        <span className="block font-bold text-gray-850 dark:text-zinc-100 text-sm">Collect Only Payment (No Print)</span>
-                                        <span className="text-[11px] text-gray-500 dark:text-zinc-400 font-medium">Settle order as Paid without printing a physical receipt.</span>
                                     </div>
                                 </button>
                             </div>
