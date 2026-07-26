@@ -174,6 +174,12 @@ const invoiceSchema = new Schema(
     kotRound: { type: Number, default: 1 },
     orderStatus: { type: String, default: "pending" },
 
+    foodAddToRoom: {
+      type: String,
+      enum: ["Yes", "No"],
+      default: "No",
+    },
+
     loginUserName: {
       type: String,
       default: null,

@@ -37,7 +37,7 @@ export async function PUT(req, { params }) {
     await dbConnect();
     const { id } = await params;
     const updateData = await req.json();
-    
+
     // Map orderType to schema enums case-insensitively
     if (updateData.orderType) {
       const orderTypeMapping = {
@@ -66,9 +66,17 @@ export async function PUT(req, { params }) {
     } else if (updateData.tableNo && !updateData.tableName) {
       updateData.tableName = updateData.tableNo;
     }
-    
+
+    if (!updateData.foodAddToRoom && updateData.paymentMethod) {
+      const isRoomBill = updateData.paymentMethod && (
+        updateData.paymentMethod.toLowerCase().includes("room") ||
+        updateData.paymentMethod === "Room Bill"
+      );
+      updateData.foodAddToRoom = isRoomBill ? "Yes" : "No";
+    }
+
     const updatedInvoice = await Invoice.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
-    
+
     if (!updatedInvoice) {
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
     }
@@ -76,30 +84,65 @@ export async function PUT(req, { params }) {
     // Sync with Stay Folio
     try {
       const FolioEntry = mongoose.models.FolioEntry || (await import("@/models/FolioEntry")).default;
-      if (updatedInvoice.paymentMethod === "Room Bill" && updatedInvoice.roomNo) {
+      const isRoomBill = updatedInvoice.paymentMethod && (
+        updatedInvoice.paymentMethod.toLowerCase().includes("room") ||
+        updatedInvoice.paymentMethod === "Room Bill"
+      );
+
+      if (isRoomBill && updatedInvoice.roomNo) {
         const Room = mongoose.models.Room || (await import("@/models/Room")).default;
         const Stay = mongoose.models.Stay || (await import("@/models/Stay")).default;
 
-        const roomDoc = await Room.findOne({ roomNumber: updatedInvoice.roomNo });
-        if (roomDoc) {
-          const activeStay = await Stay.findOne({
-            status: "In House",
-            "rooms.room": roomDoc._id
+        let activeStay = null;
+        if (updateData.stayId) {
+          activeStay = await Stay.findById(updateData.stayId);
+        }
+
+        const rawRoomNo = String(updatedInvoice.roomNo || "").trim();
+        const cleanRoomNo = rawRoomNo.replace(/^room\s*/i, '').split('-')[0].trim();
+
+        if (!activeStay) {
+          const roomDoc = await Room.findOne({
+            $or: [
+              { roomNumber: rawRoomNo },
+              { roomNumber: cleanRoomNo }
+            ]
           });
-          if (activeStay) {
-            await FolioEntry.findOneAndUpdate(
-              { referenceId: updatedInvoice._id },
-              {
-                stayId: activeStay._id,
-                type: "Food Charge",
-                description: `POS Restaurant Invoice ${updatedInvoice.invoiceNo} (Room ${updatedInvoice.roomNo})`,
-                debit: updatedInvoice.grandTotal,
-                credit: 0,
-                referenceId: updatedInvoice._id
-              },
-              { upsert: true, new: true }
-            );
+          if (roomDoc) {
+            activeStay = await Stay.findOne({
+              status: { $in: ["In House", "Extended"] },
+              "rooms.room": roomDoc._id
+            }).sort({ createdAt: -1 });
           }
+        }
+
+        if (!activeStay && cleanRoomNo) {
+          const allActiveStays = await Stay.find({
+            status: { $in: ["In House", "Extended"] }
+          }).populate("rooms.room");
+
+          activeStay = allActiveStays.find(s =>
+            s.rooms?.some(r =>
+              String(r.room?.roomNumber || '').trim() === cleanRoomNo ||
+              String(r.room?.roomNumber || '').trim() === rawRoomNo
+            )
+          );
+        }
+
+        if (activeStay) {
+          await FolioEntry.findOneAndUpdate(
+            { referenceId: updatedInvoice._id },
+            {
+              stayId: activeStay._id,
+              type: "Food Charge",
+              description: `POS Restaurant Invoice ${updatedInvoice.invoiceNo} (Room ${updatedInvoice.roomNo})`,
+              debit: updatedInvoice.grandTotal,
+              credit: 0,
+              referenceId: updatedInvoice._id,
+              staffName: updatedInvoice.loginUserName || "Server Staff"
+            },
+            { upsert: true, new: true }
+          );
         }
       } else {
         // If it's no longer charged to room bill, remove from ledger
@@ -125,9 +168,9 @@ export async function DELETE(req, { params }) {
   try {
     await dbConnect();
     const { id } = await params;
-    
+
     const deletedInvoice = await Invoice.findByIdAndDelete(id);
-    
+
     if (!deletedInvoice) {
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
     }

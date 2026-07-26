@@ -104,6 +104,14 @@ export async function POST(req) {
       data.tableName = data.tableNo;
     }
 
+    if (!data.foodAddToRoom) {
+      const isRoomBill = data.paymentMethod && (
+        data.paymentMethod.toLowerCase().includes("room") ||
+        data.paymentMethod === "Room Bill"
+      );
+      data.foodAddToRoom = isRoomBill ? "Yes" : "No";
+    }
+
     let newInvoice;
     try {
       newInvoice = new Invoice(data);
@@ -119,28 +127,69 @@ export async function POST(req) {
     }
 
     // Sync with Stay Folio if charged to Room Bill
-    if (newInvoice.paymentMethod === "Room Bill" && newInvoice.roomNo) {
+    const isRoomBill = newInvoice.paymentMethod && (
+      newInvoice.paymentMethod.toLowerCase().includes("room") ||
+      newInvoice.paymentMethod === "Room Bill"
+    );
+
+    if (isRoomBill && newInvoice.roomNo) {
       try {
         const Room = mongoose.models.Room || (await import("@/models/Room")).default;
         const Stay = mongoose.models.Stay || (await import("@/models/Stay")).default;
         const FolioEntry = mongoose.models.FolioEntry || (await import("@/models/FolioEntry")).default;
 
-        const roomDoc = await Room.findOne({ roomNumber: newInvoice.roomNo });
-        if (roomDoc) {
-          const activeStay = await Stay.findOne({
-            status: "In House",
-            "rooms.room": roomDoc._id
+        let activeStay = null;
+        if (data.stayId) {
+          activeStay = await Stay.findById(data.stayId);
+        }
+
+        const rawRoomNo = String(newInvoice.roomNo || "").trim();
+        const cleanRoomNo = rawRoomNo.replace(/^room\s*/i, '').split('-')[0].trim();
+
+        if (!activeStay) {
+          const roomDoc = await Room.findOne({
+            $or: [
+              { roomNumber: rawRoomNo },
+              { roomNumber: cleanRoomNo }
+            ]
           });
-          if (activeStay) {
-            await FolioEntry.create({
+          if (roomDoc) {
+            activeStay = await Stay.findOne({
+              status: { $in: ["In House", "Extended"] },
+              "rooms.room": roomDoc._id
+            }).sort({ createdAt: -1 });
+          }
+        }
+
+        if (!activeStay && cleanRoomNo) {
+          const allActiveStays = await Stay.find({
+            status: { $in: ["In House", "Extended"] }
+          }).populate("rooms.room");
+
+          activeStay = allActiveStays.find(s =>
+            s.rooms?.some(r =>
+              String(r.room?.roomNumber || '').trim() === cleanRoomNo ||
+              String(r.room?.roomNumber || '').trim() === rawRoomNo
+            )
+          );
+        }
+
+        if (activeStay) {
+          await FolioEntry.findOneAndUpdate(
+            { referenceId: newInvoice._id },
+            {
               stayId: activeStay._id,
               type: "Food Charge",
               description: `POS Restaurant Invoice ${newInvoice.invoiceNo} (Room ${newInvoice.roomNo})`,
               debit: newInvoice.grandTotal,
               credit: 0,
-              referenceId: newInvoice._id
-            });
-          }
+              referenceId: newInvoice._id,
+              staffName: newInvoice.loginUserName || "Server Staff"
+            },
+            { upsert: true, new: true }
+          );
+        } else {
+          console.warn(`[POS Folio Sync] No active stay found for Room ${newInvoice.roomNo}`);
         }
       } catch (err) {
         console.error("Error creating folio entry for Room Service POS:", err);
