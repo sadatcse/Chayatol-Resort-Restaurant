@@ -98,6 +98,26 @@ export async function GET(req) {
     const invoices = await Invoice.find(invoiceQuery);
 
     invoices.forEach((inv) => {
+      // Split-payment bills: attribute each payment method's own share
+      // instead of dumping the full invoice total on one bucket.
+      if (Array.isArray(inv.payments) && inv.payments.length > 0) {
+        inv.payments.forEach((p) => {
+          const stdMethod = getStandardMethod(p.paymentType);
+          if (methodFilter !== "all" && stdMethod !== methodFilter) return;
+
+          unifiedPayments.push({
+            _id: inv._id,
+            date: p.paidAt || inv.dateTime || inv.createdAt,
+            source: "Restaurant POS",
+            customerName: inv.customerName || inv.customer?.name || "Restaurant Customer",
+            paymentMethod: stdMethod,
+            reference: p.transactionRef || inv.invoiceNo || "N/A",
+            amount: p.amount || 0,
+          });
+        });
+        return;
+      }
+
       const stdMethod = getStandardMethod(inv.paymentMethod);
       if (methodFilter !== "all" && stdMethod !== methodFilter) return;
 

@@ -18,7 +18,8 @@ export async function GET(req, { params }) {
 
     const stay = await Stay.findById(id)
       .populate("customer")
-      .populate("rooms.room");
+      .populate("rooms.room")
+      .populate("rooms.guests.customer");
 
     if (!stay) {
       return NextResponse.json({ message: "Guest stay record not found." }, { status: 404 });

@@ -196,6 +196,28 @@ export async function GET(req) {
         const table = inv.tableName || inv.roomNo || inv.tableNo || "Takeaway/Delivery";
         posTableMap[table] = (posTableMap[table] || 0) + (inv.grandTotal || inv.totalAmount || 0);
 
+        // Split-payment bills: attribute each payment method's own share
+        // instead of dumping the full invoice total on one bucket.
+        if (Array.isArray(inv.payments) && inv.payments.length > 0) {
+          inv.payments.forEach((p, idx) => {
+            const pMethod = resolveDynamicPaymentMethod(p.paymentType, registeredPaymentTypes);
+            if (methodFilter !== "all" && pMethod.toLowerCase() !== methodFilter.toLowerCase()) return;
+
+            transactions.push({
+              _id: `${inv._id.toString()}-${idx}`,
+              date: p.paidAt || inv.dateTime || inv.createdAt,
+              sector: "Restaurant POS",
+              customerName: inv.customerName || inv.customer?.fullName || "POS Guest",
+              paymentMethod: pMethod,
+              reference: p.transactionRef || inv.invoiceNo || "POS Bill",
+              staff: inv.loginUserName || inv.createdBy?.name || "POS Cashier",
+              amount: p.amount || 0,
+              description: `Restaurant Order (${inv.orderType || "Dine In"})`
+            });
+          });
+          return;
+        }
+
         if (methodFilter !== "all" && method.toLowerCase() !== methodFilter.toLowerCase()) return;
 
         transactions.push({

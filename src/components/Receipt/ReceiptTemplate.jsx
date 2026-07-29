@@ -218,10 +218,6 @@ const ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplete 
                     </p>
                 )}
 
-                {(invoiceData?.paidAmount > 0 || invoiceData?.paid > 0) && (
-                    <p style={styles.infoText}>Paid: ৳ {(invoiceData.paidAmount || invoiceData.paid || 0).toFixed(1)}</p>
-                )}
-
                 {(invoiceData?.changeAmount > 0 || invoiceData?.change > 0) && (
                     <p style={styles.infoText}>Change Return: ৳ {(invoiceData.changeAmount || invoiceData.change || 0).toFixed(1)}</p>
                 )}

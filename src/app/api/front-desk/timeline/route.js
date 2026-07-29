@@ -39,7 +39,8 @@ export async function GET(req) {
       status: { $nin: ["Cancelled", "Checked-In", "Completed"] }
     })
       .populate("customer")
-      .populate("rooms.room");
+      .populate("rooms.room")
+      .populate("rooms.guests.customer");
 
     // Fetch stays overlapping with this month
     const stays = await Stay.find({
@@ -52,7 +53,8 @@ export async function GET(req) {
       status: { $nin: ["Cancelled"] }
     })
       .populate("customer")
-      .populate("rooms.room");
+      .populate("rooms.room")
+      .populate("rooms.guests.customer");
 
     return NextResponse.json({
       rooms,

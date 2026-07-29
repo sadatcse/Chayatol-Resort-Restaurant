@@ -14,18 +14,6 @@ export async function POST(req) {
     await dbConnect();
     const customerData = await req.json();
 
-    const { phoneNumber } = customerData;
-    if (!phoneNumber || !phoneNumber.trim()) {
-      return NextResponse.json({ message: "Phone number is required." }, { status: 400 });
-    }
-
-    const existing = await Customer.findOne({
-      phoneNumber: phoneNumber.trim()
-    });
-    if (existing) {
-      return NextResponse.json({ message: "A customer with this phone number already exists." }, { status: 400 });
-    }
-
     const result = await Customer.create(customerData);
 
     await logTransaction({

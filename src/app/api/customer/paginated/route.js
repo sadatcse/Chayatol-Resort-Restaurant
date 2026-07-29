@@ -23,6 +23,7 @@ export async function GET(req) {
         { fullName: { $regex: escapedSearch, $options: "i" } },
         { phoneNumber: { $regex: escapedSearch, $options: "i" } },
         { emailAddress: { $regex: escapedSearch, $options: "i" } },
+        { identificationNumber: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 

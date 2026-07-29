@@ -10,9 +10,7 @@ const CustomerSchema = Schema(
     },
     phoneNumber: {
       type: String,
-      required: [true, "Please provide the customer phone number"],
       trim: true,
-      unique: true,
     },
     emailAddress: {
       type: String,

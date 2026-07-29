@@ -4,10 +4,12 @@ import Reservation from "@/models/Reservation";
 import ReservationPayment from "@/models/ReservationPayment";
 import Customer from "@/models/Customer";
 import Stay from "@/models/Stay";
+import Room from "@/models/Room";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 import { getNextSequence } from "@/lib/sequence";
+import { reconcilePrimaryGuest, validateRoomsGuestCapacity } from "@/lib/guestCapacity";
 
 export async function GET(req) {
   try {
@@ -63,6 +65,7 @@ export async function GET(req) {
     const reservations = await Reservation.find(query)
       .populate("customer")
       .populate("rooms.room")
+      .populate("rooms.guests.customer")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -201,6 +204,19 @@ export async function POST(req) {
       }
     }
 
+    const roomDocs = await Room.find({ _id: { $in: rooms.map(r => r.room) } });
+    const roomLookup = new Map(roomDocs.map(r => [r._id.toString(), r]));
+
+    const reconciled = reconcilePrimaryGuest(rooms, customer);
+    if (reconciled.error) {
+      return NextResponse.json({ message: reconciled.error }, { status: 400 });
+    }
+    const capacityCheck = validateRoomsGuestCapacity(reconciled.rooms, roomLookup);
+    if (!capacityCheck.ok) {
+      return NextResponse.json({ message: capacityCheck.message }, { status: 400 });
+    }
+    const reconciledRooms = reconciled.rooms;
+
     // Generate unique reservation number: RES-YYYYMMDD-XXXX, via an atomic
     // counter so two concurrent reservations can never collide.
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -219,7 +235,7 @@ export async function POST(req) {
         customer,
         bookingSource: bookingSource || "Walk-in",
         status: status || "Draft",
-        rooms,
+        rooms: reconciledRooms,
         notes: notes || "",
         createdBy: staffId,
         staffName,

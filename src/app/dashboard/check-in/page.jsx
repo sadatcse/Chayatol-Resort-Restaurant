@@ -9,7 +9,10 @@ import SectionHeader from "@/components/Comon/SectionHeader";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import { AuthContext } from "@/providers/AuthProvider";
 import CustomerModal from "@/components/CustomerModal";
+import GuestListEditor from "@/components/GuestListEditor";
+import GuestNotFoundNotice from "@/components/Comon/GuestNotFoundNotice";
 import { calculateCompleteness } from "@/lib/customerHelper";
+import { reconcilePrimaryGuest, validateRoomsGuestCapacity, serializeRoomsForSubmit } from "@/lib/guestCapacity";
 
 const generateIdempotencyKey = () => "checkin-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
 
@@ -30,7 +33,7 @@ const WalkInCheckInPage = () => {
   const [customer, setCustomer] = useState("");
   const [expectedCheckOutDate, setExpectedCheckOutDate] = useState("");
   const [rooms, setRooms] = useState([
-    { room: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, nights: 1 }
+    { room: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, nights: 1, guests: [] }
   ]);
   const [initialPayment, setInitialPayment] = useState({
     paymentType: "",
@@ -45,6 +48,7 @@ const WalkInCheckInPage = () => {
   const [selectedCust, setSelectedCust] = useState(null);
   const [isCustModalOpen, setIsCustModalOpen] = useState(false);
   const [customerToEdit, setCustomerToEdit] = useState(null);
+  const [custSearchMissed, setCustSearchMissed] = useState(false);
 
   const handleSearchCustomer = async () => {
     if (!phoneSearch || phoneSearch.trim().length < 3) {
@@ -53,12 +57,14 @@ const WalkInCheckInPage = () => {
     }
     setCustSearchLoading(true);
     setCustSearchResults([]);
+    setCustSearchMissed(false);
     try {
       const res = await axiosSecure.get(`/customer/paginated?search=${encodeURIComponent(phoneSearch)}&limit=5`);
       if (res.data.customers && res.data.customers.length > 0) {
         setCustSearchResults(res.data.customers);
       } else {
         setCustSearchResults([]);
+        setCustSearchMissed(true);
         setIsCustModalOpen(true);
       }
     } catch (e) {
@@ -73,6 +79,9 @@ const WalkInCheckInPage = () => {
     setCustomer(cust._id);
     setPhoneSearch(cust.phoneNumber);
     setCustSearchResults([]);
+    setCustSearchMissed(false);
+    const reconciled = reconcilePrimaryGuest(rooms, cust);
+    setRooms(reconciled.rooms);
   };
 
   const handleCustomerCreateSuccess = async (newCust) => {
@@ -101,7 +110,7 @@ const WalkInCheckInPage = () => {
   }, [axiosSecure, currentUser]);
 
   const handleAddRoomRow = () => {
-    setRooms([...rooms, { room: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, nights: 1 }]);
+    setRooms([...rooms, { room: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, nights: 1, guests: [] }]);
   };
 
   const handleRemoveRoomRow = (index) => {
@@ -200,10 +209,17 @@ const WalkInCheckInPage = () => {
       }
     }
 
+    const roomLookup = new Map(availableRooms.map(rm => [rm._id, rm]));
+    const capacityCheck = validateRoomsGuestCapacity(rooms, roomLookup);
+    if (!capacityCheck.ok) {
+      Swal.fire("Validation Error", capacityCheck.message, "warning");
+      return;
+    }
+
     setIsSubmitting(true);
     const payload = {
       customer,
-      rooms,
+      rooms: serializeRoomsForSubmit(rooms),
       expectedCheckOutDate,
       initialPayment: initialPayment.amount > 0 ? initialPayment : null,
       idempotencyKey
@@ -243,12 +259,13 @@ const WalkInCheckInPage = () => {
             <input 
               type="text" 
               value={phoneSearch} 
-              onChange={(e) => { 
-                setPhoneSearch(e.target.value); 
-                setSelectedCust(null); 
-                setCustomer(""); 
-                setCustSearchResults([]); 
-              }} 
+              onChange={(e) => {
+                setPhoneSearch(e.target.value);
+                setSelectedCust(null);
+                setCustomer("");
+                setCustSearchResults([]);
+                setCustSearchMissed(false);
+              }}
               placeholder="Search by phone number (e.g. 01700000000)" 
               className="input input-bordered border-brand-primary dark:border-brand-primary/50 focus:outline-none focus:border-brand-primary flex-1 bg-white dark:bg-brand-charcoal/50 text-brand-charcoal dark:text-brand-offwhite" 
             />
@@ -312,6 +329,10 @@ const WalkInCheckInPage = () => {
                 + Add New Customer
               </button>
             </div>
+          )}
+
+          {custSearchMissed && !selectedCust && custSearchResults.length === 0 && (
+            <GuestNotFoundNotice query={phoneSearch} />
           )}
 
           {selectedCust && custSearchResults.length === 0 && (() => {
@@ -382,8 +403,11 @@ const WalkInCheckInPage = () => {
             </button>
           </div>
 
-          {rooms.map((r, index) => (
-            <div key={index} className="flex flex-wrap items-end gap-3 p-4 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige dark:border-brand-beige/15 rounded-xl">
+          {rooms.map((r, index) => {
+            const selectedRoomDoc = availableRooms.find(rm => rm._id === r.room);
+            return (
+            <div key={index} className="flex flex-col gap-3 p-4 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige dark:border-brand-beige/15 rounded-xl">
+            <div className="flex flex-wrap items-end gap-3">
               <div className="form-control w-[140px]">
                 <label className="label py-0"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Room Number</span></label>
                 <select
@@ -460,7 +484,15 @@ const WalkInCheckInPage = () => {
                 <FiTrash2 size={14} />
               </button>
             </div>
-          ))}
+
+            <GuestListEditor
+              guests={r.guests || []}
+              onChange={(g) => handleRoomRowChange(index, "guests", g)}
+              capacity={selectedRoomDoc?.capacity}
+              roomLabel={selectedRoomDoc?.roomNumber}
+            />
+            </div>
+          );})}
         </div>
 
         <div className="form-control w-full">

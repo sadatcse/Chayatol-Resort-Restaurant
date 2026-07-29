@@ -665,6 +665,26 @@ export default function InvoicesPage() {
                       {selectedInvoice.paymentStatus || (selectedInvoice.paymentMethod === 'Due' ? 'Due' : 'Paid')}
                     </span>
                   </p>
+                  {Array.isArray(selectedInvoice.payments) && selectedInvoice.payments.length > 1 && (
+                    <table className="w-full mt-2 text-xs border border-gray-200 dark:border-zinc-800 rounded overflow-hidden">
+                      <thead>
+                        <tr className="bg-gray-50 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400">
+                          <th className="text-left px-2 py-1 font-semibold">Method</th>
+                          <th className="text-right px-2 py-1 font-semibold">Amount</th>
+                          <th className="text-left px-2 py-1 font-semibold">Reference</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedInvoice.payments.map((p, idx) => (
+                          <tr key={idx} className="border-t border-gray-100 dark:border-zinc-800">
+                            <td className="px-2 py-1">{p.paymentType}</td>
+                            <td className="px-2 py-1 text-right">৳ {(p.amount || 0).toFixed(1)}</td>
+                            <td className="px-2 py-1 text-gray-500 dark:text-zinc-400">{p.transactionRef || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
                 {selectedInvoice.waiterName && (
                   <div>

@@ -132,6 +132,24 @@ const invoiceSchema = new Schema(
       default: "Unpaid",
     },
 
+    // Split payment support: one bill can be settled across multiple payment
+    // methods. paymentMethod/paymentStatus above are kept in sync (derived)
+    // so every existing single-string consumer keeps working unchanged.
+    payments: [
+      {
+        paymentType: { type: String, required: true },
+        amount: { type: Number, required: true, min: 0 },
+        transactionRef: { type: String, trim: true, default: "" },
+        receivedBy: { type: String, default: "" },
+        paidAt: { type: Date, default: Date.now },
+      }
+    ],
+
+    paidAmount: {
+      type: Number,
+      default: 0,
+    },
+
     invoiceType: {
       type: String,
       enum: ["Restaurant", "Hotel", "Resort"],

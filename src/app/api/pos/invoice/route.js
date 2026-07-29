@@ -5,6 +5,7 @@ import Invoice from "@/models/Invoice";
 import User from "@/models/User";
 import { verifyToken } from "@/lib/auth";
 import { getNextSequence } from "@/lib/sequence";
+import { computeSplitPayment } from "@/lib/invoicePayments";
 
 export async function POST(req) {
   const auth = verifyToken(req);
@@ -102,6 +103,22 @@ export async function POST(req) {
       data.tableNo = data.tableName;
     } else if (data.tableNo && !data.tableName) {
       data.tableName = data.tableNo;
+    }
+
+    // Split payment: only kicks in when the client actually sends a payments[]
+    // array (the "Print Bill / Due" flow never does, so it's untouched).
+    if (Array.isArray(data.payments) && data.payments.length > 0) {
+      const { payments, paidAmount, paymentStatus, paymentMethod } = computeSplitPayment(
+        data.payments,
+        data.grandTotal,
+        data.loginUserName
+      );
+      data.payments = payments;
+      data.paidAmount = paidAmount;
+      data.paymentStatus = paymentStatus;
+      if (paymentMethod) {
+        data.paymentMethod = paymentMethod;
+      }
     }
 
     if (!data.foodAddToRoom) {

@@ -82,6 +82,11 @@ function POSContent() {
     const [checkoutStep, setCheckoutStep] = useState("action"); // "action" or "payment"
     const [checkoutMode, setCheckoutMode] = useState(""); // "print-bill", "pay-and-print", "collect-only"
 
+    // Split-payment builder rows for the checkout modal's "payment" step —
+    // each row is one payment method's share of the bill.
+    const [splitRows, setSplitRows] = useState([]);
+    const [splitError, setSplitError] = useState("");
+
     const handlePayAndPrintClick = () => {
         if (isSubmittingRef.current || isProcessing) return;
         if (addedProducts.length === 0) {
@@ -575,6 +580,45 @@ function POSContent() {
         return options;
     }, [paymentTypes]);
 
+    // Opens the checkout modal's payment step, resetting the split-payment
+    // builder to a single row (full amount, default method) — keeps the
+    // common single-method case a fast "pick method, confirm" flow.
+    const openPaymentStep = (mode) => {
+        const firstOpt = paymentOptions[0];
+        setSplitRows([{
+            id: Date.now(),
+            method: (firstOpt?.sub || firstOpt?.method) || "Cash",
+            amount: totals.payable,
+            reference: "",
+        }]);
+        setSplitError("");
+        setCheckoutMode(mode);
+        setCheckoutStep("payment");
+    };
+
+    const splitCollected = roundAmount(splitRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0));
+    const splitRemaining = roundAmount(Math.max(totals.payable - splitCollected, 0));
+
+    const addSplitRow = () => {
+        const usedMethods = new Set(splitRows.map(r => r.method));
+        const nextOption = paymentOptions.find(opt => !usedMethods.has(opt.sub || opt.method)) || paymentOptions[0];
+        setSplitRows(rows => [...rows, {
+            id: Date.now() + Math.random(),
+            method: (nextOption?.sub || nextOption?.method) || "Cash",
+            amount: 0,
+            reference: "",
+        }]);
+    };
+
+    const removeSplitRow = (id) => {
+        setSplitRows(rows => rows.length > 1 ? rows.filter(r => r.id !== id) : rows);
+    };
+
+    const updateSplitRow = (id, field, value) => {
+        setSplitRows(rows => rows.map(r => r.id === id ? { ...r, [field]: value } : r));
+        setSplitError("");
+    };
+
     // Print & Save Order
     const printInvoice = async (isPrintAction, checkoutModeOverride, paymentMethodOverride) => {
         if (isSubmittingRef.current || isProcessing) return;
@@ -598,6 +642,7 @@ function POSContent() {
         let finalPaymentMethod = isPrintAction ? (selectedPaymentMethod || "Cash") : "Due";
         let finalPaymentStatus = isPrintAction ? "Paid" : "Unpaid";
         let finalOrderStatus = isPrintAction ? "served" : "Pending";
+        let splitPayments = null;
 
         if (checkoutModeOverride) {
             if (checkoutModeOverride === 'print-bill') {
@@ -607,6 +652,23 @@ function POSContent() {
             } else if (checkoutModeOverride === 'room-bill') {
                 finalPaymentMethod = "Room Bill";
                 finalPaymentStatus = "Paid";
+                finalOrderStatus = "served";
+            } else if (Array.isArray(paymentMethodOverride)) {
+                // Split-payment checkout: paymentMethodOverride is the list of
+                // { method, amount, reference } rows from the checkout modal builder.
+                splitPayments = paymentMethodOverride
+                    .filter(r => Number(r.amount) > 0)
+                    .map(r => ({
+                        paymentType: r.method,
+                        amount: roundAmount(r.amount),
+                        transactionRef: r.reference || "",
+                        receivedBy: loginUserName,
+                    }));
+                const collected = roundAmount(splitPayments.reduce((sum, p) => sum + p.amount, 0));
+                finalPaymentMethod = splitPayments.length === 1
+                    ? splitPayments[0].paymentType
+                    : splitPayments.map(p => p.paymentType).join(" + ");
+                finalPaymentStatus = collected >= totals.payable - 0.05 ? "Paid" : (collected > 0 ? "Partial" : "Unpaid");
                 finalOrderStatus = "served";
             } else {
                 finalPaymentMethod = paymentMethodOverride || selectedPaymentMethod || "Cash";
@@ -637,8 +699,7 @@ function POSContent() {
             } else if (result.isDenied) {
                 // Pay Now -> open checkout modal to pick payment method
                 setIsCheckoutModalOpen(true);
-                setCheckoutMode("pay-and-print");
-                setCheckoutStep("payment");
+                openPaymentStep("pay-and-print");
                 isSubmittingRef.current = false;
                 setIsProcessing(false);
                 return;
@@ -701,6 +762,10 @@ function POSContent() {
             orderStatus: finalOrderStatus,
             foodAddToRoom: (finalPaymentMethod === "Room Bill" || checkoutModeOverride === "room-bill") ? "Yes" : "No"
         };
+
+        if (splitPayments) {
+            invoiceDetails.payments = splitPayments;
+        }
 
         if (customDateTime) {
             invoiceDetails.dateTime = customDateTime;
@@ -1333,10 +1398,7 @@ function POSContent() {
                                         </button>
 
                                         <button
-                                            onClick={() => {
-                                                setCheckoutMode("pay-and-print");
-                                                setCheckoutStep("payment");
-                                            }}
+                                            onClick={() => openPaymentStep("pay-and-print")}
                                             className="flex items-center gap-4 p-4 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/35 transition-all text-left cursor-pointer group"
                                         >
                                             <div className="p-3 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
@@ -1385,10 +1447,7 @@ function POSContent() {
                                         </button>
 
                                         <button
-                                            onClick={() => {
-                                                setCheckoutMode("pay-and-print");
-                                                setCheckoutStep("payment");
-                                            }}
+                                            onClick={() => openPaymentStep("pay-and-print")}
                                             className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/35 transition-all text-left cursor-pointer group"
                                         >
                                             <div className="p-3 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
@@ -1401,10 +1460,7 @@ function POSContent() {
                                         </button>
 
                                         <button
-                                            onClick={() => {
-                                                setCheckoutMode("collect-only");
-                                                setCheckoutStep("payment");
-                                            }}
+                                            onClick={() => openPaymentStep("collect-only")}
                                             className="flex items-center gap-4 p-4 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/35 transition-all text-left cursor-pointer group"
                                         >
                                             <div className="p-3 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg group-hover:scale-110 transition-transform duration-200">
@@ -1421,36 +1477,109 @@ function POSContent() {
                         ) : (
                             <div>
                                 <h4 className="text-sm font-bold text-gray-500 dark:text-zinc-400 mb-4">
-                                    Select Payment Method:
+                                    Payment (Split across methods if needed):
                                 </h4>
-                                <div className="grid grid-cols-2 gap-3 mb-6">
-                                    {paymentOptions.map((opt) => (
-                                        <button
-                                            key={opt.name}
-                                            disabled={isProcessing}
-                                            onClick={() => {
-                                                setIsCheckoutModalOpen(false);
-                                                printInvoice(
-                                                    checkoutMode === "pay-and-print",
-                                                    checkoutMode,
-                                                    opt.sub || opt.method
-                                                );
-                                            }}
-                                            className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-gray-50 hover:bg-brand-primary/10 hover:border-brand-primary dark:bg-zinc-800 dark:hover:bg-brand-primary/20 text-gray-700 dark:text-zinc-300 font-bold text-xs cursor-pointer text-left transition-all hover:scale-102 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <div className="text-brand-primary dark:text-brand-sage shrink-0">
-                                                {opt.icon}
-                                            </div>
-                                            <span>{opt.name}</span>
-                                        </button>
+
+                                <div className="flex flex-col gap-2 mb-3 max-h-64 overflow-y-auto pr-1">
+                                    {splitRows.map((row) => (
+                                        <div key={row.id} className="flex items-center gap-2">
+                                            <select
+                                                value={row.method}
+                                                onChange={(e) => updateSplitRow(row.id, 'method', e.target.value)}
+                                                className="select select-sm select-bordered flex-1 text-xs font-bold bg-gray-50 dark:bg-zinc-800 dark:border-zinc-700"
+                                            >
+                                                {paymentOptions.map((opt) => (
+                                                    <option key={opt.name} value={opt.sub || opt.method}>{opt.name}</option>
+                                                ))}
+                                            </select>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={row.amount === 0 ? "" : row.amount}
+                                                onChange={(e) => updateSplitRow(row.id, 'amount', parseFloat(e.target.value) || 0)}
+                                                placeholder="Amount"
+                                                className="input input-sm input-bordered w-24 text-xs text-right bg-gray-50 dark:bg-zinc-800 dark:border-zinc-700"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={row.reference}
+                                                onChange={(e) => updateSplitRow(row.id, 'reference', e.target.value)}
+                                                placeholder="Txn/Ref ID (optional)"
+                                                className="input input-sm input-bordered w-32 text-xs bg-gray-50 dark:bg-zinc-800 dark:border-zinc-700"
+                                            />
+                                            <button
+                                                onClick={() => removeSplitRow(row.id)}
+                                                disabled={splitRows.length <= 1}
+                                                className="text-gray-400 hover:text-rose-500 disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer"
+                                                title="Remove payment method"
+                                            >
+                                                <FiX size={16} />
+                                            </button>
+                                        </div>
                                     ))}
                                 </div>
+
+                                <button
+                                    onClick={addSplitRow}
+                                    className="text-xs font-bold text-brand-primary dark:text-brand-sage hover:underline mb-4 cursor-pointer"
+                                >
+                                    + Add Payment Method
+                                </button>
+
+                                <div className="rounded-lg bg-gray-50 dark:bg-zinc-800/60 p-3 mb-3 text-xs space-y-1">
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500 dark:text-zinc-400">Total Payable</span>
+                                        <span className="font-bold text-gray-800 dark:text-zinc-100">৳ {totals.payable.toFixed(1)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500 dark:text-zinc-400">Collected</span>
+                                        <span className="font-bold text-gray-800 dark:text-zinc-100">৳ {splitCollected.toFixed(1)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500 dark:text-zinc-400">Remaining</span>
+                                        <span className={`font-bold ${splitRemaining > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>৳ {splitRemaining.toFixed(1)}</span>
+                                    </div>
+                                    <div className="pt-1 mt-1 border-t border-gray-200 dark:border-zinc-700 font-bold uppercase tracking-wider text-[11px]">
+                                        {splitRemaining <= 0.05
+                                            ? <span className="text-emerald-500">Will mark bill as Paid</span>
+                                            : splitCollected > 0
+                                                ? <span className="text-amber-500">Will mark bill as Partial — remainder stays Due</span>
+                                                : <span className="text-gray-400">Enter an amount to collect</span>}
+                                    </div>
+                                </div>
+
+                                {splitError && (
+                                    <p className="text-xs font-bold text-rose-500 mb-3">{splitError}</p>
+                                )}
+
                                 <div className="flex justify-between items-center border-t border-gray-200 dark:border-zinc-800 pt-4">
                                     <button
                                         onClick={() => setCheckoutStep("action")}
                                         className="btn btn-sm btn-ghost text-xs cursor-pointer font-bold uppercase tracking-wider"
                                     >
                                         Back
+                                    </button>
+                                    <button
+                                        disabled={isProcessing}
+                                        onClick={() => {
+                                            if (splitRows.every(r => Number(r.amount) <= 0)) {
+                                                setSplitError("Enter an amount for at least one payment method.");
+                                                return;
+                                            }
+                                            if (splitCollected > totals.payable + 0.05) {
+                                                setSplitError("Collected amount exceeds the bill total.");
+                                                return;
+                                            }
+                                            setIsCheckoutModalOpen(false);
+                                            printInvoice(
+                                                checkoutMode === "pay-and-print",
+                                                checkoutMode,
+                                                splitRows
+                                            );
+                                        }}
+                                        className="btn btn-sm bg-brand-primary hover:bg-brand-primary/90 text-white text-xs cursor-pointer font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Confirm
                                     </button>
                                 </div>
                             </div>

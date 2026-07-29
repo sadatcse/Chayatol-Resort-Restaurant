@@ -424,7 +424,18 @@ const A4ReceiptTemplate = forwardRef(({ profileData, invoiceData, onPrintComplet
 
                 {/* Footer Section */}
                 <div className="footer">
-                    <p style={{ margin: "0 0 5px 0", fontWeight: "bold" }}>Payment Method: {invoiceData?.paymentMethod || "Cash"}</p>
+                    {Array.isArray(invoiceData?.payments) && invoiceData.payments.length > 1 ? (
+                        <div style={{ margin: "0 0 5px 0" }}>
+                            <p style={{ fontWeight: "bold", margin: "0 0 3px 0" }}>Payments:</p>
+                            {invoiceData.payments.map((p, idx) => (
+                                <p key={idx} style={{ margin: "0 0 2px 0" }}>
+                                    {p.paymentType}: ৳ {(p.amount || 0).toFixed(1)}{p.transactionRef ? ` (Ref: ${p.transactionRef})` : ""}
+                                </p>
+                            ))}
+                        </div>
+                    ) : (
+                        <p style={{ margin: "0 0 5px 0", fontWeight: "bold" }}>Payment Method: {invoiceData?.paymentMethod || "Cash"}</p>
+                    )}
                     <p style={{ margin: "0 0 5px 0" }}>Thank you for visiting Chayatol Resort & Restaurant. We hope to see you again!</p>
                     <p style={{ margin: "0", fontSize: "10px", color: "#a1a1aa" }}>Printed on {getCurrentDateTime()}</p>
                 </div>

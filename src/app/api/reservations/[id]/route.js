@@ -4,9 +4,11 @@ import Reservation from "@/models/Reservation";
 import ReservationPayment from "@/models/ReservationPayment";
 import Customer from "@/models/Customer";
 import Stay from "@/models/Stay";
+import Room from "@/models/Room";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
+import { reconcilePrimaryGuest, validateRoomsGuestCapacity } from "@/lib/guestCapacity";
 
 export async function GET(req, { params }) {
   try {
@@ -15,7 +17,8 @@ export async function GET(req, { params }) {
 
     const reservation = await Reservation.findById(id)
       .populate("customer")
-      .populate("rooms.room");
+      .populate("rooms.room")
+      .populate("rooms.guests.customer");
 
     if (!reservation) {
       return NextResponse.json({ message: "Reservation not found" }, { status: 404 });
@@ -131,11 +134,26 @@ export async function PUT(req, { params }) {
       }
     }
 
+    if (rooms !== undefined) {
+      const effectivePrimaryCustomer = customer !== undefined ? customer : reservation.customer;
+      const roomDocs = await Room.find({ _id: { $in: rooms.map(r => r.room) } });
+      const roomLookup = new Map(roomDocs.map(r => [r._id.toString(), r]));
+
+      const reconciled = reconcilePrimaryGuest(rooms, effectivePrimaryCustomer);
+      if (reconciled.error) {
+        return NextResponse.json({ message: reconciled.error }, { status: 400 });
+      }
+      const capacityCheck = validateRoomsGuestCapacity(reconciled.rooms, roomLookup);
+      if (!capacityCheck.ok) {
+        return NextResponse.json({ message: capacityCheck.message }, { status: 400 });
+      }
+      reservation.rooms = reconciled.rooms;
+    }
+
     if (checkInDate !== undefined) reservation.checkInDate = resolvedCheckIn;
     if (checkOutDate !== undefined) reservation.checkOutDate = resolvedCheckOut;
     if (customer !== undefined) reservation.customer = customer;
     if (bookingSource !== undefined) reservation.bookingSource = bookingSource;
-    if (rooms !== undefined) reservation.rooms = rooms;
     if (status !== undefined) reservation.status = status;
     if (notes !== undefined) reservation.notes = notes;
 

@@ -10,6 +10,7 @@ import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 import { getNextSequence } from "@/lib/sequence";
+import { checkRoomCapacity } from "@/lib/guestCapacity";
 
 export async function POST(req, { params }) {
   const auth = verifyToken(req);
@@ -73,12 +74,25 @@ export async function POST(req, { params }) {
         }, { status: 400 });
       }
 
+      // The room actually being checked into (assigned here) may have a
+      // different capacity than whatever was tentatively booked, so validate
+      // against it now.
+      const capacityCheck = checkRoomCapacity({
+        guests: resRoom.guests || [],
+        capacity: room.capacity,
+        roomLabel: room.roomNumber
+      });
+      if (!capacityCheck.ok) {
+        return NextResponse.json({ message: capacityCheck.message }, { status: 400 });
+      }
+
       stayRooms.push({
         room: room._id,
         mealPlan: resRoom.mealPlan,
         nightlyRate: resRoom.nightlyRate,
         adults: resRoom.adults,
-        children: resRoom.children
+        children: resRoom.children,
+        guests: resRoom.guests || []
       });
 
       roomsToUpdate.push(room);
@@ -171,7 +185,12 @@ export async function POST(req, { params }) {
       details: `Converted Reservation ${reservation.reservationNo} to Stay ${stayNo}`,
     });
 
-    return NextResponse.json(stay, { status: 201 });
+    const populatedStay = await Stay.findById(stay._id)
+      .populate("customer")
+      .populate("rooms.room")
+      .populate("rooms.guests.customer");
+
+    return NextResponse.json(populatedStay, { status: 201 });
   } catch (err) {
     console.error("Convert Reservation to Stay error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

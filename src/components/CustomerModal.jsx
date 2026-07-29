@@ -186,19 +186,10 @@ const CustomerModal = ({ isOpen, onClose, customerToEdit, onSuccess, initialPhon
       return;
     }
 
-    // 2. Phone Number validation
-    if (!formData.phoneNumber || !formData.phoneNumber.trim()) {
-      setActiveTab("basic");
-      Swal.fire({
-        title: "Validation Error",
-        text: "Please provide the customer's phone number.",
-        icon: "warning",
-        confirmButtonColor: "#346E36"
-      });
-      return;
-    }
+    // 2. Phone Number validation — optional (guests may share/omit a phone),
+    // but if one is provided it must be a plausible format.
     const phoneRegex = /^\+?[0-9\s\-]{8,16}$/;
-    if (!phoneRegex.test(formData.phoneNumber.trim())) {
+    if (formData.phoneNumber && formData.phoneNumber.trim() && !phoneRegex.test(formData.phoneNumber.trim())) {
       setActiveTab("basic");
       Swal.fire({
         title: "Validation Error",
@@ -432,7 +423,7 @@ const CustomerModal = ({ isOpen, onClose, customerToEdit, onSuccess, initialPhon
                       </div>
     
                       <div className="form-control w-full">
-                        <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Phone Number *</span></label>
+                        <label className="label py-1"><span className="label-text text-xs font-bold text-brand-sage uppercase tracking-widest">Phone Number</span></label>
                         <input
                           type="text"
                           value={formData.phoneNumber}

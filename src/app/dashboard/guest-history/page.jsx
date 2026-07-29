@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiSearch, FiEye, FiX, FiUser, FiFileText } from "react-icons/fi";
+import { FiSearch, FiEye, FiX, FiUser } from "react-icons/fi";
 import useAxiosSecure from "@/hooks/useAxiosSecure";
 import MtableLoading from "@/components/Comon/MtableLoading";
 import Pagination from "@/components/Comon/Pagination";
@@ -12,6 +12,8 @@ import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 import usePagePermission from "@/hooks/usePagePermission";
+import CustomerProfileDetailsModal from "@/components/CustomerProfileDetails/CustomerProfileDetailsModal";
+import CustomerProfilePrintable from "@/components/CustomerProfileDetails/CustomerProfilePrintable";
 
 const getInvoiceSummary = (entries) => {
     let roomTotal = 0;
@@ -507,6 +509,9 @@ function GuestHistoryContent() {
                                                 </td>
                                                 <td className="p-3 text-left font-mono text-xs">
                                                     {stay.rooms?.map(r => r.room?.roomNumber).join(", ") || "N/A"}
+                                                    <div className="text-[10px] font-normal text-brand-sage">
+                                                        {stay.rooms?.reduce((sum, r) => sum + (r.guests?.length || 1), 0)} guest(s)
+                                                    </div>
                                                 </td>
                                                 <td className="p-3 text-left text-xs text-brand-sage">
                                                     {new Date(stay.checkInDate).toLocaleDateString("en-GB")}
@@ -661,171 +666,12 @@ function GuestHistoryContent() {
             )}
 
             {/* Customer Details Modal */}
-            {isCustomerModalOpen && selectedStay && selectedStay.customer && (
-                <div className="fixed inset-0 z-50 bg-brand-charcoal/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-brand-charcoal border border-brand-beige dark:border-brand-beige/25 w-full max-w-2xl rounded-2xl shadow-2xl p-0 overflow-hidden animate-scale-in">
-                        <div className="flex justify-between items-center p-6 border-b border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
-                            <h3 className="font-bold text-lg text-brand-black dark:text-brand-offwhite uppercase tracking-widest">
-                                Customer Profile Details
-                            </h3>
-                            <button onClick={() => setIsCustomerModalOpen(false)} className="btn btn-sm btn-circle btn-ghost text-brand-charcoal dark:text-brand-offwhite hover:bg-brand-beige dark:hover:bg-brand-offwhite/10">
-                                <FiX size={20} />
-                            </button>
-                        </div>
-
-                        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
-                            <div className="flex flex-col md:flex-row gap-6">
-                                {/* Profile Photo / Avatar */}
-                                <div className="flex flex-col items-center gap-3 w-full md:w-1/4">
-                                    {selectedStay.customer.customerPhoto ? (
-                                        <img 
-                                            src={selectedStay.customer.customerPhoto} 
-                                            alt={selectedStay.customer.fullName} 
-                                            className="w-32 h-32 rounded-full object-cover border-4 border-brand-primary/20 shadow-md"
-                                        />
-                                    ) : (
-                                        <div className="w-32 h-32 rounded-full bg-brand-primary/10 flex items-center justify-center font-black text-4xl text-brand-primary border-4 border-brand-primary/10 shadow-inner">
-                                            {selectedStay.customer.fullName?.charAt(0).toUpperCase()}
-                                        </div>
-                                    )}
-                                    <span className="text-xs font-bold text-brand-sage uppercase tracking-wider">Guest Photo</span>
-                                </div>
-
-                                {/* Primary Info Details */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full md:w-3/4 text-sm">
-                                    <div>
-                                        <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Full Name</span>
-                                        <span className="font-extrabold text-brand-charcoal dark:text-brand-offwhite">{selectedStay.customer.fullName}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Phone Number</span>
-                                        <span className="font-bold">{selectedStay.customer.phoneNumber}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Email Address</span>
-                                        <span className="font-bold">{selectedStay.customer.emailAddress || "N/A"}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Nationality</span>
-                                        <span className="font-bold">{selectedStay.customer.nationality || "Bangladeshi"}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Gender / Marital Status</span>
-                                        <span className="font-bold">{selectedStay.customer.gender} / {selectedStay.customer.maritalStatus}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-xs text-brand-sage font-bold uppercase tracking-wider block">Date of Birth</span>
-                                        <span className="font-bold">
-                                            {selectedStay.customer.dateOfBirth ? new Date(selectedStay.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* ID & Job Details */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-brand-beige/30">
-                                <div>
-                                    <h4 className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-3">Identification</h4>
-                                    <div className="space-y-2 text-sm">
-                                        <div>
-                                            <span className="text-xs text-brand-sage block">ID Type & Number</span>
-                                            <span className="font-bold">{selectedStay.customer.identificationType || "N/A"} - {selectedStay.customer.identificationNumber || "N/A"}</span>
-                                        </div>
-                                        {selectedStay.customer.uploadIdCopy && (
-                                            <div className="mt-2">
-                                                <span className="text-xs text-brand-sage block mb-1">ID Copy Document</span>
-                                                <a 
-                                                    href={selectedStay.customer.uploadIdCopy} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1"
-                                                >
-                                                    <FiFileText /> View ID Copy Attachment
-                                                </a>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <h4 className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-3">Occupation & Company</h4>
-                                    <div className="space-y-2 text-sm">
-                                        <div>
-                                            <span className="text-xs text-brand-sage block">Occupation</span>
-                                            <span className="font-bold">{selectedStay.customer.occupation || "N/A"}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-xs text-brand-sage block">Company Name</span>
-                                            <span className="font-bold">{selectedStay.customer.companyName || "N/A"}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Address details */}
-                            <div className="pt-4 border-t border-brand-beige/30 text-sm">
-                                <h4 className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-3">Residential Address</h4>
-                                <div className="p-4 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige/25 rounded-xl">
-                                    {selectedStay.customer.address ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div>
-                                                <span className="text-xs text-brand-sage block">Street Address</span>
-                                                <span className="font-bold">
-                                                    {selectedStay.customer.address.line1}
-                                                    {selectedStay.customer.address.line2 ? `, ${selectedStay.customer.address.line2}` : ""}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs text-brand-sage block">City, Division & Country</span>
-                                                <span className="font-bold">
-                                                    {selectedStay.customer.address.city || "—"}, {selectedStay.customer.address.division || "—"}, {selectedStay.customer.address.country || "Bangladesh"}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <span className="text-brand-sage italic">No address provided.</span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Emergency Contact */}
-                            <div className="pt-4 border-t border-brand-beige/30 text-sm">
-                                <h4 className="text-xs font-bold text-brand-primary uppercase tracking-widest mb-3">Emergency Contact Details</h4>
-                                {selectedStay.customer.emergencyContact ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige/25 rounded-xl">
-                                        <div>
-                                            <span className="text-xs text-brand-sage block">Contact Name</span>
-                                            <span className="font-bold">{selectedStay.customer.emergencyContact.name || "N/A"}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-xs text-brand-sage block">Relation</span>
-                                            <span className="font-bold">{selectedStay.customer.emergencyContact.relation || "N/A"}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-xs text-brand-sage block">Phone Number</span>
-                                            <span className="font-bold">{selectedStay.customer.emergencyContact.phoneNumber || "N/A"}</span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <span className="text-brand-sage italic">No emergency contact provided.</span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end gap-3 p-6 border-t border-brand-beige dark:border-brand-beige/20 bg-brand-offwhite dark:bg-brand-charcoal/50">
-                            <button onClick={() => setIsCustomerModalOpen(false)} className="btn btn-ghost hover:bg-brand-beige dark:hover:bg-brand-offwhite/10 text-brand-charcoal dark:text-brand-offwhite font-bold uppercase tracking-widest text-xs px-6">
-                                Close
-                            </button>
-                            <button 
-                                onClick={() => setCustomerPrintRes(selectedStay)} 
-                                className="btn bg-brand-primary hover:bg-brand-secondary text-white border-none font-bold uppercase tracking-widest text-xs px-8 shadow-md"
-                            >
-                                Print Profile
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <CustomerProfileDetailsModal
+                isOpen={isCustomerModalOpen}
+                stay={selectedStay}
+                onClose={() => setIsCustomerModalOpen(false)}
+                onPrint={() => setCustomerPrintRes(selectedStay)}
+            />
 
             {/* Hidden print container for Guest History list */}
             <div style={{ display: "none" }}>
@@ -879,64 +725,7 @@ function GuestHistoryContent() {
                         subtitle={`Customer Profile details for guest: ${customerPrintRes.customer.fullName}`}
                         dateRange=""
                     >
-                        <div style={{ display: "flex", gap: "30px", marginBottom: "30px", borderBottom: "1px solid #ccc", paddingBottom: "20px" }}>
-                            <div style={{ width: "120px" }}>
-                                {customerPrintRes.customer.customerPhoto ? (
-                                    <img src={customerPrintRes.customer.customerPhoto} alt="Photo" style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "4px" }} />
-                                ) : (
-                                    <div style={{ width: "120px", height: "120px", border: "1px solid #ccc", display: "flex", alignItems: "center", justifycontent: "center", fontWeight: "bold", fontSize: "40px", backgroundColor: "#f3f4f6", color: "#6b7280" }}>
-                                        {customerPrintRes.customer.fullName?.charAt(0).toUpperCase()}
-                                    </div>
-                                )}
-                            </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 30px", width: "100%", fontSize: "12px" }}>
-                                <div><strong>Full Name:</strong> {customerPrintRes.customer.fullName}</div>
-                                <div><strong>Phone Number:</strong> {customerPrintRes.customer.phoneNumber}</div>
-                                <div><strong>Email Address:</strong> {customerPrintRes.customer.emailAddress || "N/A"}</div>
-                                <div><strong>Nationality:</strong> {customerPrintRes.customer.nationality || "Bangladeshi"}</div>
-                                <div><strong>Gender / Marital Status:</strong> {customerPrintRes.customer.gender} / {customerPrintRes.customer.maritalStatus}</div>
-                                <div><strong>Date of Birth:</strong> {customerPrintRes.customer.dateOfBirth ? new Date(customerPrintRes.customer.dateOfBirth).toLocaleDateString("en-GB") : "N/A"}</div>
-                            </div>
-                        </div>
-
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "30px", fontSize: "12px" }}>
-                            <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px" }}>
-                                <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>IDENTIFICATION</h4>
-                                <p style={{ margin: "5px 0" }}><strong>ID Type:</strong> {customerPrintRes.customer.identificationType || "N/A"}</p>
-                                <p style={{ margin: "5px 0" }}><strong>ID Number:</strong> {customerPrintRes.customer.identificationNumber || "N/A"}</p>
-                            </div>
-
-                            <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px" }}>
-                                <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>OCCUPATION INFO</h4>
-                                <p style={{ margin: "5px 0" }}><strong>Occupation:</strong> {customerPrintRes.customer.occupation || "N/A"}</p>
-                                <p style={{ margin: "5px 0" }}><strong>Company Name:</strong> {customerPrintRes.customer.companyName || "N/A"}</p>
-                            </div>
-                        </div>
-
-                        <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px", marginBottom: "30px", fontSize: "12px" }}>
-                            <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>RESIDENTIAL ADDRESS</h4>
-                            {customerPrintRes.customer.address ? (
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-                                    <p style={{ margin: "0" }}><strong>Street:</strong> {customerPrintRes.customer.address.line1} {customerPrintRes.customer.address.line2 || ""}</p>
-                                    <p style={{ margin: "0" }}><strong>City/Division/Country:</strong> {customerPrintRes.customer.address.city || "—"}, {customerPrintRes.customer.address.division || "—"}, {customerPrintRes.customer.address.country || "Bangladesh"}</p>
-                                </div>
-                            ) : (
-                                <p style={{ margin: "0", fontStyle: "italic" }}>No address provided.</p>
-                            )}
-                        </div>
-
-                        <div style={{ border: "1px solid #ddd", borderRadius: "5px", padding: "12px", marginBottom: "30px", fontSize: "12px" }}>
-                            <h4 style={{ margin: "0 0 10px 0", color: "#346E36", borderBottom: "1px solid #ddd", paddingBottom: "5px", fontSize: "13px" }}>EMERGENCY CONTACT</h4>
-                            {customerPrintRes.customer.emergencyContact ? (
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
-                                    <p style={{ margin: "0" }}><strong>Name:</strong> {customerPrintRes.customer.emergencyContact.name || "N/A"}</p>
-                                    <p style={{ margin: "0" }}><strong>Relation:</strong> {customerPrintRes.customer.emergencyContact.relation || "N/A"}</p>
-                                    <p style={{ margin: "0" }}><strong>Phone:</strong> {customerPrintRes.customer.emergencyContact.phoneNumber || "N/A"}</p>
-                                </div>
-                            ) : (
-                                <p style={{ margin: "0", fontStyle: "italic" }}>No emergency contact details provided.</p>
-                            )}
-                        </div>
+                        <CustomerProfilePrintable stay={customerPrintRes} />
                     </PrintReportTemplate>
                 </div>
             )}

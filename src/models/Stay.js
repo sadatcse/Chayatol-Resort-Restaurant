@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import RoomGuestSchema from "./RoomGuestSchema";
 const { Schema } = mongoose;
 
 const StayRoomSchema = Schema({
@@ -23,6 +24,10 @@ const StayRoomSchema = Schema({
   children: {
     type: Number,
     default: 0
+  },
+  guests: {
+    type: [RoomGuestSchema],
+    default: []
   }
 });
 

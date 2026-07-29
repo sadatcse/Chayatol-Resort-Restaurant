@@ -6,6 +6,7 @@ import Reservation from "@/models/Reservation";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
+import { checkRoomCapacity } from "@/lib/guestCapacity";
 
 export async function POST(req, { params }) {
   const auth = verifyToken(req);
@@ -95,13 +96,25 @@ export async function POST(req, { params }) {
           }, { status: 400 });
         }
 
+        // The new room may have a smaller capacity than the guest list
+        // carried over from the old room — enforce it before transferring.
+        const capacityCheck = checkRoomCapacity({
+          guests: sr.guests || [],
+          capacity: targetRoom.capacity,
+          roomLabel: targetRoom.roomNumber
+        });
+        if (!capacityCheck.ok) {
+          return NextResponse.json({ message: capacityCheck.message }, { status: 400 });
+        }
+
         // Setup changes
         updatedRooms.push({
           room: targetRoomId,
           mealPlan: sr.mealPlan,
           nightlyRate: targetRoom.price, // update to new room price
           adults: sr.adults,
-          children: sr.children
+          children: sr.children,
+          guests: sr.guests || []
         });
         roomsToRelease.push(oldRoom);
         roomsToOccupy.push(targetRoom);
@@ -148,7 +161,8 @@ export async function POST(req, { params }) {
           mealPlan: sr.mealPlan,
           nightlyRate: sr.nightlyRate,
           adults: sr.adults,
-          children: sr.children
+          children: sr.children,
+          guests: sr.guests || []
         });
       }
     }
@@ -211,7 +225,7 @@ export async function POST(req, { params }) {
       details: `Extended stay ${stay.stayNo} to ${newCheckOutDate} (+${extraNights} nights)`,
     });
 
-    const updatedStayPopulated = await Stay.findById(id).populate("rooms.room").populate("customer");
+    const updatedStayPopulated = await Stay.findById(id).populate("rooms.room").populate("customer").populate("rooms.guests.customer");
     return NextResponse.json(updatedStayPopulated, { status: 200 });
   } catch (err) {
     console.error("POST Stay Extension error:", err);

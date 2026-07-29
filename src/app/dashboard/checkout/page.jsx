@@ -319,7 +319,7 @@ function CheckoutContent() {
                                                 </div>
                                                 <h3 className="font-extrabold text-sm text-brand-charcoal dark:text-brand-offwhite mt-2">{stay.customer?.fullName}</h3>
                                                 <div className="flex justify-between items-center text-[10px] text-brand-sage mt-1 font-semibold">
-                                                    <span>Room: {stay.rooms?.map(r => r.room?.roomNumber).join(", ")}</span>
+                                                    <span>Room: {stay.rooms?.map(r => r.room?.roomNumber).join(", ")} ({stay.rooms?.reduce((sum, r) => sum + (r.guests?.length || 1), 0)} guests)</span>
                                                     <span>Out: {new Date(stay.expectedCheckOutDate).toLocaleDateString("en-GB")}</span>
                                                 </div>
                                             </motion.div>
@@ -353,7 +353,7 @@ function CheckoutContent() {
                                                     <FiUser size={10} /> View Profile
                                                 </button>
                                             </div>
-                                            <p className="text-xs font-semibold text-brand-sage mt-0.5">Stay Reference: {selectedStay.stayNo} • Rooms: {selectedStay.rooms?.map(r => r.room?.roomNumber).join(", ")}</p>
+                                            <p className="text-xs font-semibold text-brand-sage mt-0.5">Stay Reference: {selectedStay.stayNo} • Rooms: {selectedStay.rooms?.map(r => r.room?.roomNumber).join(", ")} • {selectedStay.rooms?.reduce((sum, r) => sum + (r.guests?.length || 1), 0)} guest(s)</p>
                                         </div>
                                     </div>
 

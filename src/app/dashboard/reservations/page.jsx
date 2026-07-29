@@ -16,7 +16,9 @@ import usePagePermission from "@/hooks/usePagePermission";
 import useReservations from "@/hooks/useReservations";
 import { AuthContext } from "@/providers/AuthProvider";
 import CustomerModal from "@/components/CustomerModal";
+import GuestListEditor from "@/components/GuestListEditor";
 import { calculateCompleteness } from "@/lib/customerHelper";
+import { reconcilePrimaryGuest, validateRoomsGuestCapacity, serializeRoomsForSubmit } from "@/lib/guestCapacity";
 import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
@@ -334,9 +336,12 @@ const ReservationsPage = () => {
 
   const selectCust = (cust) => {
     setSelectedCust(cust);
-    setFormData(prev => ({ ...prev, customer: cust._id }));
     setPhoneSearch(cust.phoneNumber);
     setCustSearchResults([]);
+    setFormData(prev => {
+      const reconciled = reconcilePrimaryGuest(prev.rooms, cust);
+      return { ...prev, customer: cust._id, rooms: reconciled.rooms };
+    });
   };
 
   const handleCustomerCreateSuccess = async (newCust) => {
@@ -401,7 +406,8 @@ const ReservationsPage = () => {
           adults: r.adults,
           children: r.children,
           room: r.room?._id || r.room || "",
-          nights: r.nights
+          nights: r.nights,
+          guests: r.guests || []
         }))
       });
     } else {
@@ -417,7 +423,7 @@ const ReservationsPage = () => {
         bookingSource: "Walk-in",
         status: "Draft",
         notes: "",
-        rooms: [{ roomType: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, room: "", nights: 1 }]
+        rooms: [{ roomType: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, room: "", nights: 1, guests: [] }]
       });
     }
     setIsModalOpen(true);
@@ -452,7 +458,7 @@ const ReservationsPage = () => {
   const handleAddRoomRow = () => {
     setFormData({
       ...formData,
-      rooms: [...formData.rooms, { roomType: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, room: "", nights: 1 }]
+      rooms: [...formData.rooms, { roomType: "", mealPlan: "Room Only", nightlyRate: 0, adults: 1, children: 0, room: "", nights: 1, guests: [] }]
     });
   };
 
@@ -576,8 +582,15 @@ const ReservationsPage = () => {
       }
     }
 
+    const roomLookup = new Map(availableRooms.map(rm => [rm._id, rm]));
+    const capacityCheck = validateRoomsGuestCapacity(formData.rooms, roomLookup);
+    if (!capacityCheck.ok) {
+      Swal.fire("Validation Error", capacityCheck.message, "warning");
+      return;
+    }
+
     setIsSubmitting(true);
-    const processedRooms = formData.rooms.map(r => ({
+    const processedRooms = serializeRoomsForSubmit(formData.rooms).map(r => ({
       ...r,
       room: r.room === "" ? null : r.room
     }));
@@ -837,7 +850,8 @@ const ReservationsPage = () => {
     // Setup initial check-in assignments
     const initial = res.rooms.map(r => ({
       roomType: r.roomType,
-      roomId: r.room?._id || ""
+      roomId: r.room?._id || "",
+      guests: r.guests || []
     }));
     setCheckinAssignments(initial);
     setIsCheckinModalOpen(true);
@@ -1128,7 +1142,7 @@ const ReservationsPage = () => {
                               <div className="text-[10px] font-normal uppercase tracking-wider text-brand-secondary">Source: {res.bookingSource}</div>
                             </td>
                             <td className="py-4 text-xs font-bold">
-                              {res.rooms.length} room(s)
+                              {res.rooms.length} room(s) · {res.rooms.reduce((sum, r) => sum + (r.guests?.length || 1), 0)} guest(s)
                               <div className="text-[10px] font-normal text-brand-sage">
                                 {res.rooms.map((r, i) => {
                                   const roomNo = r.room?.roomNumber || r.roomNo || "";
@@ -1449,8 +1463,11 @@ const ReservationsPage = () => {
                   </button>
                 </div>
 
-                {formData.rooms.map((r, index) => (
-                  <div key={index} className="flex flex-wrap items-end gap-3 p-4 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige dark:border-brand-beige/15 rounded-xl">
+                {formData.rooms.map((r, index) => {
+                  const selectedRoomDoc = availableRooms.find(rm => rm._id === r.room);
+                  return (
+                  <div key={index} className="flex flex-col gap-3 p-4 bg-brand-offwhite dark:bg-brand-charcoal/30 border border-brand-beige dark:border-brand-beige/15 rounded-xl">
+                  <div className="flex flex-wrap items-end gap-3">
                     <div className="form-control w-[200px]">
                       <label className="label py-0"><span className="label-text text-[10px] font-bold text-brand-sage uppercase tracking-widest">Select Room *</span></label>
                       <select
@@ -1517,7 +1534,15 @@ const ReservationsPage = () => {
                       <FiTrash2 size={14} />
                     </button>
                   </div>
-                ))}
+
+                  <GuestListEditor
+                    guests={r.guests || []}
+                    onChange={(g) => handleRoomRowChange(index, "guests", g)}
+                    capacity={selectedRoomDoc?.capacity}
+                    roomLabel={selectedRoomDoc?.roomNumber}
+                  />
+                  </div>
+                );})}
               </div>
 
               <div className="form-control w-full">
@@ -1692,6 +1717,18 @@ const ReservationsPage = () => {
                           </option>
                         ))}
                       </select>
+                      {(a.guests && a.guests.length > 0) && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {a.guests.map((g, gi) => (
+                            <span
+                              key={g._id || gi}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-brand-sage/10 text-brand-sage border border-brand-sage/30"
+                            >
+                              {g.customer?.fullName || "Guest"}{g.isPrimary ? " (Primary)" : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1768,6 +1805,7 @@ const ReservationsPage = () => {
                       <th className="border border-gray-300 p-2 font-bold">Room Type</th>
                       <th className="border border-gray-300 p-2 font-bold">Meal Plan</th>
                       <th className="border border-gray-300 p-2 font-bold">Assigned Room</th>
+                      <th className="border border-gray-300 p-2 font-bold">Guests</th>
                       <th className="border border-gray-300 p-2 font-bold text-right">Nightly Rate</th>
                       <th className="border border-gray-300 p-2 font-bold text-center">Nights</th>
                       <th className="border border-gray-300 p-2 font-bold text-right">Subtotal</th>
@@ -1777,11 +1815,15 @@ const ReservationsPage = () => {
                     {printRes.rooms.map((r, i) => {
                       const sub = r.nightlyRate * r.nights;
                       const roomNo = r.room?.roomNumber || r.roomNo || "Unassigned";
+                      const guestNames = (r.guests && r.guests.length > 0)
+                        ? r.guests.map(g => g.customer?.fullName).filter(Boolean).join(", ")
+                        : (printRes.customer?.fullName || "");
                       return (
                         <tr key={i} className="border-b border-gray-200">
                           <td className="border border-gray-300 p-2">{r.roomType}</td>
                           <td className="border border-gray-300 p-2">{r.mealPlan || "Room Only"}</td>
                           <td className="border border-gray-300 p-2">{roomNo}</td>
+                          <td className="border border-gray-300 p-2">{guestNames}</td>
                           <td className="border border-gray-300 p-2 text-right">৳{r.nightlyRate}</td>
                           <td className="border border-gray-300 p-2 text-center">{r.nights}</td>
                           <td className="border border-gray-300 p-2 text-right font-semibold">৳{sub}</td>

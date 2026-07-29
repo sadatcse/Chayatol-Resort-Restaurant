@@ -8,6 +8,7 @@ import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
 import { getNextSequence } from "@/lib/sequence";
+import { reconcilePrimaryGuest, checkRoomCapacity } from "@/lib/guestCapacity";
 
 export async function GET(req) {
   try {
@@ -66,6 +67,7 @@ export async function GET(req) {
     const stays = await Stay.find(query)
       .populate("customer")
       .populate("rooms.room")
+      .populate("rooms.guests.customer")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -101,7 +103,7 @@ export async function POST(req) {
     }
 
     if (idempotencyKey) {
-      const existing = await Stay.findOne({ idempotencyKey }).populate("customer").populate("rooms.room");
+      const existing = await Stay.findOne({ idempotencyKey }).populate("customer").populate("rooms.room").populate("rooms.guests.customer");
       if (existing) {
         return NextResponse.json(existing, { status: 201 });
       }
@@ -117,11 +119,17 @@ export async function POST(req) {
       }
     }
 
+    const reconciled = reconcilePrimaryGuest(rooms, customer);
+    if (reconciled.error) {
+      return NextResponse.json({ message: reconciled.error }, { status: 400 });
+    }
+    const reconciledRooms = reconciled.rooms;
+
     const stayRooms = [];
     const roomsToUpdate = [];
 
     // Verify rooms and rates
-    for (const r of rooms) {
+    for (const r of reconciledRooms) {
       const room = await Room.findById(r.room);
       if (!room) {
         return NextResponse.json({ message: `Room with ID ${r.room} not found.` }, { status: 400 });
@@ -155,12 +163,18 @@ export async function POST(req) {
         }
       }
 
+      const capacityCheck = checkRoomCapacity({ guests: r.guests || [], capacity: room.capacity, roomLabel: room.roomNumber });
+      if (!capacityCheck.ok) {
+        return NextResponse.json({ message: capacityCheck.message }, { status: 400 });
+      }
+
       stayRooms.push({
         room: room._id,
         mealPlan,
         nightlyRate,
         adults: r.adults || 1,
-        children: r.children || 0
+        children: r.children || 0,
+        guests: r.guests || []
       });
 
       roomsToUpdate.push({ room, nights: r.nights || 1 });
@@ -201,7 +215,7 @@ export async function POST(req) {
       });
     } catch (saveError) {
       if (saveError.code === 11000 && idempotencyKey) {
-        const existing = await Stay.findOne({ idempotencyKey }).populate("customer").populate("rooms.room");
+        const existing = await Stay.findOne({ idempotencyKey }).populate("customer").populate("rooms.room").populate("rooms.guests.customer");
         if (existing) {
           return NextResponse.json(existing, { status: 201 });
         }
@@ -253,7 +267,12 @@ export async function POST(req) {
       details: `Walk-in check-in guest to Stay ${stayNo}`,
     });
 
-    return NextResponse.json(stay, { status: 201 });
+    const populatedStay = await Stay.findById(stay._id)
+      .populate("customer")
+      .populate("rooms.room")
+      .populate("rooms.guests.customer");
+
+    return NextResponse.json(populatedStay, { status: 201 });
   } catch (err) {
     console.error("POST Stay Walk-in error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

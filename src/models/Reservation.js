@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import RoomGuestSchema from "./RoomGuestSchema";
 const { Schema } = mongoose;
 
 const ReservationRoomSchema = Schema({
@@ -33,6 +34,10 @@ const ReservationRoomSchema = Schema({
     type: Number,
     required: true,
     min: 1
+  },
+  guests: {
+    type: [RoomGuestSchema],
+    default: []
   }
 });
 

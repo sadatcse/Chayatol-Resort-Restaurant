@@ -5,6 +5,7 @@ import Room from "@/models/Room";
 import FolioEntry from "@/models/FolioEntry";
 import { verifyToken } from "@/lib/auth";
 import { logTransaction } from "@/lib/logger";
+import { checkRoomCapacity } from "@/lib/guestCapacity";
 
 export async function POST(req, { params }) {
   const auth = verifyToken(req);
@@ -22,7 +23,7 @@ export async function POST(req, { params }) {
       return NextResponse.json({ message: "oldRoomId and newRoomId are required." }, { status: 400 });
     }
 
-    const stay = await Stay.findById(id).populate("rooms.room");
+    const stay = await Stay.findById(id).populate("rooms.room").populate("rooms.guests.customer");
     if (!stay) {
       return NextResponse.json({ message: "Guest stay record not found." }, { status: 404 });
     }
@@ -48,6 +49,15 @@ export async function POST(req, { params }) {
 
     const oldRoom = await Room.findById(oldRoomId);
     const oldRoomNumber = oldRoom ? oldRoom.roomNumber : "Unknown";
+
+    const capacityCheck = checkRoomCapacity({
+      guests: stay.rooms[roomIndex].guests || [],
+      capacity: newRoom.capacity,
+      roomLabel: newRoom.roomNumber
+    });
+    if (!capacityCheck.ok) {
+      return NextResponse.json({ message: capacityCheck.message }, { status: 400 });
+    }
 
     // Perform transfer in Stay document
     stay.rooms[roomIndex].room = newRoomId;
