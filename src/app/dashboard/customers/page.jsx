@@ -173,7 +173,10 @@ const CustomersPage = () => {
       uploadData.append("image", file);
 
       const uploadRes = await axiosSecure.post("/upload", uploadData, {
-        headers: { "Content-Type": "multipart/form-data" }
+        headers: { "Content-Type": "multipart/form-data" },
+        // Image upload over a slow connection can legitimately exceed the
+        // shared client's default request timeout — give it more room.
+        timeout: 60000
       });
 
       if (uploadRes.data?.url) {

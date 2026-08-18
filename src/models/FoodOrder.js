@@ -46,6 +46,18 @@ const FoodOrderSchema = Schema(
       type: String,
       enum: ["Pending", "Served", "Cancelled"],
       default: "Served"
+    },
+    // Lets the POST route recognize a retried request (e.g. a slow-network
+    // double-click) and return the original order instead of creating a
+    // duplicate order + folio charge. Mirrors Stay.js's idempotencyKey.
+    idempotencyKey: {
+      type: String,
+      default: null,
+      index: {
+        unique: true,
+        sparse: true,
+        partialFilterExpression: { idempotencyKey: { $type: "string" } }
+      }
     }
   },
   { timestamps: true }

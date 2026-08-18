@@ -39,6 +39,18 @@ const FolioEntrySchema = Schema(
     staffName: {
       type: String,
       trim: true
+    },
+    // Lets Payment/Discount POST routes recognize a retried request (e.g. a
+    // slow-network double-click) and return the original entry instead of
+    // creating a duplicate charge/credit. Mirrors Stay.js's idempotencyKey.
+    idempotencyKey: {
+      type: String,
+      default: null,
+      index: {
+        unique: true,
+        sparse: true,
+        partialFilterExpression: { idempotencyKey: { $type: "string" } }
+      }
     }
   },
   { timestamps: true }

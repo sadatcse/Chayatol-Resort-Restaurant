@@ -36,10 +36,17 @@ export async function POST(req, { params }) {
     await dbConnect();
     const { id } = await params;
     const body = await req.json();
-    const { items, isChargeable } = body; // Array of { foodItem: id, quantity: number }
+    const { items, isChargeable, idempotencyKey } = body; // Array of { foodItem: id, quantity: number }
 
     if (!items || items.length === 0) {
       return NextResponse.json({ message: "Please provide food items." }, { status: 400 });
+    }
+
+    if (idempotencyKey) {
+      const existing = await FoodOrder.findOne({ idempotencyKey, stayId: id });
+      if (existing) {
+        return NextResponse.json(existing, { status: 201 });
+      }
     }
 
     const stay = await Stay.findById(id);
@@ -119,29 +126,49 @@ export async function POST(req, { params }) {
     const totalCost = orderSubtotal + orderVat + orderSc + orderSd;
 
     // Create Food Order
-    const foodOrder = await FoodOrder.create({
-      stayId: id,
-      items: orderItems,
-      isChargeable: isChargeable !== undefined ? isChargeable : true,
-      orderStatus: "Served"
-    });
+    let foodOrder;
+    try {
+      foodOrder = await FoodOrder.create({
+        stayId: id,
+        items: orderItems,
+        isChargeable: isChargeable !== undefined ? isChargeable : true,
+        orderStatus: "Served",
+        idempotencyKey: idempotencyKey || undefined
+      });
+    } catch (saveError) {
+      if (saveError.code === 11000 && idempotencyKey) {
+        const existing = await FoodOrder.findOne({ idempotencyKey, stayId: id });
+        if (existing) {
+          return NextResponse.json(existing, { status: 201 });
+        }
+      }
+      throw saveError;
+    }
 
     const staffId = auth.user?.id || auth.user?._id || null;
     const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
 
-    // Create Folio Entry if chargeable
+    // Create Folio Entry if chargeable. If this fails, the order would
+    // otherwise persist as "served" with no bill and no way to bill it on
+    // retry (a same-key retry would just re-return this un-billed order) —
+    // so roll the order back and let the whole request fail cleanly instead.
     if (isChargeable !== false) {
       const description = `Food Order - ${orderItems.length} item(s) (Subtotal: ৳${orderSubtotal.toFixed(2)}, VAT: ৳${orderVat.toFixed(2)}, SC: ৳${orderSc.toFixed(2)}, SD: ৳${orderSd.toFixed(2)})`;
-      await FolioEntry.create({
-        stayId: id,
-        type: "Food Charge",
-        description,
-        debit: totalCost,
-        credit: 0,
-        referenceId: foodOrder._id,
-        createdBy: staffId,
-        staffName
-      });
+      try {
+        await FolioEntry.create({
+          stayId: id,
+          type: "Food Charge",
+          description,
+          debit: totalCost,
+          credit: 0,
+          referenceId: foodOrder._id,
+          createdBy: staffId,
+          staffName
+        });
+      } catch (folioError) {
+        await FoodOrder.deleteOne({ _id: foodOrder._id });
+        throw folioError;
+      }
     }
 
     await logTransaction({

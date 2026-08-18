@@ -24,6 +24,7 @@ import FolioLedgerSummary from "@/components/FolioLedger/FolioLedgerSummary";
 import CustomerProfileDetailsModal from "@/components/CustomerProfileDetails/CustomerProfileDetailsModal";
 import CustomerProfilePrintable from "@/components/CustomerProfileDetails/CustomerProfilePrintable";
 import { calculateCompleteness } from "@/lib/customerHelper";
+import { generateIdempotencyKey } from "@/lib/idempotency";
 import { reconcilePrimaryGuest, validateRoomsGuestCapacity, serializeRoomsForSubmit, serializeGuestsForSubmit } from "@/lib/guestCapacity";
 import ReceiptTemplate from "@/components/Receipt/ReceiptTemplate";
 import A4ReceiptTemplate from "@/components/Receipt/A4ReceiptTemplate";
@@ -46,7 +47,7 @@ const getInvoiceSummary = (entries) => {
         roomTotal += e.debit;
       }
     } else if (e.credit > 0) {
-      if (desc.includes("discount")) {
+      if (e.type === "Discount" || e.type === "Adjustment") {
         discountTotal += e.credit;
       } else {
         paidTotal += e.credit;
@@ -123,6 +124,15 @@ const FrontDeskTimelinePage = () => {
   const [serviceFormData, setServiceFormData] = useState({ serviceId: "", isChargeable: true });
   const [paymentFormData, setPaymentFormData] = useState({ paymentType: "", amount: "", transactionRef: "", notes: "" });
   const [discountFormData, setDiscountFormData] = useState({ discountType: "percentage", value: "", applyTo: "all", reason: "" });
+
+  // One idempotency key per pending post; regenerated only after a
+  // successful submit so a slow-network retry of the SAME attempt reuses
+  // the same key (server dedupes it) instead of creating a duplicate charge.
+  const [foodPostKey, setFoodPostKey] = useState(() => generateIdempotencyKey("food"));
+  const [servicePostKey, setServicePostKey] = useState(() => generateIdempotencyKey("service"));
+  const [paymentPostKey, setPaymentPostKey] = useState(() => generateIdempotencyKey("payment"));
+  const [discountPostKey, setDiscountPostKey] = useState(() => generateIdempotencyKey("discount"));
+  const [checkoutPostKey, setCheckoutPostKey] = useState(() => generateIdempotencyKey("checkout"));
   const [extendFormData, setExtendFormData] = useState({ newCheckOutDate: "", roomAssignments: [] });
   const [adjustCheckoutFormData, setAdjustCheckoutFormData] = useState({ newCheckOutDate: "", adjustmentType: "none", adjustmentAmount: 0, reason: "" });
   const [checkoutPayment, setCheckoutPayment] = useState({ paymentType: "", amount: "", transactionRef: "" });
@@ -363,6 +373,7 @@ const FrontDeskTimelinePage = () => {
     try {
       const { data } = await axiosSecure.get(`/front-desk/timeline?startDate=${startDateString}&endDate=${endDateString}`);
       setRooms(data.rooms || []);
+      setAvailableRooms(data.rooms || []);
       setReservations(data.reservations || []);
       setStays(data.stays || []);
     } catch (err) {
@@ -1044,12 +1055,14 @@ const FrontDeskTimelinePage = () => {
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/food-order`, {
         items: [{ foodItem: foodFormData.foodItem, quantity: Number(foodFormData.quantity) }],
-        isChargeable: foodFormData.isChargeable
+        isChargeable: foodFormData.isChargeable,
+        idempotencyKey: foodPostKey
       });
       await fetchFolio(selectedStay._id);
       setIsFoodModalOpen(false);
       setFoodFormData({ foodItem: "", quantity: 1, isChargeable: true });
       setSelectedFoodCategory("");
+      setFoodPostKey(generateIdempotencyKey("food"));
       fetchTimelineData();
       Swal.fire("Food Posted", "Food charge added to guest folio ledger.", "success");
     } catch (err) {
@@ -1073,12 +1086,14 @@ const FrontDeskTimelinePage = () => {
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/service-order`, {
         serviceId: serviceFormData.serviceId,
-        isChargeable: serviceFormData.isChargeable
+        isChargeable: serviceFormData.isChargeable,
+        idempotencyKey: servicePostKey
       });
       await fetchFolio(selectedStay._id);
       setIsServiceModalOpen(false);
       setServiceFormData({ serviceId: "", isChargeable: true });
       setSelectedServiceCategory("");
+      setServicePostKey(generateIdempotencyKey("service"));
       fetchTimelineData();
       Swal.fire("Service Posted", "Service charge added to guest folio ledger.", "success");
     } catch (err) {
@@ -1105,11 +1120,13 @@ const FrontDeskTimelinePage = () => {
         type: "Payment",
         description: `Direct Payment (${paymentFormData.paymentType}) - Ref: ${paymentFormData.transactionRef || "N/A"}${notesPart}`,
         debit: 0,
-        credit: Number(paymentFormData.amount)
+        credit: Number(paymentFormData.amount),
+        idempotencyKey: paymentPostKey
       });
       await fetchFolio(selectedStay._id);
       setIsPaymentModalOpen(false);
       setPaymentFormData({ paymentType: "", amount: "", transactionRef: "", notes: "" });
+      setPaymentPostKey(generateIdempotencyKey("payment"));
       fetchTimelineData();
       Swal.fire("Payment Recorded", "Payment credited to guest ledger.", "success");
     } catch (err) {
@@ -1135,11 +1152,13 @@ const FrontDeskTimelinePage = () => {
         discountType: discountFormData.discountType,
         value: Number(discountFormData.value),
         applyTo: discountFormData.applyTo,
-        reason: discountFormData.reason
+        reason: discountFormData.reason,
+        idempotencyKey: discountPostKey
       });
       await fetchFolio(selectedStay._id);
       setIsDiscountModalOpen(false);
       setDiscountFormData({ discountType: "percentage", value: "", applyTo: "all", reason: "" });
+      setDiscountPostKey(generateIdempotencyKey("discount"));
       fetchTimelineData();
       Swal.fire("Discount Posted", "Discount adjustment credited to guest ledger.", "success");
     } catch (err) {
@@ -1236,7 +1255,8 @@ const FrontDeskTimelinePage = () => {
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/checkout`, {
         payments: checkPaymentList,
-        makeRoomsAvailable
+        makeRoomsAvailable,
+        idempotencyKey: checkoutPostKey
       });
 
       // Fetch latest folio entries to reflect checkout settlement payment on the final printed bill
@@ -1253,6 +1273,7 @@ const FrontDeskTimelinePage = () => {
         setSelectedStay(null);
         setSelectedBlock(null);
         setCheckoutPayment({ paymentType: "", amount: "", transactionRef: "" });
+        setCheckoutPostKey(generateIdempotencyKey("checkout"));
         fetchTimelineData();
       });
     } catch (err) {
@@ -1917,16 +1938,16 @@ const FrontDeskTimelinePage = () => {
               {/* Folio postings & Action buttons */}
               {selectedStay.status !== "Checked Out" && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                  <button onClick={() => setIsFoodModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                  <button onClick={() => { setFoodPostKey(generateIdempotencyKey("food")); setIsFoodModalOpen(true); }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                     <MdRestaurant /> Post Food
                   </button>
-                  <button onClick={() => setIsServiceModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                  <button onClick={() => { setServicePostKey(generateIdempotencyKey("service")); setIsServiceModalOpen(true); }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                     <FiBriefcase /> Post Service
                   </button>
-                  <button onClick={() => setIsPaymentModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                  <button onClick={() => { setPaymentPostKey(generateIdempotencyKey("payment")); setIsPaymentModalOpen(true); }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                     <FiDollarSign /> Post Payment
                   </button>
-                  <button onClick={() => setIsDiscountModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                  <button onClick={() => { setDiscountPostKey(generateIdempotencyKey("discount")); setIsDiscountModalOpen(true); }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                     <span>৳</span> Post Discount
                   </button>
                   <button
@@ -1964,6 +1985,7 @@ const FrontDeskTimelinePage = () => {
                     onClick={() => {
                       setCheckoutPayment({ paymentType: "", amount: outstandingDue > 0 ? outstandingDue : "", transactionRef: "" });
                       setMakeRoomsAvailable(false);
+                      setCheckoutPostKey(generateIdempotencyKey("checkout"));
                       setIsCheckoutModalOpen(true);
                     }}
                     className="btn btn-sm bg-brand-primary text-white border-none w-full sm:col-span-2 rounded-full cursor-pointer font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow"
@@ -2930,14 +2952,14 @@ const FrontDeskTimelinePage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).map((e, idx) => (
+                        {folioEntries.filter(e => e.credit > 0 && e.type !== "Discount" && e.type !== "Adjustment").map((e, idx) => (
                           <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                             <td style={{ padding: "6px 0", color: "#475569" }}>{e.description}</td>
                             <td style={{ padding: "6px 0", color: "#475569" }}>{e.type || "Cash/Online"}</td>
                             <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "bold", color: "green" }}>৳ {e.credit.toLocaleString()}</td>
                           </tr>
                         ))}
-                        {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).length === 0 && (
+                        {folioEntries.filter(e => e.credit > 0 && e.type !== "Discount" && e.type !== "Adjustment").length === 0 && (
                           <tr>
                             <td colSpan="3" style={{ padding: "10px 0", color: "#94a3b8", fontStyle: "italic" }}>No payments collected yet.</td>
                           </tr>

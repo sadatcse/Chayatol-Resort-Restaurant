@@ -17,7 +17,7 @@ export async function POST(req, { params }) {
     await dbConnect();
     const { id } = await params;
     const body = await req.json();
-    const { payments, notes, makeRoomsAvailable } = body; // Array of { paymentType, amount, transactionRef }, plus immediate release flag
+    const { payments, notes, makeRoomsAvailable, idempotencyKey } = body; // Array of { paymentType, amount, transactionRef }, plus immediate release flag
 
     const stay = await Stay.findById(id).populate("rooms.room");
     if (!stay) {
@@ -33,6 +33,12 @@ export async function POST(req, { params }) {
     const totalDebit = folioEntries.reduce((acc, entry) => acc + entry.debit, 0);
     const totalCredit = folioEntries.reduce((acc, entry) => acc + entry.credit, 0);
     const currentDue = totalDebit - totalCredit;
+    // Discount and Adjustment credits reduce the bill but are not money
+    // collected — keep them out of the "totalPayments" figure reported
+    // below so it reflects actual cash/payment received, not amounts waived.
+    const totalCollected = folioEntries
+      .filter(entry => entry.type !== "Discount" && entry.type !== "Adjustment")
+      .reduce((acc, entry) => acc + entry.credit, 0);
 
     const staffId = auth.user?.id || auth.user?._id || null;
     const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
@@ -40,22 +46,50 @@ export async function POST(req, { params }) {
     let paymentsTotal = 0;
     const recordedPayments = [];
 
-    // Add any settlement payments
+    // Add any settlement payments. Each line gets a key derived from the
+    // request's idempotencyKey + its index, so a client retry (e.g. after
+    // stay.save() below throws, before status flips to "Checked Out") finds
+    // the already-created entry instead of posting the payment twice.
     if (payments && payments.length > 0) {
-      for (const p of payments) {
-        if (p.amount > 0) {
-          const entry = await FolioEntry.create({
+      for (let i = 0; i < payments.length; i++) {
+        const p = payments[i];
+        if (!(p.amount > 0)) continue;
+
+        const lineKey = idempotencyKey ? `${idempotencyKey}-${i}` : undefined;
+        if (lineKey) {
+          const existing = await FolioEntry.findOne({ idempotencyKey: lineKey, stayId: id });
+          if (existing) {
+            paymentsTotal += existing.credit;
+            recordedPayments.push(existing);
+            continue;
+          }
+        }
+
+        let entry;
+        try {
+          entry = await FolioEntry.create({
             stayId: id,
             type: "Payment",
             description: `Final Settlement (${p.paymentType}) - Ref: ${p.transactionRef || "N/A"}`,
             debit: 0,
             credit: Number(p.amount),
             createdBy: staffId,
-            staffName
+            staffName,
+            idempotencyKey: lineKey
           });
-          paymentsTotal += Number(p.amount);
-          recordedPayments.push(entry);
+        } catch (saveError) {
+          if (saveError.code === 11000 && lineKey) {
+            const existing = await FolioEntry.findOne({ idempotencyKey: lineKey, stayId: id });
+            if (existing) {
+              paymentsTotal += existing.credit;
+              recordedPayments.push(existing);
+              continue;
+            }
+          }
+          throw saveError;
         }
+        paymentsTotal += Number(p.amount);
+        recordedPayments.push(entry);
       }
     }
 
@@ -102,7 +136,7 @@ export async function POST(req, { params }) {
       stay,
       summary: {
         totalCharges: totalDebit,
-        totalPayments: totalCredit + paymentsTotal,
+        totalPayments: totalCollected + paymentsTotal,
         finalDue: Math.max(0, finalDue)
       }
     }, { status: 200 });

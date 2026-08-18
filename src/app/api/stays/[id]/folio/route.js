@@ -28,10 +28,17 @@ export async function POST(req, { params }) {
     await dbConnect();
     const { id } = await params;
     const body = await req.json();
-    const { type, description, debit, credit } = body;
+    const { type, description, debit, credit, idempotencyKey } = body;
 
     if (!type || !description) {
       return NextResponse.json({ message: "Please provide entry type and description." }, { status: 400 });
+    }
+
+    if (idempotencyKey) {
+      const existing = await FolioEntry.findOne({ idempotencyKey, stayId: id });
+      if (existing) {
+        return NextResponse.json(existing, { status: 201 });
+      }
     }
 
     const stay = await Stay.findById(id);
@@ -42,15 +49,27 @@ export async function POST(req, { params }) {
     const staffId = auth.user?.id || auth.user?._id || null;
     const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
 
-    const entry = await FolioEntry.create({
-      stayId: id,
-      type,
-      description,
-      debit: Number(debit || 0),
-      credit: Number(credit || 0),
-      createdBy: staffId,
-      staffName
-    });
+    let entry;
+    try {
+      entry = await FolioEntry.create({
+        stayId: id,
+        type,
+        description,
+        debit: Number(debit || 0),
+        credit: Number(credit || 0),
+        createdBy: staffId,
+        staffName,
+        idempotencyKey: idempotencyKey || undefined
+      });
+    } catch (saveError) {
+      if (saveError.code === 11000 && idempotencyKey) {
+        const existing = await FolioEntry.findOne({ idempotencyKey, stayId: id });
+        if (existing) {
+          return NextResponse.json(existing, { status: 201 });
+        }
+      }
+      throw saveError;
+    }
 
     await logTransaction({
       req,

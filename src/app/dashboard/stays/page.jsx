@@ -24,6 +24,7 @@ import ExportButtons from "@/components/Comon/ExportButtons";
 import PrintReportTemplate from "@/components/Comon/PrintReportTemplate";
 import { exportToExcel, exportToCsv } from "@/lib/exportHelper";
 import { serializeGuestsForSubmit } from "@/lib/guestCapacity";
+import { generateIdempotencyKey } from "@/lib/idempotency";
 import FolioLedgerHeader from "@/components/FolioLedger/FolioLedgerHeader";
 import FolioLedgerTable from "@/components/FolioLedger/FolioLedgerTable";
 import FolioLedgerSummary from "@/components/FolioLedger/FolioLedgerSummary";
@@ -293,6 +294,15 @@ const StaysPage = () => {
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [discountFormData, setDiscountFormData] = useState({ discountType: "percentage", value: "", applyTo: "all", reason: "" });
 
+  // One idempotency key per pending post; regenerated only after a
+  // successful submit so a slow-network retry of the SAME attempt reuses
+  // the same key (server dedupes it) instead of creating a duplicate charge.
+  const [foodPostKey, setFoodPostKey] = useState(() => generateIdempotencyKey("food"));
+  const [servicePostKey, setServicePostKey] = useState(() => generateIdempotencyKey("service"));
+  const [paymentPostKey, setPaymentPostKey] = useState(() => generateIdempotencyKey("payment"));
+  const [discountPostKey, setDiscountPostKey] = useState(() => generateIdempotencyKey("discount"));
+  const [checkoutPostKey, setCheckoutPostKey] = useState(() => generateIdempotencyKey("checkout"));
+
   useEffect(() => {
     const fetchPostingData = async () => {
       try {
@@ -545,12 +555,14 @@ const StaysPage = () => {
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/food-order`, {
         items: [{ foodItem: foodFormData.foodItem, quantity: Number(foodFormData.quantity) }],
-        isChargeable: foodFormData.isChargeable
+        isChargeable: foodFormData.isChargeable,
+        idempotencyKey: foodPostKey
       });
       await fetchFolio(selectedStay._id);
       setIsFoodModalOpen(false);
       setFoodFormData({ foodItem: "", quantity: 1, isChargeable: true });
       setSelectedFoodCategory("");
+      setFoodPostKey(generateIdempotencyKey("food"));
       Swal.fire("Food Posted", "Food charge added to guest folio ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post food charge", "error");
@@ -573,12 +585,14 @@ const StaysPage = () => {
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/service-order`, {
         serviceId: serviceFormData.serviceId,
-        isChargeable: serviceFormData.isChargeable
+        isChargeable: serviceFormData.isChargeable,
+        idempotencyKey: servicePostKey
       });
       await fetchFolio(selectedStay._id);
       setIsServiceModalOpen(false);
       setServiceFormData({ serviceId: "", isChargeable: true });
       setSelectedServiceCategory("");
+      setServicePostKey(generateIdempotencyKey("service"));
       Swal.fire("Service Posted", "Service charge added to guest folio ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post service charge", "error");
@@ -604,11 +618,13 @@ const StaysPage = () => {
         type: "Payment",
         description: `Direct Payment (${paymentFormData.paymentType}) - Ref: ${paymentFormData.transactionRef || "N/A"}${notesPart}`,
         debit: 0,
-        credit: Number(paymentFormData.amount)
+        credit: Number(paymentFormData.amount),
+        idempotencyKey: paymentPostKey
       });
       await fetchFolio(selectedStay._id);
       setIsPaymentModalOpen(false);
       setPaymentFormData({ paymentType: "", amount: "", transactionRef: "", notes: "" });
+      setPaymentPostKey(generateIdempotencyKey("payment"));
       Swal.fire("Payment Recorded", "Payment credited to guest ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post payment", "error");
@@ -701,9 +717,10 @@ const StaysPage = () => {
     setIsPosting(true);
     try {
       await axiosSecure.post(`/stays/${selectedStay._id}/checkout`, {
-        payments: checkPaymentList
+        payments: checkPaymentList,
+        idempotencyKey: checkoutPostKey
       });
-      
+
       // Fetch latest folio entries to reflect checkout settlement payment on the final printed bill
       await fetchFolio(selectedStay._id);
 
@@ -717,6 +734,7 @@ const StaysPage = () => {
         setIsCheckoutModalOpen(false);
         setSelectedStay(null);
         setCheckoutPayment({ paymentType: "", amount: "", transactionRef: "" });
+        setCheckoutPostKey(generateIdempotencyKey("checkout"));
         refetch();
       });
     } catch (err) {
@@ -742,11 +760,13 @@ const StaysPage = () => {
         discountType: discountFormData.discountType,
         value: Number(discountFormData.value),
         applyTo: discountFormData.applyTo,
-        reason: discountFormData.reason
+        reason: discountFormData.reason,
+        idempotencyKey: discountPostKey
       });
       await fetchFolio(selectedStay._id);
       setIsDiscountModalOpen(false);
       setDiscountFormData({ discountType: "percentage", value: "", applyTo: "all", reason: "" });
+      setDiscountPostKey(generateIdempotencyKey("discount"));
       Swal.fire("Discount Posted", "Discount adjustment credited to guest ledger.", "success");
     } catch (err) {
       Swal.fire("Failed", err.response?.data?.message || "Failed to post discount", "error");
@@ -1046,22 +1066,22 @@ const StaysPage = () => {
               {selectedStay.status !== "Checked Out" && (
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   {canEdit && (
-                    <button onClick={() => setIsFoodModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                    <button onClick={() => { setFoodPostKey(generateIdempotencyKey("food")); setIsFoodModalOpen(true); }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                       <MdRestaurant /> Post Food
                     </button>
                   )}
                   {canEdit && (
-                    <button onClick={() => setIsServiceModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                    <button onClick={() => { setServicePostKey(generateIdempotencyKey("service")); setIsServiceModalOpen(true); }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                       <FiBriefcase /> Post Service
                     </button>
                   )}
                   {canEdit && (
-                    <button onClick={() => setIsPaymentModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                    <button onClick={() => { setPaymentPostKey(generateIdempotencyKey("payment")); setIsPaymentModalOpen(true); }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                       <FiDollarSign /> Post Payment
                     </button>
                   )}
                   {canEdit && (
-                    <button onClick={() => setIsDiscountModalOpen(true)} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
+                    <button onClick={() => { setDiscountPostKey(generateIdempotencyKey("discount")); setIsDiscountModalOpen(true); }} className="btn btn-sm btn-outline border-brand-primary text-brand-primary rounded-full cursor-pointer flex items-center justify-center gap-2">
                       <span>৳</span> Post Discount
                     </button>
                   )}
@@ -1086,6 +1106,7 @@ const StaysPage = () => {
                   {canEdit && (
                     <button onClick={() => {
                       setCheckoutPayment({ paymentType: "", amount: outstandingDue > 0 ? outstandingDue : "", transactionRef: "" });
+                      setCheckoutPostKey(generateIdempotencyKey("checkout"));
                       setIsCheckoutModalOpen(true);
                     }} className="btn btn-sm bg-brand-primary text-white border-none w-full col-span-2 rounded-full cursor-pointer font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow">
                       Checkout Guest <FiArrowRight />

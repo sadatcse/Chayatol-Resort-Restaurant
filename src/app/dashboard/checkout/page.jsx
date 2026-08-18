@@ -32,7 +32,7 @@ const getInvoiceSummary = (entries) => {
                 roomTotal += e.debit;
             }
         } else if (e.credit > 0) {
-            if (desc.includes("discount")) {
+            if (e.type === "Discount" || e.type === "Adjustment") {
                 discountTotal += e.credit;
             } else {
                 paidTotal += e.credit;
@@ -806,14 +806,14 @@ function CheckoutContent() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).map((e, idx) => (
+                                            {folioEntries.filter(e => e.credit > 0 && e.type !== "Discount" && e.type !== "Adjustment").map((e, idx) => (
                                                 <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                                                     <td style={{ padding: "6px 0", color: "#475569" }}>{e.description}</td>
                                                     <td style={{ padding: "6px 0", color: "#475569" }}>{e.type || "Cash/Online"}</td>
                                                     <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "bold", color: "green" }}>৳ {e.credit.toLocaleString()}</td>
                                                 </tr>
                                             ))}
-                                            {folioEntries.filter(e => e.credit > 0 && !e.description.toLowerCase().includes("discount")).length === 0 && (
+                                            {folioEntries.filter(e => e.credit > 0 && e.type !== "Discount" && e.type !== "Adjustment").length === 0 && (
                                                 <tr>
                                                     <td colSpan="3" style={{ padding: "10px 0", color: "#94a3b8", fontStyle: "italic" }}>No payments collected yet.</td>
                                                 </tr>

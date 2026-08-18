@@ -15,10 +15,17 @@ export async function POST(req, { params }) {
     await dbConnect();
     const { id } = await params;
     const body = await req.json();
-    const { discountType, value, applyTo, reason } = body;
+    const { discountType, value, applyTo, reason, idempotencyKey } = body;
 
     if (!discountType || value === undefined || isNaN(value) || Number(value) <= 0 || !applyTo) {
       return NextResponse.json({ message: "Please provide a valid discount type, positive value, and applyTo target (room, food, or all)." }, { status: 400 });
+    }
+
+    if (idempotencyKey) {
+      const existing = await FolioEntry.findOne({ idempotencyKey, stayId: id });
+      if (existing) {
+        return NextResponse.json(existing, { status: 201 });
+      }
     }
 
     const stay = await Stay.findById(id);
@@ -86,15 +93,27 @@ export async function POST(req, { params }) {
     const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
 
     // Post Discount FolioEntry (Discount is a bill reduction credit, NOT a payment method)
-    const discountEntry = await FolioEntry.create({
-      stayId: id,
-      type: "Discount",
-      description: `Discount (${discountType === "percentage" ? `${numValue}%` : `৳${numValue}`}) applied on ${targetLabel} - Reason: ${reason || "N/A"}`,
-      debit: 0,
-      credit: discountAmount,
-      createdBy: staffId,
-      staffName
-    });
+    let discountEntry;
+    try {
+      discountEntry = await FolioEntry.create({
+        stayId: id,
+        type: "Discount",
+        description: `Discount (${discountType === "percentage" ? `${numValue}%` : `৳${numValue}`}) applied on ${targetLabel} - Reason: ${reason || "N/A"}`,
+        debit: 0,
+        credit: discountAmount,
+        createdBy: staffId,
+        staffName,
+        idempotencyKey: idempotencyKey || undefined
+      });
+    } catch (saveError) {
+      if (saveError.code === 11000 && idempotencyKey) {
+        const existing = await FolioEntry.findOne({ idempotencyKey, stayId: id });
+        if (existing) {
+          return NextResponse.json(existing, { status: 201 });
+        }
+      }
+      throw saveError;
+    }
 
     await logTransaction({
       req,

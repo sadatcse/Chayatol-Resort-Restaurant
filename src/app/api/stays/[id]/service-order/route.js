@@ -35,10 +35,17 @@ export async function POST(req, { params }) {
     await dbConnect();
     const { id } = await params;
     const body = await req.json();
-    const { serviceId, isChargeable } = body;
+    const { serviceId, isChargeable, idempotencyKey } = body;
 
     if (!serviceId) {
       return NextResponse.json({ message: "Please provide the service ID." }, { status: 400 });
+    }
+
+    if (idempotencyKey) {
+      const existing = await ServiceOrder.findOne({ idempotencyKey, stayId: id });
+      if (existing) {
+        return NextResponse.json(existing, { status: 201 });
+      }
     }
 
     const stay = await Stay.findById(id);
@@ -59,32 +66,51 @@ export async function POST(req, { params }) {
     const totalCost = price;
 
     // Create Service Order
-    const serviceOrder = await ServiceOrder.create({
-      stayId: id,
-      service: service._id,
-      price,
-      vat: 0,
-      sc: 0,
-      sd: 0,
-      isChargeable: isChargeable !== undefined ? isChargeable : true
-    });
+    let serviceOrder;
+    try {
+      serviceOrder = await ServiceOrder.create({
+        stayId: id,
+        service: service._id,
+        price,
+        vat: 0,
+        sc: 0,
+        sd: 0,
+        isChargeable: isChargeable !== undefined ? isChargeable : true,
+        idempotencyKey: idempotencyKey || undefined
+      });
+    } catch (saveError) {
+      if (saveError.code === 11000 && idempotencyKey) {
+        const existing = await ServiceOrder.findOne({ idempotencyKey, stayId: id });
+        if (existing) {
+          return NextResponse.json(existing, { status: 201 });
+        }
+      }
+      throw saveError;
+    }
 
     const staffId = auth.user?.id || auth.user?._id || null;
     const staffName = auth.user?.name || req.headers.get("x-user-name") || auth.user?.email || "Farnaj meherin";
 
-    // Create Folio Entry if chargeable
+    // Create Folio Entry if chargeable. If this fails, roll the order back
+    // rather than leaving it persisted-but-unbilled (a same-key retry would
+    // otherwise just re-return this un-billed order instead of billing it).
     if (isChargeable !== false) {
       const description = `Service Charge: ${service.serviceName}`;
-      await FolioEntry.create({
-        stayId: id,
-        type: "Service Charge",
-        description,
-        debit: totalCost,
-        credit: 0,
-        referenceId: serviceOrder._id,
-        createdBy: staffId,
-        staffName
-      });
+      try {
+        await FolioEntry.create({
+          stayId: id,
+          type: "Service Charge",
+          description,
+          debit: totalCost,
+          credit: 0,
+          referenceId: serviceOrder._id,
+          createdBy: staffId,
+          staffName
+        });
+      } catch (folioError) {
+        await ServiceOrder.deleteOne({ _id: serviceOrder._id });
+        throw folioError;
+      }
     }
 
     await logTransaction({

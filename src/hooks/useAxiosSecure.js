@@ -6,6 +6,11 @@ import { useContext, useEffect } from "react";
 
 const axiosSecure = axios.create({
   baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
+  // On a slow/flaky connection an unbounded request can hang indefinitely,
+  // leaving staff unsure whether it worked and prone to clicking "post"
+  // again — which is what creates duplicate charges/orders. Failing fast
+  // gives a clear error so a retry is a deliberate, informed action instead.
+  timeout: 30000,
 });
 
 // Read by the interceptor below; kept in sync with the latest logged-in user
